@@ -1,0 +1,60 @@
+name: Skill Did Not Trigger
+description: Report a case where a Kong skill should have matched a request but did not activate.
+title: "[skill-match] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when a Kong skill should have fired from a prompt or request but did not.
+
+        Include the exact prompt when possible. Redact secrets before submitting.
+  - type: dropdown
+    id: host_tool
+    attributes:
+      label: Host tool
+      options:
+        - Codex
+        - Claude Code
+        - Cursor
+        - GitHub CLI gh skill
+        - npx skills
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: prompt
+    attributes:
+      label: What prompt did you use?
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: expected_skills
+    attributes:
+      label: What skills did you expect to fire?
+      placeholder: gateway-plugin-datakit
+    validations:
+      required: true
+  - type: input
+    id: actual_skills
+    attributes:
+      label: Which skills fired instead?
+      description: Say `none` if no Kong skill appeared to fire.
+      placeholder: none
+    validations:
+      required: true
+  - type: textarea
+    id: observed_behavior
+    attributes:
+      label: What happened?
+      description: One or two sentences is enough.
+      placeholder: The reply stayed generic and did not mention any DataKit-specific workflow.
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Host or plugin version if known
+      placeholder: Optional
+    validations:
+      required: false

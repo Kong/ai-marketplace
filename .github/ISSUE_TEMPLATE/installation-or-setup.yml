@@ -1,0 +1,45 @@
+name: Installation Or Setup Issue
+description: Report problems installing the repo's skills, plugin surfaces, or kong-konnect MCP configuration.
+title: "[install] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form for install or setup failures.
+
+        Include the exact command or step that failed and the exact error when possible. Redact secrets before submitting.
+  - type: dropdown
+    id: install_target
+    attributes:
+      label: Install target
+      options:
+        - Claude Code
+        - Codex
+        - Cursor
+        - GitHub CLI gh skill
+        - npx skills
+        - kong-konnect MCP setup
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: command_or_step
+    attributes:
+      label: What command or step failed?
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: actual_result
+    attributes:
+      label: What error did you get?
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Host or CLI version if known
+      placeholder: Optional
+    validations:
+      required: false

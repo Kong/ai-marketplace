@@ -1,0 +1,46 @@
+[tools]
+python = "3.12"
+
+[env]
+UV_CACHE_DIR = ".tmp/uv-cache"
+UV_PYTHON = "3.12"
+UV_PYTHON_INSTALL_DIR = ".tmp/uv-python"
+
+[tasks.preflight]
+description = "Check local prerequisites for contributor workflows"
+run = "python scripts/preflight.py"
+
+[tasks.deps]
+description = "Sync Python dependencies with uv"
+run = "uv sync --python 3.12 --cache-dir .tmp/uv-cache"
+
+[tasks."skill:new"]
+description = "Scaffold a new skill"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/scaffold_skill.py skill"
+
+[tasks."plugin:new"]
+description = "Scaffold a new plugin package"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/scaffold_skill.py plugin"
+
+[tasks.gen]
+description = "Sync generated repo metadata and skill listings"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.py --fix"
+
+[tasks.lint]
+description = "Validate manifests, skills, and generated content"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.py"
+
+[tasks.ci]
+description = "Run the same validation used in CI"
+run = [
+  { task = "lint" },
+  "gh skill publish --dry-run",
+]
+
+[tasks."release:prepare"]
+description = "Update manifest versions for a release commit"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/release_prepare.py"
+
+[tasks."hooks:install"]
+description = "Install repo-local git hooks"
+run = "git config core.hooksPath .githooks"

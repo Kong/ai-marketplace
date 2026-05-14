@@ -1,0 +1,118 @@
+# Other Tools
+
+![Other Tools](https://img.shields.io/badge/Other_Tools-skills-555555?style=for-the-badge&logo=vercel&logoColor=white)
+
+For tools without a first-class plugin or extension wrapper in this repo, use
+the shared skills plus the MCP config.
+
+## Skills
+
+`npx skills` and `gh skill` are both supported install paths for the shared
+skills in this repo.
+
+### `npx skills`
+
+Install the whole repo:
+
+```bash
+npx skills add kong/skills
+```
+
+Install a single skill from this repo:
+
+```bash
+npx skills add kong/skills --skill gateway-plugin-datakit
+```
+
+Update all globally installed skills:
+
+```bash
+npx skills update -g -y
+```
+
+Update one installed skill:
+
+```bash
+npx skills update -g -y gateway-plugin-datakit
+```
+
+`--skill` applies to `npx skills add`. The `update` command takes skill names
+positionally.
+
+### `gh skill`
+
+`gh skill` is available in GitHub CLI v2.90.0+ and is currently in public
+preview.
+
+Preview a skill before installing it:
+
+```bash
+gh skill preview kong/skills gateway-plugin-datakit
+```
+
+```bash
+gh skill install kong/skills
+```
+
+If you want to install the single skill in this repo directly, use:
+
+```bash
+gh skill install kong/skills gateway-plugin-datakit
+```
+
+If `gh skill` does not pick the right host automatically, pass `--agent`.
+
+Pin an install to a reviewed tag or SHA when you need reproducibility:
+
+```bash
+gh skill install kong/skills gateway-plugin-datakit --pin v1.0.0
+```
+
+Update all installed skills:
+
+```bash
+gh skill update --all
+```
+
+Update one installed skill:
+
+```bash
+gh skill update gateway-plugin-datakit
+```
+
+These skill-only installs do not require `KONNECT_TOKEN`.
+
+If you maintain this skills repo, validate GitHub-side publishability without
+publishing:
+
+```bash
+gh skill publish --dry-run
+```
+
+## Auto-Update Caution
+
+Be careful with any automatic update path. It can pull newer skill
+instructions without review, which may introduce supply-chain or security risk
+if content changes upstream.
+
+If you use auto-update, prefer updating one known skill first:
+
+```bash
+npx skills update -g -y gateway-plugin-datakit
+```
+
+Or with GitHub CLI:
+
+```bash
+gh skill update gateway-plugin-datakit
+```
+
+Claude Code has a native plugin update flow. See its install page for the
+current recommended approach.
+
+## MCP Config Reference
+
+Use [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) as
+the checked-in reference shape for the `kong-konnect` MCP server.
+
+`KONNECT_TOKEN` is only required if you add and use the MCP server.

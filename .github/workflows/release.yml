@@ -1,0 +1,120 @@
+name: Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Semver version to release, without the leading v
+        required: true
+
+jobs:
+  validate:
+    name: Validate Release Input
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest-kong
+    timeout-minutes: ${{ fromJSON(vars.GHA_DEFAULT_TIMEOUT) }}
+    env:
+      GH_VERSION: 2.90.0
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: Install pinned GitHub CLI
+        run: |
+          set -euo pipefail
+          arch="$(dpkg --print-architecture)"
+          case "$arch" in
+            amd64)
+              asset="gh_${GH_VERSION}_linux_amd64.deb"
+              sha256="7b530eee6a4bc2ad96d6eaa60d54ebd57b5dda4e2491f6aa48a6c679152484b2"
+              ;;
+            arm64)
+              asset="gh_${GH_VERSION}_linux_arm64.deb"
+              sha256="b6ca0f9c942d56ae96fd8219b2d067f76b478d3b46f07e060762e681482f2658"
+              ;;
+            *)
+              echo "Unsupported architecture: $arch" >&2
+              exit 1
+              ;;
+          esac
+          curl -fsSLo "/tmp/${asset}" "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${asset}"
+          echo "${sha256}  /tmp/${asset}" | sha256sum -c -
+          sudo dpkg -i "/tmp/${asset}"
+          gh version
+
+      - name: Validate workflow runs from main
+        run: |
+          if [ "${GITHUB_REF_NAME}" != "main" ]; then
+            echo "Releases must be published from main" >&2
+            exit 1
+          fi
+
+      - name: Validate repo
+        run: mise run ci
+
+      - name: Validate version format
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          if ! printf '%s' "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "Version must be semver like 1.2.3" >&2
+            exit 1
+          fi
+
+      - name: Verify tag does not already exist
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          TAG="v$VERSION"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists locally: $TAG" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: $TAG" >&2
+            exit 1
+          fi
+
+      - name: Validate checked-in release versions
+        env:
+          VERSION: ${{ inputs.version }}
+        run: python scripts/release_prepare.py --check "$VERSION"
+  release:
+    name: Tag And Release
+    needs: [validate]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest-kong
+    timeout-minutes: ${{ fromJSON(vars.GHA_DEFAULT_TIMEOUT) }}
+    steps:
+      - name: Generate kong bot app token
+        id: github-app-token
+        uses: actions/create-github-app-token@8ab05a8a84060745bdc8f0b4f6d8f403c29e06b8 # v2
+        with:
+          app-id: ${{ vars.KONG_KONNECT_GH_AUTOMATION_ID }}
+          private-key: ${{ secrets.KONG_KONNECT_GH_AUTOMATION_APP_KEY }}
+
+      - name: Checkout source code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          token: ${{ steps.github-app-token.outputs.token }}
+          fetch-depth: 0
+
+      - name: Create GitHub tag
+        uses: Kong/github-tag-action@e528bc2b9628971ce0e6f823f3052d1dcd9d512c # v1.71.0
+        env:
+          CUSTOM_TAG: v${{ inputs.version }}
+          GITHUB_TOKEN: ${{ steps.github-app-token.outputs.token }}
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ steps.github-app-token.outputs.token }}
+        run: |
+          gh release create "v${{ inputs.version }}" \
+            --target "${{ github.sha }}" \
+            --generate-notes

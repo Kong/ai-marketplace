@@ -1,0 +1,11 @@
+.codex
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.venv/
+.python-version
+.tmp/
+
+.gemini
+.env

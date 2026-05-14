@@ -1,0 +1,60 @@
+name: Skill Fired But Did Not Work
+description: Report a case where a Kong skill activated but produced the wrong workflow, advice, or output.
+title: "[skill-behavior] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when a Kong skill clearly fired but the result was wrong or unhelpful.
+
+        Include the exact prompt when possible. Redact secrets before submitting.
+  - type: dropdown
+    id: host_tool
+    attributes:
+      label: Host tool
+      options:
+        - Codex
+        - Claude Code
+        - Cursor
+        - GitHub CLI gh skill
+        - npx skills
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: prompt
+    attributes:
+      label: What prompt did you use?
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: fired_skills
+    attributes:
+      label: Which skills fired?
+      placeholder: konnect-gateway-triage
+    validations:
+      required: true
+  - type: textarea
+    id: actual_behavior
+    attributes:
+      label: What did the skill do?
+      description: Include the wrong answer, workflow, or behavior.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: expected_behavior
+    attributes:
+      label: What should it have done instead?
+      description: One or two sentences is enough.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Host or plugin version if known
+      placeholder: Optional
+    validations:
+      required: false

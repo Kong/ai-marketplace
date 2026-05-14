@@ -1,0 +1,28 @@
+{
+  "name": "kong-konnect",
+  "version": "1.0.0",
+  "description": "Portable Kong Konnect skills plus remote MCP configuration for Claude Code.",
+  "author": {
+    "name": "kong"
+  },
+  "skills": [
+    "./skills/deck-gateway",
+    "./skills/gateway-plugin-datakit",
+    "./skills/kong-skill-authoring",
+    "./skills/kongctl-declarative",
+    "./skills/kongctl-query",
+    "./skills/konnect-access-scope",
+    "./skills/konnect-ai-gateway",
+    "./skills/konnect-api-catalog",
+    "./skills/konnect-api-publish",
+    "./skills/konnect-app-auth",
+    "./skills/konnect-control-plane-bootstrap",
+    "./skills/konnect-event-gateway",
+    "./skills/konnect-gateway-triage",
+    "./skills/konnect-observability-triage",
+    "./skills/konnect-platform-router",
+    "./skills/terraform-kong-gateway",
+    "./skills/terraform-konnect"
+  ],
+  "mcpServers": "./mcp.json"
+}

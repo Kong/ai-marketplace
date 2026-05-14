@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Installation docs
+    url: https://github.com/kong/skills/tree/main/docs/install/README.md
+    about: Start here if the problem may be an install-path mismatch.
+  - name: Skill inventory
+    url: https://github.com/kong/skills/tree/main/docs/skills.md
+    about: Confirm the expected skill name and trigger boundary before filing.

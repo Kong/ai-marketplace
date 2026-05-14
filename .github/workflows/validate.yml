@@ -1,0 +1,44 @@
+name: Validate
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  validate:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    env:
+      GH_VERSION: 2.90.0
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: Install pinned GitHub CLI
+        run: |
+          set -euo pipefail
+          arch="$(dpkg --print-architecture)"
+          case "$arch" in
+            amd64)
+              asset="gh_${GH_VERSION}_linux_amd64.deb"
+              sha256="7b530eee6a4bc2ad96d6eaa60d54ebd57b5dda4e2491f6aa48a6c679152484b2"
+              ;;
+            arm64)
+              asset="gh_${GH_VERSION}_linux_arm64.deb"
+              sha256="b6ca0f9c942d56ae96fd8219b2d067f76b478d3b46f07e060762e681482f2658"
+              ;;
+            *)
+              echo "Unsupported architecture: $arch" >&2
+              exit 1
+              ;;
+          esac
+          curl -fsSLo "/tmp/${asset}" "https://github.com/cli/cli/releases/download/v${GH_VERSION}/${asset}"
+          echo "${sha256}  /tmp/${asset}" | sha256sum -c -
+          sudo dpkg -i "/tmp/${asset}"
+          gh version
+      - name: Run repo validation
+        run: mise run ci
