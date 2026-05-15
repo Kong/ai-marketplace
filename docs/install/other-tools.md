@@ -15,13 +15,13 @@ skills in this repo.
 Install the whole repo:
 
 ```bash
-npx skills add kong/skills
+npx skills add kong/ai-marketplace
 ```
 
 Install a single skill from this repo:
 
 ```bash
-npx skills add kong/skills --skill gateway-plugin-datakit
+npx skills add kong/ai-marketplace --skill gateway-plugin-datakit
 ```
 
 Update all globally installed skills:
@@ -47,17 +47,17 @@ preview.
 Preview a skill before installing it:
 
 ```bash
-gh skill preview kong/skills gateway-plugin-datakit
+gh skill preview kong/ai-marketplace gateway-plugin-datakit
 ```
 
 ```bash
-gh skill install kong/skills
+gh skill install kong/ai-marketplace
 ```
 
 If you want to install the single skill in this repo directly, use:
 
 ```bash
-gh skill install kong/skills gateway-plugin-datakit
+gh skill install kong/ai-marketplace gateway-plugin-datakit
 ```
 
 If `gh skill` does not pick the right host automatically, pass `--agent`.
@@ -65,7 +65,7 @@ If `gh skill` does not pick the right host automatically, pass `--agent`.
 Pin an install to a reviewed tag or SHA when you need reproducibility:
 
 ```bash
-gh skill install kong/skills gateway-plugin-datakit --pin v1.0.0
+gh skill install kong/ai-marketplace gateway-plugin-datakit --pin v1.0.0
 ```
 
 Update all installed skills:
@@ -82,7 +82,7 @@ gh skill update gateway-plugin-datakit
 
 These skill-only installs do not require `KONNECT_TOKEN`.
 
-If you maintain this skills repo, validate GitHub-side publishability without
+If you maintain this repo, validate GitHub-side publishability without
 publishing:
 
 ```bash

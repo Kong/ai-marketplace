@@ -163,8 +163,8 @@ previous repository convention:
   "author": {
     "name": "kong"
   },
-  "homepage": "https://github.com/kong/skills",
-  "repository": "https://github.com/kong/skills",
+  "homepage": "https://github.com/kong/ai-marketplace",
+  "repository": "https://github.com/kong/ai-marketplace",
   "license": "MIT",
   "keywords": []
 }
@@ -174,7 +174,7 @@ And the root marketplace file should follow the previous repository convention:
 
 ```json
 {
-  "name": "kong-skills",
+  "name": "ai-marketplace",
   "owner": {
     "name": "kong"
   },

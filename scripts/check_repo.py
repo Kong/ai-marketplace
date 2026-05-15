@@ -24,8 +24,8 @@ PLUGINS_DIR = REPO_ROOT / "plugins"
 MCP_NAME = "kong-konnect"
 MCP_URL = "https://us.mcp.konghq.com"
 TOKEN_ENV = "KONNECT_TOKEN"
-MARKETPLACE_NAME = "kong-skills"
-REPO_URL = "https://github.com/kong/skills"
+MARKETPLACE_NAME = "ai-marketplace"
+REPO_URL = "https://github.com/kong/ai-marketplace"
 AVAILABLE_SKILLS_START = "<!-- generated:available-skills:start -->"
 AVAILABLE_SKILLS_END = "<!-- generated:available-skills:end -->"
 SKILLS_DOC = REPO_ROOT / "docs" / "skills.md"
@@ -617,7 +617,7 @@ def validate_text_files() -> list[str]:
     checks: dict[Path, list[str]] = {
         REPO_ROOT / "README.md": [
             "docs/install/README.md",
-            "npx skills add kong/skills --skill gateway-plugin-datakit",
+            "npx skills add kong/ai-marketplace --skill gateway-plugin-datakit",
             "supply-chain or security risk",
             "contributor-facing source of truth",
             "SECURITY.md",
@@ -625,7 +625,7 @@ def validate_text_files() -> list[str]:
         ],
         REPO_ROOT / "docs" / "install" / "README.md": [MCP_NAME, MCP_URL, TOKEN_ENV, "gh skill", "plugins/kong-konnect/mcp.json"],
         REPO_ROOT / "docs" / "install" / "claude-code.md": ["Claude Code", "kong-konnect", MCP_NAME, "plugins/kong-konnect/.claude-plugin/plugin.json"],
-        REPO_ROOT / "docs" / "install" / "other-tools.md": ["gh skill install kong/skills", "gh skill preview", "npx skills add kong/skills", MCP_NAME, "plugins/kong-konnect/mcp.json"],
+        REPO_ROOT / "docs" / "install" / "other-tools.md": ["gh skill install kong/ai-marketplace", "gh skill preview", "npx skills add kong/ai-marketplace", MCP_NAME, "plugins/kong-konnect/mcp.json"],
         REPO_ROOT / "docs" / "release.md": ["workflow_dispatch", "mise run ci", "Tag And Release", "release versions", "main"],
         REPO_ROOT / "docs" / "structure.md": ["plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/mcp.json", "contributor file map", "AGENTS.md"],
         REPO_ROOT / "docs" / "developer.md": ["assets/", "references/", "scripts/", "mise install", "mise run preflight", "mise run gen", "mise run deps", "skill:new", "gh skill publish --dry-run", "Consumers generally see", "GitHub Actions workflow is the only publishing path", "kong-skill-authoring", "description budget", "overlap", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugin:new"],

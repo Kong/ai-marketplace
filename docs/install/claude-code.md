@@ -10,8 +10,8 @@ and the marketplace catalog in
 ## Install
 
 ```bash
-/plugin marketplace add kong/skills
-/plugin install kong-skills@kong-konnect
+/plugin marketplace add kong/ai-marketplace
+/plugin install ai-marketplace@kong-konnect
 /reload-plugins
 ```
 
@@ -26,13 +26,13 @@ and the marketplace catalog in
 Skill-only install:
 
 ```bash
-npx skills add kong/skills
+npx skills add kong/ai-marketplace
 ```
 
 Install only one skill from this repo:
 
 ```bash
-npx skills add kong/skills --skill gateway-plugin-datakit
+npx skills add kong/ai-marketplace --skill gateway-plugin-datakit
 ```
 
 That does not require `KONNECT_TOKEN`.
@@ -48,7 +48,7 @@ In Claude Code:
 
 1. Run `/plugin`.
 2. Open the `Marketplaces` tab.
-3. Select the `kong-skills` marketplace.
+3. Select the `ai-marketplace` marketplace.
 4. Enable or disable auto-update there.
 
 If plugins were updated during a session, run `/reload-plugins`.

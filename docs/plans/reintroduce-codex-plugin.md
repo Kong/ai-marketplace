@@ -158,9 +158,9 @@ previous repository convention:
 
 ```json
 {
-  "name": "kong-skills",
+  "name": "ai-marketplace",
   "interface": {
-    "displayName": "Kong Skills Marketplace"
+    "displayName": "Kong AI Marketplace"
   },
   "plugins": [
     {
@@ -188,8 +188,8 @@ And the plugin-local manifest should follow the previous repository convention:
   "version": "1.0.0",
   "description": "Portable Kong Konnect skills plus remote MCP configuration for Codex.",
   "author": "kong",
-  "homepage": "https://github.com/kong/skills",
-  "repository": "https://github.com/kong/skills",
+  "homepage": "https://github.com/kong/ai-marketplace",
+  "repository": "https://github.com/kong/ai-marketplace",
   "license": "MIT",
   "keywords": [],
   "skills": [],

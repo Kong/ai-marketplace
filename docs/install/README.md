@@ -24,5 +24,5 @@ the shared checked-in MCP example.
 For skill-only installs from GitHub, prefer previewing before install:
 
 ```bash
-gh skill preview kong/skills gateway-plugin-datakit
+gh skill preview kong/ai-marketplace gateway-plugin-datakit
 ```

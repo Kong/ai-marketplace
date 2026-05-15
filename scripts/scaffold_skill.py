@@ -14,7 +14,7 @@ PLUGINS_DIR = REPO_ROOT / "plugins"
 MCP_NAME = "kong-konnect"
 MCP_URL = "https://us.mcp.konghq.com"
 TOKEN_ENV = "KONNECT_TOKEN"
-REPO_URL = "https://github.com/kong/skills"
+REPO_URL = "https://github.com/kong/ai-marketplace"
 DEFAULT_PLUGIN = "kong-konnect"
 
 

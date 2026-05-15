@@ -1,11 +1,11 @@
 ---
-name: "kong-skills"
-displayName: "Kong Skills"
+name: "ai-marketplace"
+displayName: "Kong AI Marketplace"
 description: "Portable Kong skills plus remote kong-konnect MCP wiring for Kiro"
 version: "1.0.0"
 license: "MIT"
 author: "Kong"
-repository: "https://github.com/kong/skills"
+repository: "https://github.com/kong/ai-marketplace"
 keywords:
   - kong
   - konnect
@@ -21,9 +21,9 @@ keywords:
   - event-gateway
 ---
 
-# Kong Skills
+# Kong AI Marketplace
 
-This power makes the existing Kong shared skills repo directly installable in
+This power makes the Kong AI Marketplace repo directly installable in
 Kiro. It reuses the root `mcp.json` and the existing `skills/` tree as the
 canonical source of domain guidance.
 
@@ -84,9 +84,9 @@ workflow docs, including:
 
 ## License And Support
 
-This power mirrors the Kong shared skills repo and integrates with the
+This power mirrors the Kong AI Marketplace repo and integrates with the
 `kong-konnect` MCP server.
 
 - License: MIT
 - Privacy Policy: https://konghq.com/legal/privacy-policy
-- Support: https://github.com/kong/skills/issues
+- Support: https://github.com/kong/ai-marketplace/issues

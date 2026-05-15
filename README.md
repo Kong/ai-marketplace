@@ -1,4 +1,4 @@
-# Kong Skills
+# Kong AI Marketplace
 
 [![Status](https://img.shields.io/badge/status-tech_preview-ffb020?style=for-the-badge)](#tech-preview)
 [![Maintenance](https://img.shields.io/badge/maintenance-actively_updated-0a7f5a?style=for-the-badge)](#tech-preview)
@@ -73,12 +73,12 @@ it.
 
 ## Skill Install Notes
 
-- Install the whole repo with `npx skills add kong/skills`.
-- Install one skill with `npx skills add kong/skills --skill gateway-plugin-datakit`.
+- Install the whole repo with `npx skills add kong/ai-marketplace`.
+- Install one skill with `npx skills add kong/ai-marketplace --skill gateway-plugin-datakit`.
 - Update one installed skill with `npx skills update -g -y gateway-plugin-datakit` or `gh skill update gateway-plugin-datakit`.
 - Prefer native plugin update flows in supported host tools over custom startup hooks.
 - Be careful with any automatic update path: it can pull newer skill instructions automatically and may introduce supply-chain or security risk.
-- For `gh skill`, preview before install with `gh skill preview kong/skills gateway-plugin-datakit`.
+- For `gh skill`, preview before install with `gh skill preview kong/ai-marketplace gateway-plugin-datakit`.
 
 Use [`plugins/kong-konnect/mcp.json`](plugins/kong-konnect/mcp.json) as the
 shared checked-in reference shape for the `kong-konnect` MCP server.

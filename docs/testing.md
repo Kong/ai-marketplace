@@ -69,7 +69,7 @@ back to user-profile locations.
 
 - Install path: [docs/install/other-tools.md](./install/other-tools.md)
 - Prerequisite: `node` and `npx`
-- Command: `npx skills add kong/skills`
+- Command: `npx skills add kong/ai-marketplace`
 - Expected result: install completes without errors and the `gateway-plugin-datakit` skill is available in the target host
 - Quick prompt: `When should you use the gateway-plugin-datakit skill?`
 - Cleanup: remove the installed skill from the scratch project or discard the scratch project
@@ -79,8 +79,8 @@ back to user-profile locations.
 - Install path: [docs/install/other-tools.md](./install/other-tools.md)
 - Prerequisite: GitHub CLI `v2.90.0+`
 - Note: `gh skill` is in public preview
-- Command: `gh skill install kong/skills`
-- Single-skill command: `gh skill install kong/skills gateway-plugin-datakit`
+- Command: `gh skill install kong/ai-marketplace`
+- Single-skill command: `gh skill install kong/ai-marketplace gateway-plugin-datakit`
 - Expected result: install completes without errors and the `gateway-plugin-datakit` skill is available in the target host
 - Quick prompt: `When should you use the gateway-plugin-datakit skill?`
 - Cleanup: remove the installed skill from the target host or discard the scratch profile

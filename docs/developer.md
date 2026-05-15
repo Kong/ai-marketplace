@@ -240,8 +240,8 @@ checks:
 
 ## Conventions
 
-- canonical public repo: `https://github.com/kong/skills`
-- canonical marketplace repo name: `kong-skills`
+- canonical public repo: `https://github.com/kong/ai-marketplace`
+- canonical marketplace manifest name: `ai-marketplace`
 - first shipped plugin package: `kong-konnect`
 - canonical MCP server name: `kong-konnect`
 - auth variable: `KONNECT_TOKEN`

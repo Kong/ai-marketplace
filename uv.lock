@@ -3,7 +3,7 @@ revision = 3
 requires-python = ">=3.12"
 
 [[package]]
-name = "kong-skills"
+name = "ai-marketplace"
 version = "0.0.0"
 source = { virtual = "." }
 dependencies = [
