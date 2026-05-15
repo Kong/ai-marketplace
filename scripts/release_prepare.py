@@ -13,7 +13,9 @@ VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def version_targets() -> list[Path]:
-    targets: list[Path] = []
+    targets: list[Path] = [
+        REPO_ROOT / ".cursor-plugin" / "marketplace.json",
+    ]
     plugins_dir = REPO_ROOT / "plugins"
     for plugin_dir in sorted(plugins_dir.iterdir()):
         if not plugin_dir.is_dir() or plugin_dir.name.startswith("."):
@@ -21,6 +23,7 @@ def version_targets() -> list[Path]:
         targets.extend(
             [
                 plugin_dir / ".claude-plugin" / "plugin.json",
+                plugin_dir / ".cursor-plugin" / "plugin.json",
             ]
         )
     return targets
@@ -38,12 +41,16 @@ def update_version(path: Path, version: str) -> None:
     data = load_json(path)
     if "version" in data:
         data["version"] = version
+    elif isinstance(data.get("metadata"), dict) and "version" in data["metadata"]:
+        data["metadata"]["version"] = version
     write_json(path, data)
 
 
 def manifest_version(path: Path) -> str | None:
     data = load_json(path)
     value = data.get("version")
+    if value is None and isinstance(data.get("metadata"), dict):
+        value = data["metadata"].get("version")
     return value if isinstance(value, str) else None
 
 

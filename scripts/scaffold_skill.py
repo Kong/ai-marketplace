@@ -107,16 +107,43 @@ def skill_template(skill_name: str) -> str:
     )
 
 
+def plugin_display_name(plugin_name: str) -> str:
+    return " ".join(part.capitalize() for part in plugin_name.split("-"))
+
+
+def host_plugin_description(plugin_name: str, host: str, with_mcp: bool) -> str:
+    base = f"Portable {plugin_display_name(plugin_name)} skills"
+    if with_mcp:
+        base += " plus shared MCP configuration"
+    return f"{base} for {host}."
+
+
 def claude_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, object]:
     data: dict[str, object] = {
         "name": plugin_name,
         "version": "0.1.0",
-        "description": f"Portable Kong skills packaged as the {plugin_name} Claude Code plugin.",
+        "description": host_plugin_description(plugin_name, "Claude Code", with_mcp),
         "author": {"name": "kong"},
         "skills": [],
     }
     if with_mcp:
         data["mcpServers"] = "./mcp.json"
+    return data
+
+
+def cursor_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, object]:
+    data: dict[str, object] = {
+        "name": plugin_name,
+        "displayName": plugin_display_name(plugin_name),
+        "version": "0.1.0",
+        "description": host_plugin_description(plugin_name, "Cursor", with_mcp),
+        "author": {"name": "kong"},
+        "license": "MIT",
+        "keywords": ["kong", "cursor", "plugin", "skills"],
+        "skills": "skills",
+    }
+    if with_mcp:
+        data["mcpServers"] = "mcp.json"
     return data
 
 
@@ -151,6 +178,7 @@ def scaffold_plugin(args: argparse.Namespace) -> int:
     ensure_missing(plugin_dir)
 
     write_json(plugin_dir / ".claude-plugin" / "plugin.json", claude_manifest_template(plugin_name, args.with_mcp))
+    write_json(plugin_dir / ".cursor-plugin" / "plugin.json", cursor_manifest_template(plugin_name, args.with_mcp))
     (plugin_dir / "skills").mkdir(parents=True, exist_ok=False)
     if args.with_mcp:
         write_json(plugin_dir / "mcp.json", mcp_template())

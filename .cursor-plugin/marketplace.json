@@ -1,0 +1,17 @@
+{
+  "name": "ai-marketplace",
+  "owner": {
+    "name": "kong"
+  },
+  "metadata": {
+    "description": "Portable Kong skills plus shared MCP configuration for Cursor.",
+    "version": "1.0.0"
+  },
+  "plugins": [
+    {
+      "name": "kong-konnect",
+      "source": "./plugins/kong-konnect",
+      "description": "Portable Kong Konnect skills plus shared MCP configuration for Cursor."
+    }
+  ]
+}

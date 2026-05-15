@@ -97,6 +97,7 @@ That creates:
 
 - `plugins/<plugin-name>/skills/`
 - `plugins/<plugin-name>/.claude-plugin/plugin.json`
+- `plugins/<plugin-name>/.cursor-plugin/plugin.json`
 - optional `plugins/<plugin-name>/mcp.json`
 
 Root marketplace manifests are generated from plugin discovery, so you do not
@@ -223,7 +224,9 @@ checks:
 ## What Generate Updates
 
 - the skill arrays in [`plugins/kong-konnect/.claude-plugin/plugin.json`](../plugins/kong-konnect/.claude-plugin/plugin.json)
+- the skill path and metadata in [`plugins/kong-konnect/.cursor-plugin/plugin.json`](../plugins/kong-konnect/.cursor-plugin/plugin.json)
 - the Claude marketplace keywords in [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)
+- the Cursor marketplace catalog in [`.cursor-plugin/marketplace.json`](../.cursor-plugin/marketplace.json)
 - the generated skill inventory in [docs/skills.md](skills.md)
 - the plugin-local MCP config in [`plugins/kong-konnect/mcp.json`](../plugins/kong-konnect/mcp.json)
 
@@ -252,6 +255,7 @@ For authoring guidance on what makes a good skill, see [AGENTS.md](../AGENTS.md)
 
 ## Supported Tools
 
+- Cursor: https://cursor.com/
 - Claude Code: https://code.claude.com/docs
 - GitHub CLI `gh skill`: https://cli.github.com/
 - `npx skills`: https://github.com/vercel-labs/skills

@@ -108,6 +108,16 @@ back to user-profile locations.
 - Quick prompt: `What Kong-specific skills are available in this environment?`
 - Cleanup: uninstall the plugin or discard the scratch profile
 
+### Cursor
+
+- Install path: [docs/install/cursor.md](./install/cursor.md)
+- Local plugin path: `~/.cursor/plugins/local/kong-konnect/`
+- Use a copied directory for the local plugin smoke test; do not rely on a symlinked plugin directory
+- Verify after install: `kong-konnect` appears as installed and `gateway-plugin-datakit` is available in a fresh session
+- MCP check when using the plugin path: confirm `kong-konnect` is configured from `plugins/kong-konnect/mcp.json`
+- Quick prompt: `What Kong-specific skills are available in this environment?`
+- Cleanup: remove `~/.cursor/plugins/local/kong-konnect/` or discard the scratch profile
+
 ## When To Stop
 
 You do not need to manually verify every tool for every change.

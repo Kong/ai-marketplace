@@ -3,8 +3,8 @@
 [![Status](https://img.shields.io/badge/status-tech_preview-ffb020?style=for-the-badge)](#tech-preview)
 [![Maintenance](https://img.shields.io/badge/maintenance-actively_updated-0a7f5a?style=for-the-badge)](#tech-preview)
 
-Portable Kong skills plus `kong-konnect` MCP configuration for Claude Code and
-shared skill installers.
+Portable Kong skills plus `kong-konnect` MCP configuration for Cursor, Claude
+Code, and shared skill installers.
 
 This repo is the contributor-facing source of truth for the packaged skills and
 install metadata. End users normally consume these assets through marketplace
@@ -56,6 +56,7 @@ enforcement path on pull requests and pushes to `main`.
 
 ## Install Targets
 
+[![Cursor](https://img.shields.io/badge/Cursor-plugin-000000?style=for-the-badge&logo=cursor&logoColor=white)](docs/install/cursor.md)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-111111?style=for-the-badge&logo=anthropic&logoColor=white)](docs/install/claude-code.md)
 [![Other Tools](https://img.shields.io/badge/Other_Tools-skills-555555?style=for-the-badge&logo=vercel&logoColor=white)](docs/install/other-tools.md)
 
@@ -68,8 +69,8 @@ Authorization: Bearer ${KONNECT_TOKEN}
 ```
 
 `KONNECT_TOKEN` is only needed when you install or use the `kong-konnect` MCP
-server. A skill-only install via `npx skills` or `gh skill` does not require
-it.
+server through a plugin wrapper or manual MCP setup. A skill-only install via
+`npx skills` or `gh skill` does not require it.
 
 ## Skill Install Notes
 

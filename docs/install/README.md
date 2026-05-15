@@ -7,6 +7,7 @@ maintains. Most users will follow one tool-specific page and will not need any
 contributor context from the rest of the repository.
 
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-111111?style=for-the-badge&logo=anthropic&logoColor=white)](./claude-code.md)
+[![Cursor](https://img.shields.io/badge/Cursor-plugin-000000?style=for-the-badge&logo=cursor&logoColor=white)](./cursor.md)
 [![Other Tools](https://img.shields.io/badge/Other_Tools-skills-555555?style=for-the-badge&logo=vercel&logoColor=white)](./other-tools.md)
 
 All routes use the same MCP server:

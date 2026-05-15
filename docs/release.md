@@ -28,7 +28,9 @@ mise run release:prepare -- --help
 
 That updates every plugin-local host manifest, including:
 
+- [`.cursor-plugin/marketplace.json`](../.cursor-plugin/marketplace.json)
 - [`plugins/kong-konnect/.claude-plugin/plugin.json`](../plugins/kong-konnect/.claude-plugin/plugin.json)
+- [`plugins/kong-konnect/.cursor-plugin/plugin.json`](../plugins/kong-konnect/.cursor-plugin/plugin.json)
 
 The release workflow later checks that those checked-in release versions match
 the requested GitHub Actions input exactly.
