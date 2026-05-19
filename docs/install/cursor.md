@@ -2,11 +2,6 @@
 
 ![Cursor](https://img.shields.io/badge/Cursor-plugin-000000?style=for-the-badge&logo=cursor&logoColor=white)
 
-Cursor uses the plugin manifest in
-[`plugins/kong-konnect/.cursor-plugin/plugin.json`](../../plugins/kong-konnect/.cursor-plugin/plugin.json)
-and the repo marketplace catalog in
-[`.cursor-plugin/marketplace.json`](../../.cursor-plugin/marketplace.json).
-
 ## Local Plugin Install
 
 For local verification, install the checked-in plugin package from this repo
@@ -17,6 +12,8 @@ under Cursor's local plugin directory:
    `.cursor-plugin/plugin.json` at the plugin root.
 3. Restart Cursor or run `Developer: Reload Window`.
 4. Confirm `kong-konnect` appears under installed plugins.
+
+<!-- END HEADER SECTION -->
 
 Use a real copied directory for local testing. In this repo, a symlinked local
 plugin directory did not load reliably, while a copied directory did.
@@ -30,6 +27,11 @@ above remains the contributor smoke-test flow.
 - the `kong-konnect` plugin package from `plugins/kong-konnect/`
 - the shared skills from `plugins/kong-konnect/skills/`
 - the `kong-konnect` MCP server entry from `plugins/kong-konnect/mcp.json`
+
+Cursor uses the plugin manifest in
+[`plugins/kong-konnect/.cursor-plugin/plugin.json`](../../plugins/kong-konnect/.cursor-plugin/plugin.json)
+and the repo marketplace catalog in
+[`.cursor-plugin/marketplace.json`](../../.cursor-plugin/marketplace.json).
 
 ## Skills Without The Plugin Wrapper
 

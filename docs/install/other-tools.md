@@ -18,6 +18,8 @@ Install the whole repo:
 npx skills add kong/ai-marketplace
 ```
 
+<!-- END HEADER SECTION -->
+
 Install a single skill from this repo:
 
 ```bash

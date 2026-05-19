@@ -1,11 +1,6 @@
 # Claude Code
 
-![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-111111?style=for-the-badge&logo=anthropic&logoColor=white)
-
-Claude Code uses the plugin manifest in
-[`plugins/kong-konnect/.claude-plugin/plugin.json`](../../plugins/kong-konnect/.claude-plugin/plugin.json)
-and the marketplace catalog in
-[`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json).
+![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-111111?style=for-the-badge&logo=claude&logoColor=white)
 
 ## Install
 
@@ -20,6 +15,13 @@ and the marketplace catalog in
 - the `kong-konnect` plugin package from `plugins/kong-konnect/`
 - the shared skills from `plugins/kong-konnect/skills/`
 - the `kong-konnect` MCP server entry
+
+<!-- END HEADER SECTION -->
+
+Claude Code uses the plugin manifest in
+[`plugins/kong-konnect/.claude-plugin/plugin.json`](../../plugins/kong-konnect/.claude-plugin/plugin.json)
+and the marketplace catalog in
+[`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json).
 
 ## Components Instead Of The Full Plugin
 
