@@ -10,11 +10,11 @@
 /reload-plugins
 ```
 
-## What Gets Installed
+### What gets installed
 
-- the `kong-konnect` plugin package from [`plugins/kong-konnect/`](../../plugins/kong-konnect/)
-- the shared skills from [`plugins/kong-konnect/skills/`](../../plugins/kong-konnect/skills/)
-- the `kong-konnect` MCP server entry
+- The `kong-konnect` plugin package from [`plugins/kong-konnect/`](../../plugins/kong-konnect/)
+- The shared skills from [`plugins/kong-konnect/skills/`](../../plugins/kong-konnect/skills/)
+- The `kong-konnect` MCP server entry
 
 <!-- END HEADER SECTION -->
 
@@ -23,15 +23,15 @@ Claude Code uses the plugin manifest in
 and the marketplace catalog in
 [`.claude-plugin/marketplace.json`](../../.claude-plugin/marketplace.json).
 
-## Components Instead Of The Full Plugin
+## Install components instead of the full plugin
 
-Skill-only install:
+Install all skills:
 
 ```bash
 npx skills add kong/ai-marketplace
 ```
 
-Install only one skill from this repo:
+Install only one skill:
 
 ```bash
 npx skills add kong/ai-marketplace --skill gateway-plugin-datakit
@@ -42,7 +42,7 @@ That does not require `KONNECT_TOKEN`.
 If you installed via `gh skill`, you can also update one installed skill with
 `gh skill update gateway-plugin-datakit`.
 
-## Auto-Update
+## Auto-update
 
 Prefer Claude Code's marketplace auto-update support over a custom shell hook.
 
