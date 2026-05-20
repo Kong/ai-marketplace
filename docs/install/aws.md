@@ -14,7 +14,7 @@ This repo supports Kiro Powers on AWS.
 
 1. Open the Powers panel and choose Add power from GitHub.
 2. Enter this repository URL:
-  <https://github.com/kong/ai-marketplace>
+   <https://github.com/kong/ai-marketplace>
 3. Click Install.
 
 <!-- END HEADER SECTION -->

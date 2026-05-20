@@ -8,8 +8,8 @@ For local verification, install the checked-in plugin package from this repo
 under Cursor's local plugin directory:
 
 1. Create `~/.cursor/plugins/local/kong-konnect/`.
-2. Copy the contents of `plugins/kong-konnect/` into that path so Cursor sees
-   `.cursor-plugin/plugin.json` at the plugin root.
+2. Copy the contents of [`plugins/kong-konnect/`](../../plugins/kong-konnect/) into that path so Cursor sees
+   [`.cursor-plugin/plugin.json`](../../plugins/kong-konnect/.cursor-plugin/plugin.json) at the plugin root.
 3. Restart Cursor or run `Developer: Reload Window`.
 4. Confirm `kong-konnect` appears under installed plugins.
 
@@ -24,9 +24,9 @@ above remains the contributor smoke-test flow.
 
 ## What Gets Installed
 
-- the `kong-konnect` plugin package from `plugins/kong-konnect/`
-- the shared skills from `plugins/kong-konnect/skills/`
-- the `kong-konnect` MCP server entry from `plugins/kong-konnect/mcp.json`
+- the `kong-konnect` plugin package from [`plugins/kong-konnect/`](../../plugins/kong-konnect/)
+- the shared skills from [`plugins/kong-konnect/skills/`](../../plugins/kong-konnect/skills/)
+- the `kong-konnect` MCP server entry from [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json)
 
 Cursor uses the plugin manifest in
 [`plugins/kong-konnect/.cursor-plugin/plugin.json`](../../plugins/kong-konnect/.cursor-plugin/plugin.json)

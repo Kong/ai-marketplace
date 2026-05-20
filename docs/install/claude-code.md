@@ -12,8 +12,8 @@
 
 ## What Gets Installed
 
-- the `kong-konnect` plugin package from `plugins/kong-konnect/`
-- the shared skills from `plugins/kong-konnect/skills/`
+- the `kong-konnect` plugin package from [`plugins/kong-konnect/`](../../plugins/kong-konnect/)
+- the shared skills from [`plugins/kong-konnect/skills/`](../../plugins/kong-konnect/skills/)
 - the `kong-konnect` MCP server entry
 
 <!-- END HEADER SECTION -->
