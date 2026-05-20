@@ -24,9 +24,9 @@ local path above remains the contributor smoke-test flow.
 
 ### What gets installed
 
-- the `kong-konnect` plugin package from [`plugins/kong-konnect/`](../../plugins/kong-konnect/)
-- the shared skills from [`plugins/kong-konnect/skills/`](../../plugins/kong-konnect/skills/)
-- the `kong-konnect` MCP server entry from [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json)
+- The `kong-konnect` plugin package from [`plugins/kong-konnect/`](../../plugins/kong-konnect/)
+- The shared skills from [`plugins/kong-konnect/skills/`](../../plugins/kong-konnect/skills/)
+- The `kong-konnect` MCP server entry from [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json)
 
 Cursor uses the plugin manifest in
 [`plugins/kong-konnect/.cursor-plugin/plugin.json`](../../plugins/kong-konnect/.cursor-plugin/plugin.json)
