@@ -6,7 +6,7 @@
 
 ```bash
 /plugin marketplace add kong/ai-marketplace
-/plugin install ai-marketplace@kong-konnect
+/plugin install kong-konnect@ai-marketplace
 /reload-plugins
 ```
 
