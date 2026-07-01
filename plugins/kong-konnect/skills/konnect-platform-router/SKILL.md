@@ -101,14 +101,13 @@ Use one primary destination:
   - listeners, clusters, auth setup, hostname mapping, routing or policy
     issues in Event Gateway
 - `konnect-portal-branding`
-  - Dev Portal look and feel: replicating a brand or site design, theme mode,
-    brand color, custom CSS, logo, and favicon
+  - reproducing a brand or an existing site's look on a Dev Portal page:
+    colors, fonts, imagery, and spacing through page-level styling
 - `konnect-portal-page-design`
   - Dev Portal page structure and layout with MDC components such as heroes,
     cards, grids, and callouts
 - `technical-writing`
-  - the wording, tone, and structure of documentation or portal page copy,
-    including removing em-dashes and AI tells
+  - the wording, tone, and structure of documentation or portal page copy
 
 ### 4. Route direct read-only inspection
 
