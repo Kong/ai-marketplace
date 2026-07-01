@@ -4,15 +4,21 @@ Load this when closing the gap between the page and the source.
 
 ## The loop
 
-1. Apply your page edits, then get the `portal_origin` from `list_portals`
+1. Format and validate the MDC, then get the `portal_origin` from `list_portals`
    (`canonical_domain`, else `default_domain`) and generate a preview with
-   `mdc_get_mdc_preview_url`.
+   `mdc_get_mdc_preview_url`. This needs a real portal and a configured PAT.
+   Without them there is no rendered preview and no parity loop, so say so and
+   stop rather than pretending the loop runs.
 2. Screenshot the preview and the source at the same widths, at least one
    desktop and one mobile.
 3. Compare in order: base tone, brand colors, fonts, spacing and shape, then
    fine detail.
 4. Fix the largest visible gap first, then repeat. Drive changes from the
    screenshots, not from assumptions about the styles.
+
+Preview URLs are single-use and time-limited. Regenerate one per view; once a
+page is loaded, resize the browser in place to test widths rather than
+regenerating per width.
 
 ## Contrast
 

@@ -38,36 +38,22 @@ questions. For this skill, clarify:
 
 ## Tool Selection
 
-- Use the shared `kong-konnect` MCP server for MDC component metadata and to
-  generate a page preview URL. If it is not connected, say so and continue from
-  local files.
-- Use `mdc_get_design_tokens` for `--kui-*` values; get the `portal_origin` from
-  `list_portals` (`canonical_domain`, else `default_domain`) and preview with
-  `mdc_get_mdc_preview_url`.
+- Author, format, validate, and preview MDC with the toolchain in
+  `konnect-portal-page-design`; this skill adds the brand-specific steps below.
 - Capturing the source and comparing the result depend on a browser. If no
   browser automation such as Playwright or an agent browser is available,
   recommend the user install one before proceeding.
-- Use the VS Code Konnect Dev Portal Toolkit for live local preview while
+- If a local preview extension is available, use it for live local preview while
   editing.
-- Preserve the repo's toolchain when pages are managed as code: `kongctl`
-  (`portals[].pages`) or Terraform (`konnect_portal_page`).
 
 ## Two brand levers
 
-- **Portal theme (portal-wide).** Brand color, fonts, and layout live in
-  `theme` via `update_portal_customization` / `replace_portal_customization`.
-  The `primary` design-token family (`--kui-color-*-primary` and its intensity
-  variants) is generated from `theme.colors.primary`; setting it once is the
-  supported, consistent way to apply the brand color. Logo and favicon upload
-  via `replace_portal_asset_logo` and `replace_portal_asset_favicon`.
-- **Page-level styling (this page only).** Use component style props, inline
-  span styles, and custom hex for shades beyond the primary palette, for
-  example a `full-width` hero background. Use this for effects the theme can't
-  express, not as a substitute for setting the brand color in the theme.
+- **Portal theme.** Anything that should be consistent portal-wide: brand
+  color, fonts, layout, logo, and favicon. Change it only when the user asks.
+- **Page-level styling.** One-page shades and effects beyond the primary
+  palette, for example a `full-width` hero background.
 
-Choose the theme lever for anything that should be consistent portal-wide;
-choose page-level styling for one-page brand replication or accents. Only change
-portal-wide customization when the user asks.
+See `references/page-styling.md` for which tools each lever uses.
 
 ## References To Load
 

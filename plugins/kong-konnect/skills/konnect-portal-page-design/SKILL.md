@@ -1,6 +1,6 @@
 ---
 name: konnect-portal-page-design
-description: Structure and compose Kong Konnect Dev Portal pages with MDC components like heroes, sections, cards, grids, tabs, callouts, and accordions. Use for page layout, section design, and component choice. Not for documentation writing or editing.
+description: Structure and compose Kong Konnect Dev Portal pages with MDC components like heroes, cards, columns, tabbed panels, callouts, and expandable sections. Use for page layout, section design, and component choice. Not for documentation writing or editing.
 license: MIT
 metadata:
   product: konnect
@@ -33,7 +33,7 @@ Batch two or three high-impact questions with a sensible default to confirm:
 - which sections are wanted (hero, feature columns, doc sections, API list)
 - whether it should match the structure of an existing page
 
-## The MDC Toolchain (source of truth)
+## Tool Selection
 
 Use these `kong-konnect` MCP tools. Do not restate their output from memory.
 
@@ -50,6 +50,10 @@ Use these `kong-konnect` MCP tools. Do not restate their output from memory.
 7. `list_portals` (read `canonical_domain`, else `default_domain`) then
    `mdc_get_mdc_preview_url` (needs `portal_origin`) then open with a browser
    tool and screenshot desktop and mobile.
+
+Preview URLs are single-use and time-limited. Regenerate one per view; once a
+page is loaded, resize the browser in place to test widths rather than
+regenerating per width.
 
 Pages and snippets can be read and written directly through the MCP
 (`list_portal_pages`, `get_portal_page`, `create_portal_page`,

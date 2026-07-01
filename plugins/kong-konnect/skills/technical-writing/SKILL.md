@@ -49,6 +49,8 @@ skill, clarify:
 - Follow Kong's documentation style guide for terminology and capitalization on
   Kong content, and default to the Google and Microsoft developer style guides
   otherwise.
+- When unsure of Kong terminology or how Kong documents a concept, check
+  `KnowledgeBaseSearch` rather than inventing it.
 
 ## References To Load
 
