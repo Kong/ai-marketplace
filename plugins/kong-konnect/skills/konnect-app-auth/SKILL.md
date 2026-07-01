@@ -142,7 +142,7 @@ Classify the primary issue as:
 
 ## Validation Checklist
 
-Before answering, verify that you can state:
+Before finishing, confirm:
 
 - which surface is actually failing: Portal sign-in, app auth, registration,
   approval, or runtime enforcement

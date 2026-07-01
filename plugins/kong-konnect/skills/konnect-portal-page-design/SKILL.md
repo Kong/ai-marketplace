@@ -1,6 +1,6 @@
 ---
 name: konnect-portal-page-design
-description: Structure and compose Kong Konnect Dev Portal pages with MDC components like heroes, cards, grids, callouts, tabs, and code blocks. Use for page layout, section design, and component choice. Not for documentation writing or editing.
+description: Structure and compose Kong Konnect Dev Portal pages with MDC components like heroes, sections, cards, grids, tabs, callouts, and accordions. Use for page layout, section design, and component choice. Not for documentation writing or editing.
 license: MIT
 metadata:
   product: konnect
@@ -23,19 +23,28 @@ Turn a page intent into a well-structured Dev Portal page built from MDC
 components express them, and how they compose into a consistent, responsive
 result.
 
-Keep every task inside one MDC page. Author and edit pages locally or in a
-dedicated repository. Do not push destructive changes to a live portal through
-the Konnect API unless the user explicitly asks.
+Work in MDC page files, one or more as the task needs. Author and edit them
+locally or in a dedicated repository, and do not push destructive changes to a
+live portal through the Konnect API unless the user explicitly asks.
+
+## Clarify First
+
+Ask a few high-impact questions before you build, and offer a sensible default
+so the user can simply confirm. Keep it to two or three questions. For this
+skill, clarify:
+
+- the page's primary goal and audience
+- which sections the user wants, such as a hero, feature grid, or doc sections
+- whether it should match the structure of an existing page
 
 ## Tool Selection
 
 - Use the shared `kong-konnect` MCP server for MDC component metadata, to
-  validate and format MDC, and to generate a page preview URL. Verify each
-  component's real props and slots against that metadata; if MCP is not
-  connected, treat the reference details as a scaffold to confirm against
-  `portaldocs.konghq.com`.
-- Use the VS Code Konnect Dev Portal Toolkit for live preview, and Playwright to
-  screenshot the preview at desktop and mobile widths.
+  validate and format MDC, and to generate a page preview URL. Confirm each
+  component's props and slots against that metadata before relying on them.
+- Use the VS Code Konnect Dev Portal Toolkit for live preview. Screenshotting
+  the preview needs a browser; if no browser automation such as Playwright or an
+  agent browser is available, recommend the user install one.
 - Preserve the repo's toolchain when pages are managed as code: `kongctl`
   (`portals[].pages`, `portals[].snippets`) or Terraform
   (`konnect_portal_page`, `konnect_portal_snippet`).
@@ -58,10 +67,11 @@ Load only the file that matches the active step:
 1. Name the page type and its ordered sections before writing MDC. Keep the
    list short and purposeful.
 2. Map each section to the component that names its job: `::page-hero` for the
-   masthead, `::grid`/`::grid-item` or `::card` groups for parallel items,
-   `::alert` for callouts, `::button` and `::a` for actions, `::image` and
-   `::iframe` for media, `::apis-list` for APIs, `::accordion` for detail. Load
-   `references/component-catalog.md` to confirm props.
+   masthead, `::page-section` for a full band, `::grid`/`::grid-item` or
+   `::card` groups for parallel items, `::alert` for callouts, `::tabs` for
+   grouped alternatives, `::accordion` for optional detail, `::button` and
+   `::a` for actions, `::image` and `::iframe` for media, `::apis-list` for
+   APIs. Load `references/component-catalog.md` to confirm props.
 3. Compose by nesting `::container` and `::grid` around content components
    rather than one monolithic block. Load `references/layout-patterns.md`.
 4. Write valid MDC: block syntax with props and named slots, `:` for non-string
@@ -74,10 +84,10 @@ Load only the file that matches the active step:
 
 ## MDC Gotchas
 
-- This is the v3 Konnect portal MDC system (Vue and Nuxt). Do not use the legacy
+- This is the current v3 Konnect portal MDC system. Do not use the legacy
   Gateway Enterprise portal templates; they are a different, incompatible model.
-- Component props and slots can change and some are undocumented. Verify against
-  live MCP metadata or `portaldocs.konghq.com` rather than trusting memory.
+- Component props and slots can change. Confirm them against live MCP metadata
+  rather than trusting memory.
 - Snippets are a flat namespace and only render when a page references them.
   Pages support nested slugs; snippets do not.
 - Frontmatter inside page content wins over separately supplied title and
@@ -87,7 +97,7 @@ Load only the file that matches the active step:
 
 ## Validation Checklist
 
-Before answering, verify that you can state:
+Before finishing, confirm:
 
 - the page type and its ordered sections
 - which component expresses each section and why

@@ -4,8 +4,8 @@ Load this when writing MDC. These rules are the stable part of the system;
 follow them exactly. Component names and props can drift, so verify those
 against live metadata.
 
-MDC (Markdown Components) renders Markdown as Vue components with slots and
-props. Pages and snippets are both authored in MDC (`.md` / `.mdc`).
+MDC (Markdown Components) extends Markdown with rich components that take slots
+and props. Pages and snippets are both authored in MDC (`.md` / `.mdc`).
 
 ## Block components and props
 

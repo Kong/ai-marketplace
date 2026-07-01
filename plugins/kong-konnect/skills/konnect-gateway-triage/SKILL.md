@@ -170,7 +170,7 @@ This keeps the answer operational instead of producing a mixed list of guesses.
 
 ## Validation Checklist
 
-Before answering, verify that you can state:
+Before finishing, confirm:
 
 - the exact failing gateway symptom
 - the control plane in scope

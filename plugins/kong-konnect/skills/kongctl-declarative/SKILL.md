@@ -135,7 +135,7 @@ After a requested mutation:
 
 ## Validation Checklist
 
-Before answering, verify that you can state:
+Before finishing, confirm:
 
 - why `kongctl` is the correct implementation owner for this request
 - which namespace, profile, and file scope the change owns

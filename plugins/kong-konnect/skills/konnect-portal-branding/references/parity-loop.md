@@ -13,16 +13,6 @@ Load this when closing the gap between the page and the source.
 4. Fix the largest visible gap first, then repeat. Drive changes from the
    screenshots, not from assumptions about the styles.
 
-```js
-for (const width of [1440, 390]) {
-  await page.setViewportSize({ width, height: 900 });
-  await page.goto(SOURCE_URL);
-  await page.screenshot({ path: `source-${width}.png`, fullPage: true });
-  await page.goto(PREVIEW_URL);
-  await page.screenshot({ path: `page-${width}.png`, fullPage: true });
-}
-```
-
 ## Contrast
 
 Confirm brand color against its background on buttons and links, and body text

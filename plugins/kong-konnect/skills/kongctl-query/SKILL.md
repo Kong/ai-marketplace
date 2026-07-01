@@ -107,7 +107,7 @@ Load only the branch-specific reference that matches the active problem:
 
 ## Validation Checklist
 
-Before answering, verify that you can state:
+Before finishing, confirm:
 
 - which command proved auth or scope in the intended Konnect context
 - which exact `help` or `get` command is the smallest safe proof

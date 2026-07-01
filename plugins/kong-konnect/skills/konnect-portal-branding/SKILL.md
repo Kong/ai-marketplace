@@ -21,17 +21,29 @@ Reproduce a brand or an existing website's look on a single Dev Portal MDC page.
 Own the page's visual identity: colors, fonts, imagery, and spacing, expressed
 through MDC components and page-level styling.
 
-Keep every task inside one MDC page. Author and edit pages locally or in a
-dedicated repository. Do not push destructive changes to a live portal through
-the Konnect API unless the user explicitly asks.
+Work in MDC page files, one or more as the task needs. Author and edit them
+locally or in a dedicated repository, and do not push destructive changes to a
+live portal through the Konnect API unless the user explicitly asks.
+
+## Clarify First
+
+Ask a few high-impact questions before you build, and offer a sensible default
+so the user can simply confirm. Do not interrogate; batch two or three
+questions. For this skill, clarify:
+
+- the source to match, as a URL or a short brand description
+- which page or pages are the target
+- which details must be exact and which can be approximate
+- whether the base should read light or dark
 
 ## Tool Selection
 
 - Use the shared `kong-konnect` MCP server for MDC component metadata and to
   generate a page preview URL. If it is not connected, say so and continue from
   local files.
-- Use Playwright to screenshot the source site and the page preview for
-  comparison. Fall back to manual visual comparison when it is unavailable.
+- Capturing the source and comparing the result depend on a browser. If no
+  browser automation such as Playwright or an agent browser is available,
+  recommend the user install one before proceeding.
 - Use the VS Code Konnect Dev Portal Toolkit for live local preview while
   editing.
 - Preserve the repo's toolchain when pages are managed as code: `kongctl`
@@ -73,19 +85,17 @@ Load only the file that matches the active step:
   lives in.
 - The portal's internal class names are not a stable contract. Do not depend on
   them; use component props and inline styles.
-- Preview can show stale content from browser cache. A refresh usually clears
-  it.
 
 ## Validation Checklist
 
-Before answering, verify that you can state:
+Before finishing, confirm:
 
-- the source and the target page
+- the source and the target pages
 - which colors, fonts, imagery, and spacing you applied, and how
 - that images are hotlinked or embedded SVGs, not uploaded assets
 - that text contrast is acceptable against every background
 - how parity was confirmed, including a preview screenshot comparison
-- that the work stayed inside the MDC page
+- that the work stayed in MDC page files
 - which elements could not be matched, and the alternatives offered
 
 ## Handoffs

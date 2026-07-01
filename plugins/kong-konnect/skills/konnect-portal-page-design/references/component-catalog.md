@@ -1,27 +1,32 @@
 # Component Catalog
 
-Load this when choosing components. Treat prop and slot lists as a scaffold that
-may be partial. Confirm the exact props against live MDC metadata
-(`kong-konnect` MCP) or `portaldocs.konghq.com` before relying on them.
+Load this when choosing components. These are the built-in MDC components. Their
+exact props can change, so confirm props and slots against live MDC metadata
+(`kong-konnect` MCP) before relying on them.
 
 Many components share styling props (`display`, `margin`, `padding`, `border`,
 `border-radius`, `background-color`, `gap`) that default to `--kui-*` tokens.
 
-## Layout and structure
+## Layout and sections
 
-- `::page-hero`: the masthead. Composed from a title, a description, and an
-  actions area of `::button`s. Props: `full-width`, `background` /
-  `background-image`, `padding`, alignment.
-- `::container`: a flexbox wrapper. Props: `display`, `flex-direction`, `gap`,
-  and the shared styling props. Slot: `#default`.
-- `::grid` and `::grid-item`: a CSS-grid container and its children. `::grid`
-  takes `grid-columns-breakpoints` and `gap`; `::grid-item` takes `grid-column`
-  (for example `"1/4"`) and responsive `*-breakpoints` variants.
+- `::page-hero`: the masthead. A title, a description, and an actions area of
+  `::button`s. Props: `full-width`, `background` / `background-image`,
+  `padding`, alignment.
+- `::page-section`: a full content section, with an optional background, holding
+  nested containers and components.
+- `::container`: a flex wrapper. Props: `display`, `flex-direction`, `gap`, and
+  the shared styling props. Slot: `#default`.
+- `::grid` and `::grid-item`: a grid container and its children. `::grid` takes
+  `grid-columns-breakpoints` and `gap`; `::grid-item` takes `grid-column` (for
+  example `"1/4"`) and responsive `*-breakpoints` variants.
 
-## Content blocks
+## Content
 
-- `::card`: a content or link card. Props include the shared styling props and
-  `card-attribute-keys`. Slots: `#title` (often an `::a`) and `#default`.
+- `::card`: a content or link card. Slots: `#title` (often an `::a`) and
+  `#default`. Can surface an API's attributes through `card-attribute-keys`.
+- `::tabs`: tabbed content panels for grouping alternatives such as per-language
+  samples.
+- `::accordion`: collapsible sections for optional or secondary detail.
 - `::alert`: a callout. Props: `appearance` (`success`, `info`, `warning`),
   `title`, `message`, `show-icon`. Use `#default` for rich content.
 - `::button`: an action. Props: `appearance`, `size`, `to`, `display`.
@@ -29,7 +34,6 @@ Many components share styling props (`display`, `margin`, `padding`, `border`,
 - `::image`: an image. Props: `src`, `alt`, `width`, `height`, plus styling.
 - `::iframe`: embeds an external page. Takes native `<iframe>` attributes except
   `srcdoc`.
-- `::accordion`: collapsible sections. Confirm props against live metadata.
 
 ## API-aware
 
@@ -37,11 +41,10 @@ Many components share styling props (`display`, `margin`, `padding`, `border`,
   (pre-filter), `card-attribute-keys`, `show-filter` / `enable-search`,
   `grid-columns-breakpoints`, `card-snippet-name`.
 
-## Unconfirmed
+## Code
 
-`tabs`, `badge`, and a dedicated code-block component appear in prose but were
-not confirmed as tags. Standard fenced code blocks work. Verify before using
-`::tabs`, `::badge`, or `::code-block`.
+Use standard fenced code blocks with a language tag for code samples. Keep one
+command per block and put output in a separate block.
 
 ## Choosing well
 

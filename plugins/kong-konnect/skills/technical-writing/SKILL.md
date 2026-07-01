@@ -24,9 +24,20 @@ punctuation. Own the words and their organization within a page.
 
 This skill is not Dev Portal specific, but it pairs with the portal skills. It
 works alongside `konnect-portal-page-design` for the components that hold the
-prose and `konnect-portal-branding` for appearance. Keep every task inside one
-page's content; author and edit locally or in a dedicated repository, and do not
-push destructive changes to a live portal unless the user explicitly asks.
+prose and `konnect-portal-branding` for appearance. Work in page content files,
+edit them locally or in a dedicated repository, and do not push destructive
+changes to a live portal unless the user explicitly asks.
+
+## Clarify First
+
+Ask a few high-impact questions before you write, and offer a sensible default
+so the user can simply confirm. Keep it to two or three questions. For this
+skill, clarify:
+
+- the reader and the task the page serves
+- the source of truth for the technical details
+- an existing page to match in tone and structure, if any
+- the depth expected, from a quickstart to a full reference
 
 ## Tool Selection
 
@@ -77,7 +88,7 @@ Load only the file that matches the active step:
 
 ## Validation Checklist
 
-Before answering, verify that you can state:
+Before finishing, confirm:
 
 - who the reader is and the task the page serves
 - that the page leads with the task and stays on one page per use case

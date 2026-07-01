@@ -163,7 +163,7 @@ Once API shape, docs, implementations, and packages are understood, hand off:
 
 ## Validation Checklist
 
-Before answering, verify that you can state:
+Before finishing, confirm:
 
 - whether the user's real outcome is Catalog readiness, Portal publication,
   app auth, or declarative delivery
