@@ -1,6 +1,6 @@
 ---
 name: konnect-portal-branding
-description: Replicate a brand or existing website's design on a Kong Konnect Dev Portal page. Use to match colors, fonts, imagery, and spacing within an individual MDC page through components and page-level styling for visual parity.
+description: Replicate a brand or existing website's design on Kong Konnect Dev Portal pages. Use to match colors, fonts, imagery, and spacing through MDC components and page-level styling for visual parity.
 license: MIT
 metadata:
   product: konnect
@@ -17,8 +17,8 @@ metadata:
 
 ## Goal
 
-Reproduce a brand or an existing website's look on a single Dev Portal MDC page.
-Own the page's visual identity: colors, fonts, imagery, and spacing, expressed
+Reproduce a brand or an existing website's look on Dev Portal MDC pages. Own
+each page's visual identity: colors, fonts, imagery, and spacing, expressed
 through MDC components and page-level styling.
 
 Work in MDC page files, one or more as the task needs. Author and edit them
@@ -112,5 +112,8 @@ Before finishing, confirm:
 - Use `konnect-portal-page-design` for page structure and component choice.
 - Use `technical-writing` for the wording of the page.
 - Use `terraform-konnect` or `kongctl-declarative` to encode pages as code.
+- For portal-wide customization (theme, navigation menus, custom domain, page
+  visibility), use the `*_portal_customization` tools directly. No page-scoped
+  skill here owns that workflow.
 - Use `konnect-api-publish` or `konnect-app-auth` when the real issue is API
   visibility, publication, or developer application auth.

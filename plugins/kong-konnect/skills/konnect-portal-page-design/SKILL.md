@@ -57,9 +57,11 @@ regenerating per width.
 
 Pages and snippets can be read and written directly through the MCP
 (`list_portal_pages`, `get_portal_page`, `create_portal_page`,
-`update_portal_page`, and the `*_portal_snippet` tools). Do not write to a live
-portal unless the user explicitly asks; author locally or in a repo otherwise,
-and preserve an existing `kongctl` or Terraform toolchain when one is in use.
+`update_portal_page`, and the `*_portal_snippet` tools). Read current state with
+`get_portal_page` or `list_portal_pages` before an `update_portal_page`, which
+overwrites content. Do not write to a live portal unless the user explicitly
+asks; author locally or in a repo otherwise, and preserve an existing `kongctl`
+or Terraform toolchain when one is in use.
 
 ## References To Load
 
@@ -105,6 +107,7 @@ Before finishing, confirm:
 - every component and prop used was confirmed against `mdc_get_component_metadata`
 - layout uses tokens from `mdc_get_design_tokens` and responsive breakpoints
 - repeated blocks are snippets, not copied markup
+- every `::image` has alt text and heading levels are sequential
 - content passed `mdc_validate_mdc_syntax` and previewed cleanly on desktop and
   mobile
 

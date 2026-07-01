@@ -20,6 +20,11 @@ Preview URLs are single-use and time-limited. Regenerate one per view; once a
 page is loaded, resize the browser in place to test widths rather than
 regenerating per width.
 
+The preview uses the target portal's theme, so `--kui-*-primary` surfaces show
+that portal's brand color, not the source's. To judge brand parity, either set
+`theme.colors.primary` first, or use explicit hex on brand-critical surfaces so
+the preview is theme-independent.
+
 ## Contrast
 
 Confirm brand color against its background on buttons and links, and body text
