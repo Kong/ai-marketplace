@@ -221,7 +221,7 @@ State:
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - why `decK` is the right tool for this repository or request
 - which repo-owned file, include boundary, or tag boundary is authoritative

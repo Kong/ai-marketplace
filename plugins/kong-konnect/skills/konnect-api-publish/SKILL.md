@@ -152,7 +152,7 @@ Diagnose one primary break:
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - which publication-stage outcome is missing
 - which portal and audience the operator actually means

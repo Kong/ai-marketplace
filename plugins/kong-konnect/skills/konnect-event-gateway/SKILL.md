@@ -166,7 +166,7 @@ multiple equally-weighted guesses.
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - the full intended event path
 - which Event Gateway objects are present

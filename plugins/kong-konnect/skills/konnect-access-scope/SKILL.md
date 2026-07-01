@@ -168,7 +168,7 @@ skill should take over instead of keeping the diagnosis open-ended.
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - the exact failing surface and operation
 - whether authentication itself works

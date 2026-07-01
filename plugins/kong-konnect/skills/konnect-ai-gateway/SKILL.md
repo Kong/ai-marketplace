@@ -175,7 +175,7 @@ Classify the issue as:
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - which AI Gateway layer is failing
 - whether baseline proxying works before higher-level AI controls

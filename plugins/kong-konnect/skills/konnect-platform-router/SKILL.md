@@ -100,14 +100,6 @@ Use one primary destination:
 - `konnect-event-gateway`
   - listeners, clusters, auth setup, hostname mapping, routing or policy
     issues in Event Gateway
-- `konnect-portal-branding`
-  - reproducing a brand or an existing site's look on a Dev Portal page:
-    colors, fonts, imagery, and spacing through page-level styling
-- `konnect-portal-page-design`
-  - Dev Portal page structure and layout with MDC components such as heroes,
-    cards, grids, and callouts
-- `technical-writing`
-  - the wording, tone, and structure of documentation or portal page copy
 
 ### 4. Route direct read-only inspection
 
@@ -150,9 +142,6 @@ missing link is known.
   plane, data plane, and traffic presence are reasonably confirmed.
 - Do not assume access problems are product-state problems when the caller may
   simply be in the wrong org, region, or team scope.
-- Do not send Dev Portal look, layout, or copy requests to `konnect-api-publish`
-  or `konnect-app-auth`. Portal branding, page design, and writing are editing
-  concerns, not publication or auth.
 - Do not keep repo skill-review or skill-authoring work in this router just
   because the word "Konnect" appears in the skill package path.
 

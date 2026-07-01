@@ -242,7 +242,7 @@ State:
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - why Terraform is the right tool for this repository or request
 - which Admin API-backed Gateway surface is in scope

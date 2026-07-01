@@ -166,7 +166,7 @@ Common next steps:
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - which deployment shape the user actually needs
 - the intended region, name, and ownership boundary

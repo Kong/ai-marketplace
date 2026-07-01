@@ -257,7 +257,7 @@ State:
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - why Terraform is the right tool for this repository or request
 - whether `kong/konnect` or `kong/konnect-beta` is actually needed

@@ -152,7 +152,7 @@ Classify the issue as:
 
 ## Validation Checklist
 
-Before finishing, confirm:
+Before answering, verify that you can state:
 
 - which observability surface the user actually needs
 - which control plane, API, or entity is in scope
