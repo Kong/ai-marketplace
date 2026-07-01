@@ -42,15 +42,15 @@ skill, clarify:
 ## Tool Selection
 
 - When the content documents Konnect resources, pull real details (control
-  planes, services, routes, specs) through the `kong-konnect` MCP OpenAPI tools
-  (`search` then `get_schema` then `execute`) instead of inventing values.
+  planes, services, routes, specs) by querying real entities through the
+  `kong-konnect` MCP server instead of inventing values.
 - When the content is a portal page, hand structure and components to
   `konnect-portal-page-design` and keep this skill on the prose.
 - Follow Kong's documentation style guide for terminology and capitalization on
   Kong content, and default to the Google and Microsoft developer style guides
   otherwise.
-- When unsure of Kong terminology or how Kong documents a concept, check
-  `KnowledgeBaseSearch` rather than inventing it.
+- When unsure of Kong terminology or how Kong documents a concept, check the
+  server's Kong documentation knowledge base rather than inventing it.
 
 ## References To Load
 
@@ -83,8 +83,8 @@ Load only the file that matches the active step:
 
 ## Writing Gotchas
 
-- Em-dashes and en-dashes are the clearest tell. Target zero, and do not use
-  `--` instead.
+- Em-dashes and en-dashes are the clearest tell of AI-written content. Target
+  zero, and do not use `--` instead.
 - Generic headings such as "Overview" waste the most scannable line on the page.
 - Passive voice hides who acts. Name the actor.
 

@@ -1,7 +1,6 @@
 # Brand Extraction
 
-Load this when capturing a brand from a source site to reproduce on a page. The
-goal is a small set of concrete cues, not a pile of screenshots.
+The goal is a small set of concrete cues, not a pile of screenshots.
 
 ## What to capture
 
@@ -14,9 +13,6 @@ goal is a small set of concrete cues, not a pile of screenshots.
    when offered.
 5. Spacing and shape. Whether the layout is dense or airy, and the corner-radius
    and border feel.
-
-You do not need every value. Color, fonts, and imagery carry most of the
-perceived brand.
 
 ## Reference the source
 

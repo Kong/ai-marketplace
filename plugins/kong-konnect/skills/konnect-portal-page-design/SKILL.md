@@ -23,7 +23,7 @@ Turn a page intent into a well-structured Dev Portal page built from MDC
 components express them, and how they compose into a consistent, responsive
 result. The `kong-konnect` MCP server owns the facts, component names, props,
 slots, syntax, tokens, examples, and preview. Your job is to choose well and
-sequence the tools; never invent a component or prop from memory.
+sequence the work; never invent a component or prop from memory.
 
 ## Clarify First
 
@@ -35,66 +35,64 @@ Batch two or three high-impact questions with a sensible default to confirm:
 
 ## Tool Selection
 
-Use these `kong-konnect` MCP tools. Do not restate their output from memory.
+The `kong-konnect` MCP server owns the MDC facts. Use its tools rather than
+restating their output from memory, and discover the exact tool names from the
+server rather than assuming them. The working order is:
 
-1. `mdc_get_mdc_syntax_guide`: run **once at session start**. Authoritative
-   syntax, nesting (2-space indent, matched colon counts), slots, YAML props.
-2. `mdc_list_components`: discover what components exist.
-3. `mdc_get_component_metadata` (`componentName`): the definitive props and
-   slots for a component. Metadata returns prop names in **camelCase**; write
-   them **kebab-case** in MDC (`fullWidth` becomes `full-width`). Read before
-   you use.
-4. `mdc_get_component_examples` (`componentName`): idiomatic usage to copy.
-5. `mdc_get_design_tokens`: `--kui-*` values for color, spacing, type.
-6. `mdc_format_mdc` then `mdc_validate_mdc_syntax`: clean and check content.
-7. `list_portals` (read `canonical_domain`, else `default_domain`) then
-   `mdc_get_mdc_preview_url` (needs `portal_origin`) then open with a browser
-   tool and screenshot desktop and mobile.
+1. Load the server's authoritative MDC syntax guide once at session start. It
+   covers syntax, nesting, slots, and YAML props.
+2. Discover which components exist from the server's component list.
+3. For any component you will use, read its definitive props and slots from the
+   server's component metadata before writing it. Metadata returns prop names in
+   camelCase; write them kebab-case in MDC (`fullWidth` becomes `full-width`).
+4. Copy idiomatic usage from the server's component examples.
+5. Pull `--kui-*` values for color, spacing, and type from the server's design
+   tokens.
+6. Format, then validate, the MDC through the server before previewing.
+7. Look up the target portal's origin (its canonical or default domain) and
+   generate a preview through the server, then open it with a browser tool and
+   screenshot desktop and mobile.
 
 Preview URLs are single-use and time-limited. Regenerate one per view; once a
 page is loaded, resize the browser in place to test widths rather than
 regenerating per width.
 
-Pages and snippets can be read and written directly through the MCP
-(`list_portal_pages`, `get_portal_page`, `create_portal_page`,
-`update_portal_page`, and the `*_portal_snippet` tools). Read current state with
-`get_portal_page` or `list_portal_pages` before an `update_portal_page`, which
-overwrites content. Do not write to a live portal unless the user explicitly
-asks; author locally or in a repo otherwise, and preserve an existing `kongctl`
-or Terraform toolchain when one is in use.
+Pages and snippets can be read and written directly through the server. Read
+current state before an update, which overwrites content. Do not write to a live
+portal unless the user explicitly asks; author locally or in a repo otherwise,
+and preserve an existing `kongctl` or Terraform toolchain when one is in use.
 
 ## References To Load
 
 - `references/layout-patterns.md`
   - Composition judgment (what shape a section wants). Get the exact syntax for
-    each shape from `mdc_get_component_examples`.
+    each shape from the server's component examples.
 
 There is no hand-maintained syntax or component reference. Those come from the
-MCP tools above, which stay current as components change.
+MCP server, which stays current as components change.
 
 ## Workflow
 
 1. Name the page type and its ordered sections before writing MDC.
 2. Map each section to the component whose job it names, then confirm that
-   component with `mdc_get_component_metadata` and `mdc_get_component_examples`
-   before writing it. Keep the component set small; repetition reads as
-   consistency.
-3. Compose by nesting `page-section`, `container`, and `multi-column` around
-   content, not one monolithic block.
-4. Style with `--kui-*` tokens from `mdc_get_design_tokens`; use responsive
+   component against the server's metadata and examples before writing it. Keep
+   the component set small; repetition reads as consistency.
+3. Compose by nesting section, container, and column components around content,
+   not one monolithic block.
+4. Style with `--kui-*` tokens from the server's design tokens; use responsive
    breakpoint props for columns.
-5. `mdc_format_mdc` then `mdc_validate_mdc_syntax`.
+5. Format and validate the MDC through the server.
 6. Preview and screenshot at desktop and mobile; iterate.
 
 ## MDC Gotchas
 
 - This is the current v3 Konnect portal MDC system. Do not use legacy Gateway
   Enterprise portal templates; they are a different, incompatible model.
-- Never invent component or prop names. If metadata does not list it, it does
-  not exist. Prop names are kebab-case in MDC even though metadata shows
-  camelCase.
-- Snippets are a flat namespace and render only when a page references them
-  (`::snippet{ name="…" }`). Pages support nested slugs; snippets do not.
+- Never invent component or prop names. If the server's metadata does not list
+  it, it does not exist. Prop names are kebab-case in MDC even though metadata
+  shows camelCase.
+- Snippets are a flat namespace and render only when a page references them.
+  Pages support nested slugs; snippets do not.
 - Frontmatter in page content wins over separately supplied title and
   description.
 - Reserved root paths (`/login`, `/register`, `/account`) cannot be page slugs.
@@ -104,11 +102,11 @@ MCP tools above, which stay current as components change.
 Before finishing, confirm:
 
 - the page type and its ordered sections are named
-- every component and prop used was confirmed against `mdc_get_component_metadata`
-- layout uses tokens from `mdc_get_design_tokens` and responsive breakpoints
+- every component and prop used was confirmed against the server's metadata
+- layout uses the server's design tokens and responsive breakpoints
 - repeated blocks are snippets, not copied markup
-- every `::image` has alt text and heading levels are sequential
-- content passed `mdc_validate_mdc_syntax` and previewed cleanly on desktop and
+- every image has alt text and heading levels are sequential
+- content passed the server's validator and previewed cleanly on desktop and
   mobile
 
 ## Handoffs

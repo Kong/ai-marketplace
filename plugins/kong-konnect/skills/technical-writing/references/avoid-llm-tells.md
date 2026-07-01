@@ -1,12 +1,12 @@
 # Avoid LLM Tells
 
-Load this for the final editing pass. These patterns make prose read as
-machine-generated. Remove them.
+These patterns make prose read as machine-generated. Remove them in a final
+editing pass.
 
 ## Dashes first
 
-- Do not use `—` (em-dash) or `–` (en-dash). Target zero, with a hard cap of one
-  per 1,000 words, headings included.
+- Do not use `—` (em-dash) or `–` (en-dash). The hard cap is zero, headings
+  included.
 - Replace with a comma, colon, parentheses, or two sentences.
 - Do not use `--` as a substitute.
 

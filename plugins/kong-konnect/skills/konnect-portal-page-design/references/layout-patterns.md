@@ -1,14 +1,15 @@
 # Layout patterns
 
-Composition judgment only. Get the exact, current syntax for any shape from
-`mdc_get_component_examples` and confirm props with `mdc_get_component_metadata`.
-Do not hardcode component names here; they change, and the tools stay current.
+Composition judgment only. For the exact, current syntax, props, and slots of
+any component named below, use the MCP server's component examples and metadata.
+Treat the component names here as a starting point, not a fixed list.
 
 ## Shapes
 
-- **Hero.** Open with `page-hero`: a title, a short value line, one or two
-  actions. Check its slots with metadata before writing (it has named slots for
-  tagline, title, description, actions, and image, not a default slot).
+- **Hero.** Open with a hero component: a title, a short value line, one or two
+  actions. Confirm its slots against the server's metadata before writing it
+  (a hero typically has named slots for tagline, title, description, actions,
+  and image rather than a default slot).
 - **Feature columns.** Use the responsive column container for parallel items
   (cards, entry points). Set per-breakpoint column counts.
 - **Feature row.** Alternate text and media by pairing containers with a gap.

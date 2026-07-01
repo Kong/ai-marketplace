@@ -84,11 +84,10 @@ Load only the file that matches the active step:
 
 ## Dev Portal Gotchas
 
-- Logo, favicon, and API images have dedicated upload tools
-  (`replace_portal_asset_logo`, `replace_portal_asset_favicon`,
-  `upsert_api_image`). There is no general uploader for arbitrary inline content
-  images; hotlink those over HTTPS with `::image`, or inline SVG markup.
-- Prefer `--kui-*` tokens (from `mdc_get_design_tokens`) so the page stays
+- Logo, favicon, and API images have dedicated upload operations in the MCP
+  server. There is no general uploader for arbitrary inline content images;
+  hotlink those over HTTPS with an image component, or inline SVG markup.
+- Prefer `--kui-*` tokens (from the server's design tokens) so the page stays
   consistent with the portal. Use explicit hex only where the brand needs a
   shade beyond the primary palette.
 - The portal's internal class names are not a stable contract; use component
@@ -100,8 +99,8 @@ Before finishing, confirm:
 
 - the source and the target pages
 - which colors, fonts, imagery, and spacing you applied, and how
-- that logo, favicon, and API images use their upload tools, and inline content
-  images are hotlinked or embedded SVGs
+- that logo, favicon, and API images use the server's upload operations, and
+  inline content images are hotlinked or embedded SVGs
 - that text contrast is acceptable against every background
 - how parity was confirmed, including a preview screenshot comparison
 - that the work stayed in MDC page files
@@ -113,7 +112,7 @@ Before finishing, confirm:
 - Use `technical-writing` for the wording of the page.
 - Use `terraform-konnect` or `kongctl-declarative` to encode pages as code.
 - For portal-wide customization (theme, navigation menus, custom domain, page
-  visibility), use the `*_portal_customization` tools directly. No page-scoped
-  skill here owns that workflow.
+  visibility), use the MCP server's portal customization operations directly. No
+  page-scoped skill here owns that workflow.
 - Use `konnect-api-publish` or `konnect-app-auth` when the real issue is API
   visibility, publication, or developer application auth.

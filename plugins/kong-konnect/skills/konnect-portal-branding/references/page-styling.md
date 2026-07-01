@@ -1,35 +1,33 @@
 # Page Styling
 
-Load this when applying brand cues. Choose the right lever: set brand color,
-fonts, and layout portal-wide in `theme`, and use page-level styling for shades
-and effects beyond the primary palette on a single page.
+Choose the right lever: set brand color, fonts, and layout portal-wide in the
+theme, and use page-level styling for shades and effects beyond the primary
+palette on a single page.
 
 ## Colors, spacing, and shape
 
-- Portal-wide brand color, fonts, and layout belong in `theme` via
-  `update_portal_customization`. The `primary` token family is generated from
-  `theme.colors.primary`, so setting it once applies the brand consistently.
+- Portal-wide brand color, fonts, and layout belong in the portal theme, set
+  through the MCP server's customization operations. The `primary` token family
+  is generated from the theme's primary color, so setting it once applies the
+  brand consistently.
 - For one page, use component style and appearance props (`background-color`,
   `padding`, `border`, `border-radius`) and inline span styles, for example
   `[text]{ style="color:#6f28ff;" }`.
-- Pull `--kui-*` values from `mdc_get_design_tokens` (filterable, with defaults
-  and categories) rather than from memory, and use explicit hex only for shades
-  beyond the primary palette.
+- Pull `--kui-*` values from the server's design tokens rather than from memory,
+  and use explicit hex only for shades beyond the primary palette.
 
 ## Fonts
 
-Set fonts portal-wide through `theme` so every page matches. For a one-page
+Set fonts portal-wide through the theme so every page matches. For a one-page
 exception, set `font-family` on component style props with a sensible fallback
 stack.
 
 ## Images
 
-- Logo and favicon upload via `replace_portal_asset_logo` and
-  `replace_portal_asset_favicon`; API and API-package images via
-  `upsert_api_image` and `upsert_api_package_image`.
+- Logo, favicon, and API images have dedicated upload operations in the MCP
+  server.
 - There is no general uploader for arbitrary inline content images. Hotlink
-  those over HTTPS with `::image{ src="https://..." }`, or embed SVG markup
-  inline.
+  those over HTTPS with an image component, or embed SVG markup inline.
 
 ## Keep it minimal
 

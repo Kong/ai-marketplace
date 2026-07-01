@@ -1,8 +1,7 @@
 # Style Rules
 
-Load this when deciding voice, structure, and terminology. These combine Kong's
-documentation style guide with the Google and Microsoft developer style guides,
-which agree on the core.
+These rules combine Kong's documentation style guide with the Google and
+Microsoft developer style guides, which agree on the core.
 
 ## Voice and grammar
 
