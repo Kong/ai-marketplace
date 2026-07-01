@@ -4,8 +4,9 @@ Load this when closing the gap between the page and the source.
 
 ## The loop
 
-1. Apply your page edits and generate a page preview URL through the
-   `kong-konnect` MCP server.
+1. Apply your page edits, then get the `portal_origin` from `list_portals`
+   (`canonical_domain`, else `default_domain`) and generate a preview with
+   `mdc_get_mdc_preview_url`.
 2. Screenshot the preview and the source at the same widths, at least one
    desktop and one mobile.
 3. Compare in order: base tone, brand colors, fonts, spacing and shape, then

@@ -41,9 +41,9 @@ skill, clarify:
 
 ## Tool Selection
 
-- When the content documents Konnect resources, use the `kong-konnect` MCP
-  server to pull real details (control planes, services, routes, specs) instead
-  of inventing values.
+- When the content documents Konnect resources, pull real details (control
+  planes, services, routes, specs) through the `kong-konnect` MCP OpenAPI tools
+  (`search` then `get_schema` then `execute`) instead of inventing values.
 - When the content is a portal page, hand structure and components to
   `konnect-portal-page-design` and keep this skill on the prose.
 - Follow Kong's documentation style guide for terminology and capitalization on
