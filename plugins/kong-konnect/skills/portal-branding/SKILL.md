@@ -39,7 +39,14 @@ questions. For this skill, clarify:
 ## Tool Selection
 
 - Author, format, validate, and preview MDC with the toolchain in
-  `portal-page-design`; this skill adds the brand-specific steps below.
+  `portal-page-design`, which relies on the Konnect MCP server for verified
+  components, design tokens, validation, and preview. This skill adds the
+  brand-specific steps below.
+- If the Konnect MCP server is not connected, recommend the user install and
+  connect it. Without it you cannot render a preview or run the parity loop, so
+  work from general MDC knowledge and the user's existing files, ask the user to
+  preview in the Portal Editor, and say plainly that the result is less
+  reliable.
 - Capturing the source and comparing the result depend on a browser. If no
   browser automation such as Playwright or an agent browser is available,
   recommend the user install one before proceeding.
@@ -76,8 +83,8 @@ Load only the file that matches the active step:
 3. Build the page's look with components and page-level styling. Set colors,
    spacing, and fonts through component style props and inline styles, and place
    imagery. Load `references/page-styling.md`.
-4. Preview the page and compare to the source at desktop and mobile widths.
-   Iterate on color, type, and spacing. Load `references/parity-loop.md`.
+4. Preview the page and compare it to the source across widths (mobile, tablet,
+   desktop). Iterate on color, type, and spacing. Load `references/parity-loop.md`.
 5. Check contrast so text stays readable against every background you set.
 6. Report what matched. For anything the page cannot express, offer a concrete
    alternative instead of a silent miss.
@@ -101,7 +108,7 @@ Before finishing, confirm:
 - which colors, fonts, imagery, and spacing you applied, and how
 - that logo, favicon, and API images use the server's upload operations, and
   inline content images are hotlinked or embedded SVGs
-- that text contrast is acceptable against every background
+- that text and buttons meet WCAG AA contrast against every background
 - how parity was confirmed, including a preview screenshot comparison
 - that the work stayed in MDC page files
 - which elements could not be matched, and the alternatives offered

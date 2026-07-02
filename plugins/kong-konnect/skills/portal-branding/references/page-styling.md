@@ -10,9 +10,11 @@ palette on a single page.
   through the MCP server's customization operations. The `primary` token family
   is generated from the theme's primary color, so setting it once applies the
   brand consistently.
-- For one page, use component style and appearance props (`background-color`,
+- For one page, use a component's dedicated appearance props (`background-color`,
   `padding`, `border`, `border-radius`) and inline span styles, for example
-  `[text]{ style="color:#6f28ff;" }`.
+  `[text]{ style="color:#6f28ff;" }`. Prefer dedicated props over a catch-all
+  styles prop, which is only for what props cannot express, such as a gradient
+  background.
 - Pull `--kui-*` values from the server's design tokens rather than from memory,
   and use explicit hex only for shades beyond the primary palette.
 

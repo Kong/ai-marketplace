@@ -43,14 +43,17 @@ skill, clarify:
 
 - When the content documents Konnect resources, pull real details (control
   planes, services, routes, specs) by querying real entities through the
-  `kong-konnect` MCP server instead of inventing values.
+  `kong-konnect` MCP server instead of inventing values. If the server is not
+  connected, recommend installing it, and otherwise ask the user for the real
+  values or mark them clearly as placeholders rather than guessing.
 - When the content is a portal page, hand structure and components to
   `portal-page-design` and keep this skill on the prose.
 - Follow Kong's documentation style guide for terminology and capitalization on
   Kong content, and default to the Google and Microsoft developer style guides
   otherwise.
 - When unsure of Kong terminology or how Kong documents a concept, check the
-  server's Kong documentation knowledge base rather than inventing it.
+  server's Kong documentation knowledge base. If the server is unavailable, rely
+  on the style guides and flag anything you cannot confirm.
 
 ## References To Load
 
