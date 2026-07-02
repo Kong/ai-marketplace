@@ -1,5 +1,5 @@
 ---
-name: konnect-portal-page-design
+name: portal-page-design
 description: Structure and compose Kong Konnect Dev Portal pages with MDC components like heroes, cards, columns, tabbed panels, callouts, and expandable sections. Use for page layout, section design, and component choice. Not for documentation writing or editing.
 license: MIT
 metadata:
@@ -111,7 +111,7 @@ Before finishing, confirm:
 
 ## Handoffs
 
-- Use `konnect-portal-branding` for colors, fonts, imagery, and brand parity.
+- Use `portal-branding` for colors, fonts, imagery, and brand parity.
 - Use `technical-writing` for the wording inside the components.
 - Use `terraform-konnect` or `kongctl-declarative` to encode pages as code.
 - Use `konnect-api-publish` when the goal is getting an API into the portal.

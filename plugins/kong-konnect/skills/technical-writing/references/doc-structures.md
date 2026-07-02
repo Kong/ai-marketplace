@@ -2,7 +2,7 @@
 
 Pick the shape from the reader's task, then write each section in the house
 voice. On a Dev Portal, hand components and layout to
-`konnect-portal-page-design`; this file is about what each section says and in
+`portal-page-design`; this file is about what each section says and in
 what order.
 
 ## Page types

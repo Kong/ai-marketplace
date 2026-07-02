@@ -23,8 +23,8 @@ task-oriented, active-voice prose with scannable structure and clean
 punctuation. Own the words and their organization within a page.
 
 This skill is not Dev Portal specific, but it pairs with the portal skills. It
-works alongside `konnect-portal-page-design` for the components that hold the
-prose and `konnect-portal-branding` for appearance. Work in page content files,
+works alongside `portal-page-design` for the components that hold the
+prose and `portal-branding` for appearance. Work in page content files,
 edit them locally or in a dedicated repository, and do not push destructive
 changes to a live portal unless the user explicitly asks.
 
@@ -45,7 +45,7 @@ skill, clarify:
   planes, services, routes, specs) by querying real entities through the
   `kong-konnect` MCP server instead of inventing values.
 - When the content is a portal page, hand structure and components to
-  `konnect-portal-page-design` and keep this skill on the prose.
+  `portal-page-design` and keep this skill on the prose.
 - Follow Kong's documentation style guide for terminology and capitalization on
   Kong content, and default to the Google and Microsoft developer style guides
   otherwise.
@@ -101,9 +101,9 @@ Before finishing, confirm:
 
 ## Handoffs
 
-- Use `konnect-portal-page-design` for the components and layout that present
+- Use `portal-page-design` for the components and layout that present
   this content.
-- Use `konnect-portal-branding` when the request is about appearance rather than
+- Use `portal-branding` when the request is about appearance rather than
   wording.
 - Use `konnect-api-publish` or `konnect-api-catalog` when the real gap is that
   an API is not published or modeled, not that its docs need writing.

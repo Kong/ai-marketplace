@@ -21,8 +21,8 @@
     "./skills/konnect-gateway-triage",
     "./skills/konnect-observability-triage",
     "./skills/konnect-platform-router",
-    "./skills/konnect-portal-branding",
-    "./skills/konnect-portal-page-design",
+    "./skills/portal-branding",
+    "./skills/portal-page-design",
     "./skills/technical-writing",
     "./skills/terraform-kong-gateway",
     "./skills/terraform-konnect"

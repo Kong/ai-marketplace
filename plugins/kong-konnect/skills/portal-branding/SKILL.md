@@ -1,5 +1,5 @@
 ---
-name: konnect-portal-branding
+name: portal-branding
 description: Replicate a brand or existing website's design on Kong Konnect Dev Portal pages. Use to match colors, fonts, imagery, and spacing through MDC components and page-level styling for visual parity.
 license: MIT
 metadata:
@@ -39,7 +39,7 @@ questions. For this skill, clarify:
 ## Tool Selection
 
 - Author, format, validate, and preview MDC with the toolchain in
-  `konnect-portal-page-design`; this skill adds the brand-specific steps below.
+  `portal-page-design`; this skill adds the brand-specific steps below.
 - Capturing the source and comparing the result depend on a browser. If no
   browser automation such as Playwright or an agent browser is available,
   recommend the user install one before proceeding.
@@ -108,7 +108,7 @@ Before finishing, confirm:
 
 ## Handoffs
 
-- Use `konnect-portal-page-design` for page structure and component choice.
+- Use `portal-page-design` for page structure and component choice.
 - Use `technical-writing` for the wording of the page.
 - Use `terraform-konnect` or `kongctl-declarative` to encode pages as code.
 - For portal-wide customization (theme, navigation menus, custom domain, page
