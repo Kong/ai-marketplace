@@ -17,109 +17,147 @@ metadata:
 
 ## Goal
 
-Reproduce a brand or an existing website's look on Dev Portal MDC pages. Own
-each page's visual identity: colors, fonts, imagery, and spacing, expressed
-through MDC components and page-level styling.
-
-Work in MDC page files, one or more as the task needs. Author and edit them
-locally or in a dedicated repository, and do not push destructive changes to a
+Reproduce a brand or an existing website's look on Dev Portal MDC pages: colors,
+fonts, imagery, and spacing, through MDC components and page-level styling. Work
+in MDC page files, locally or in a repo. Do not push destructive changes to a
 live portal through the Konnect API unless the user explicitly asks.
 
 ## Clarify First
 
-Ask a few high-impact questions before you build, and offer a sensible default
-so the user can simply confirm. Do not interrogate; batch two or three
-questions. For this skill, clarify:
+Ask two or three high-impact questions, each with a default to confirm; do not
+interrogate:
 
-- the source to match, as a URL or a short brand description
-- which page or pages are the target
-- which details must be exact and which can be approximate
-- whether the base should read light or dark
+- source to match: a URL or short brand description
+- target page or pages
+- which details must be exact, which can be approximate
+- light or dark base
 
 ## Tool Selection
 
-- Author, format, validate, and preview MDC with the toolchain in
-  `portal-page-design`, which relies on the Konnect MCP server for verified
-  components, design tokens, validation, and preview. This skill adds the
-  brand-specific steps below.
-- If the Konnect MCP server is not connected, recommend the user install and
-  connect it. Without it you cannot render a preview or run the parity loop, so
-  work from general MDC knowledge and the user's existing files, ask the user to
-  preview in the Portal Editor, and say plainly that the result is less
-  reliable.
-- Capturing the source and comparing the result depend on a browser. If no
-  browser automation such as Playwright or an agent browser is available,
-  recommend the user install one before proceeding.
-- If a local preview extension is available, use it for live local preview while
+- Author, format, validate, and preview MDC with the `portal-page-design`
+  toolchain, which uses the Konnect MCP server for verified components, design
+  tokens, validation, and preview. This skill adds the brand-specific steps below.
+- If the MCP server is not connected, recommend connecting it. Without it there
+  is no preview or parity loop: work from general MDC knowledge and the user's
+  files, ask them to preview in the Portal Editor, and say plainly the result is
+  less reliable.
+- Capturing the source and comparing results need a browser. If no browser
+  automation (Playwright or an agent browser) is available, have the user install
+  one first.
+- If a local preview extension is available, use it for live preview while
   editing.
-
-## Two brand levers
-
-- **Portal theme.** Anything that should be consistent portal-wide: brand
-  color, fonts, layout, logo, and favicon. Change it only when the user asks.
-- **Page-level styling.** One-page shades and effects beyond the primary
-  palette, for example a `full-width` hero background.
-
-See `references/page-styling.md` for which tools each lever uses.
-
-## References To Load
-
-Load only the file that matches the active step:
-
-- `references/brand-extraction.md`
-  - Load when capturing colors, fonts, imagery, and spacing from a source.
-- `references/page-styling.md`
-  - Load when applying them on the page with component props, inline styles,
-    `--kui-*` tokens, and images.
-- `references/parity-loop.md`
-  - Load when previewing the page and comparing it to the source.
 
 ## Workflow
 
-1. Fix the source and the target page. Confirm the source (a URL or brand cues)
-   and which MDC page you are styling.
-2. Capture the brand cues: brand and accent colors, heading and body fonts,
-   imagery, and spacing feel. Load `references/brand-extraction.md`.
-3. Build the page's look with components and page-level styling. Set colors,
-   spacing, and fonts through component style props and inline styles, and place
-   imagery. Load `references/page-styling.md`.
-4. Preview the page and compare it to the source across widths (mobile, tablet,
-   desktop). Iterate on color, type, and spacing. Load `references/parity-loop.md`.
-5. Check contrast so text stays readable against every background you set.
-6. Report what matched. For anything the page cannot express, offer a concrete
-   alternative instead of a silent miss.
+1. Confirm the source (URL or brand cues) and target MDC page.
+2. Capture the brand cues (see Capture the brand).
+3. Build the look with components and page-level styling (see Apply the brand).
+4. Preview and compare to the source across widths, then iterate (see Parity
+   loop).
+5. Check contrast against every background.
+6. Report what matched; for anything the page cannot express, offer a concrete
+   alternative, not a silent miss.
+
+## Capture the brand
+
+Aim for a small set of concrete cues, not a pile of screenshots:
+
+1. Brand and accent colors: dominant non-neutral colors on primary buttons,
+   links, and highlights. Record hex.
+2. Base tone: light or dark.
+3. Typography: heading, body, and monospace fonts, plus the weights used.
+4. Imagery: logos, icons, and hero images with source URLs. Prefer SVG.
+5. Spacing and shape: dense or airy, plus corner-radius and border feel.
+
+Screenshot the source with Playwright at desktop and mobile widths and keep it
+open beside your work. Match the given source; do not substitute a default brand.
+
+## Apply the brand
+
+Two levers:
+
+- Portal theme: anything portal-wide (brand color, fonts, layout, logo, favicon),
+  set through the MCP server's customization operations. The `primary` token
+  family derives from the theme's primary color, so setting it once applies the
+  brand consistently. Change the theme only when the user asks.
+- Page-level styling: one-page shades and effects beyond the primary palette,
+  such as a `full-width` hero background.
+
+For one page, use a component's dedicated appearance props (`background-color`,
+`padding`, `border`, `border-radius`) and inline span styles, for example
+`[text]{ style="color:#6f28ff;" }`. Prefer dedicated props over the catch-all
+styles prop, which is only for what props cannot express (a gradient background).
+
+Set fonts portal-wide through the theme so every page matches; for a one-page
+exception, set `font-family` on component style props with a fallback stack.
+
+## Parity loop
+
+Run this only with a real portal and a configured token; without them there is no
+rendered preview and no parity loop, so say so and stop.
+
+1. Format and validate the MDC, look up the target portal's origin (its canonical
+   or default domain), and generate a preview through the MCP server.
+2. Set the viewport before opening the URL, wait for full hydration (network idle,
+   no pending animations), then screenshot the preview and source at the same
+   widths (mobile, tablet, desktop).
+3. Compare in order: base tone, brand colors, fonts, spacing and shape, then fine
+   detail.
+4. Fix the largest visible gap first, then repeat. Drive changes from the
+   screenshots, not assumptions.
+
+Editing an existing page: first screenshot the live page as a "before" at each
+width, then compare against the "after."
+
+Preview URLs are single-use and time-limited: regenerate only when the MDC
+changes; once loaded, resize the browser in place to test widths.
+
+The preview uses the target portal's theme, so `--kui-*-primary` surfaces show
+that portal's brand color, not the source's. To judge brand parity, either set
+the portal's primary color in the theme first, or use explicit hex on
+brand-critical surfaces so the preview is theme-independent.
+
+Contrast: check brand color against its background on buttons and links, and body
+text against its background. Meet WCAG AA: 4.5:1 for normal text, 3:1 for large
+text. If the true brand color fails, use it for large surfaces and pick a
+contrast-safe variant for text.
+
+When an element has no page equivalent, do not drop it silently: offer the
+closest approximation, or state plainly that the page cannot express the effect.
+
+Stop when tone, colors, fonts, and imagery match and the remaining differences
+are cosmetic and below the user's fidelity bar. Report residual differences
+rather than chasing pixels.
 
 ## Dev Portal Gotchas
 
-- Logo, favicon, and API images have dedicated upload operations in the MCP
-  server. There is no general uploader for arbitrary inline content images;
-  hotlink those over HTTPS with an image component, or inline SVG markup.
-- Prefer `--kui-*` tokens (from the server's design tokens) so the page stays
-  consistent with the portal. Use explicit hex only where the brand needs a
-  shade beyond the primary palette.
-- The portal's internal class names are not a stable contract; use component
-  props and inline styles.
+- Pull `--kui-*` values from the server's design tokens, not memory; use explicit
+  hex only for shades beyond the primary palette.
+- Logo, favicon, and API images have dedicated MCP upload operations. There is no
+  uploader for arbitrary inline content images; hotlink those over HTTPS with an
+  image component, or embed SVG inline.
+- The portal's internal class names are not a stable contract; use component props
+  and inline styles.
+- Style only what the brand needs, with the smallest set of theme settings and
+  styles.
 
 ## Validation Checklist
 
-Before finishing, confirm:
-
-- the source and the target pages
-- which colors, fonts, imagery, and spacing you applied, and how
-- that logo, favicon, and API images use the server's upload operations, and
-  inline content images are hotlinked or embedded SVGs
-- that text and buttons meet WCAG AA contrast against every background
-- how parity was confirmed, including a preview screenshot comparison
-- that the work stayed in MDC page files
-- which elements could not be matched, and the alternatives offered
+- source and target pages named
+- colors, fonts, imagery, and spacing applied
+- images use the right upload path or hotlink/SVG
+- WCAG AA contrast on every background
+- parity confirmed via screenshot comparison
+- work stayed in MDC page files
+- unmatched elements and their alternatives noted
 
 ## Handoffs
 
-- Use `portal-page-design` for page structure and component choice.
-- Use `technical-writing` for the wording of the page.
-- Use `terraform-konnect` or `kongctl-declarative` to encode pages as code.
-- For portal-wide customization (theme, navigation menus, custom domain, page
-  visibility), use the MCP server's portal customization operations directly. No
-  page-scoped skill here owns that workflow.
-- Use `konnect-api-publish` or `konnect-app-auth` when the real issue is API
+- `portal-page-design` for page structure and component choice.
+- `technical-writing` for page wording.
+- `terraform-konnect` or `kongctl-declarative` to encode pages as code.
+- Portal-wide customization (theme, navigation menus, custom domain, page
+  visibility): use the MCP server's portal customization operations directly; no
+  page-scoped skill here owns it.
+- `konnect-api-publish` or `konnect-app-auth` when the real issue is API
   visibility, publication, or developer application auth.
