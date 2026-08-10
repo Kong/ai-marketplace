@@ -24,6 +24,8 @@ PLUGINS_DIR = REPO_ROOT / "plugins"
 MCP_NAME = "kong-konnect"
 MCP_URL = "https://us.mcp.konghq.com"
 TOKEN_ENV = "KONNECT_TOKEN"
+TOKEN_OPTION = "konnect_token"
+MCP_URL_OPTION = "konnect_mcp_url"
 MARKETPLACE_NAME = "ai-marketplace"
 REPO_URL = "https://github.com/kong/ai-marketplace"
 AVAILABLE_SKILLS_START = "<!-- generated:available-skills:start -->"
@@ -370,7 +372,10 @@ def sync_claude_plugin(plugin: Plugin, skills: list[Skill]) -> object:
     data["name"] = plugin.name
     data["skills"] = [skill.rel_path for skill in skills]
     if plugin.mcp_config is not None:
-        data["mcpServers"] = "./mcp.json"
+        data.pop("mcpServers", None)
+        data.pop("userConfig", None)
+        data["userConfig"] = claude_user_config()
+        data["mcpServers"] = claude_mcp_servers()
     else:
         data.pop("mcpServers", None)
     return data
@@ -443,6 +448,34 @@ def sync_plugin_mcp() -> object:
                 "url": MCP_URL,
                 "headers": {"Authorization": f"Bearer ${{{TOKEN_ENV}}}"},
             }
+        }
+    }
+
+
+def claude_user_config() -> object:
+    return {
+        TOKEN_OPTION: {
+            "type": "string",
+            "title": "Konnect access token",
+            "description": "Personal or system account access token used by the Konnect MCP server.",
+            "sensitive": True,
+            "required": True,
+        },
+        MCP_URL_OPTION: {
+            "type": "string",
+            "title": "Konnect MCP URL",
+            "description": "Regional MCP endpoint for your Konnect organization.",
+            "default": MCP_URL,
+        },
+    }
+
+
+def claude_mcp_servers() -> object:
+    return {
+        MCP_NAME: {
+            "type": "http",
+            "url": f"${{user_config.{MCP_URL_OPTION}}}",
+            "headers": {"Authorization": f"Bearer ${{user_config.{TOKEN_OPTION}}}"},
         }
     }
 
@@ -713,11 +746,11 @@ def validate_text_files() -> list[str]:
         ],
         REPO_ROOT / "docs" / "install" / "README.md": [MCP_NAME, MCP_URL, TOKEN_ENV, "gh skill", "plugins/kong-konnect/mcp.json", "./cursor.md"],
         REPO_ROOT / "docs" / "install" / "cursor.md": ["Cursor", "plugins/kong-konnect/.cursor-plugin/plugin.json", ".cursor-plugin/marketplace.json", "plugins/kong-konnect/mcp.json", TOKEN_ENV, ".cursor/plugins/local/kong-konnect"],
-        REPO_ROOT / "docs" / "install" / "claude-code.md": ["Claude Code", "kong-konnect", MCP_NAME, "plugins/kong-konnect/.claude-plugin/plugin.json"],
+        REPO_ROOT / "docs" / "install" / "claude-code.md": ["Claude Code", "kong-konnect", MCP_NAME, "plugins/kong-konnect/.claude-plugin/plugin.json", "secure credential store", "regional MCP URL"],
         REPO_ROOT / "docs" / "install" / "other-tools.md": ["gh skill install kong/ai-marketplace", "gh skill preview", "npx skills add kong/ai-marketplace", MCP_NAME, "plugins/kong-konnect/mcp.json"],
         REPO_ROOT / "docs" / "release.md": ["workflow_dispatch", "mise run ci", "Tag And Release", "release versions", "main", "plugins/kong-konnect/.cursor-plugin/plugin.json"],
-        REPO_ROOT / "docs" / "structure.md": [".cursor-plugin/marketplace.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/mcp.json", "contributor file map", "AGENTS.md"],
-        REPO_ROOT / "docs" / "developer.md": ["assets/", "references/", "scripts/", "mise install", "mise run preflight", "mise run gen", "mise run deps", "skill:new", "gh skill publish --dry-run", "Consumers generally see", "GitHub Actions workflow is the only publishing path", "kong-skill-authoring", "description budget", "overlap", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "plugin:new", "Cursor"],
+        REPO_ROOT / "docs" / "structure.md": [".cursor-plugin/marketplace.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/mcp.json", "user configuration", "contributor file map", "AGENTS.md"],
+        REPO_ROOT / "docs" / "developer.md": ["assets/", "references/", "scripts/", "mise install", "mise run preflight", "mise run gen", "mise run deps", "skill:new", "gh skill publish --dry-run", "Consumers generally see", "GitHub Actions workflow is the only publishing path", "kong-skill-authoring", "description budget", "overlap", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "plugin:new", "userConfig", "Cursor"],
         REPO_ROOT / "docs" / "testing.md": ["mise run preflight", "mise run deps", "mise run lint", "gh skill publish --dry-run", "scratch project", "KONNECT_TOKEN", "docs/install/other-tools.md", "description budget", "overlap", "docs/install/claude-code.md", "docs/install/cursor.md", "plugins/kong-konnect/skills/", ".cursor/plugins/local/kong-konnect"],
         REPO_ROOT / "SECURITY.md": ["vulnerability@konghq.com", "Do not open a public GitHub issue"],
         REPO_ROOT / "AGENTS.md": ["plugins/<plugin>/skills/", "docs/skills.md", "plugin-aware"],

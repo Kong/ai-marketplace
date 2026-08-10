@@ -27,5 +27,28 @@
     "./skills/terraform-kong-gateway",
     "./skills/terraform-konnect"
   ],
-  "mcpServers": "./mcp.json"
+  "userConfig": {
+    "konnect_token": {
+      "type": "string",
+      "title": "Konnect access token",
+      "description": "Personal or system account access token used by the Konnect MCP server.",
+      "sensitive": true,
+      "required": true
+    },
+    "konnect_mcp_url": {
+      "type": "string",
+      "title": "Konnect MCP URL",
+      "description": "Regional MCP endpoint for your Konnect organization.",
+      "default": "https://us.mcp.konghq.com"
+    }
+  },
+  "mcpServers": {
+    "kong-konnect": {
+      "type": "http",
+      "url": "${user_config.konnect_mcp_url}",
+      "headers": {
+        "Authorization": "Bearer ${user_config.konnect_token}"
+      }
+    }
+  }
 }

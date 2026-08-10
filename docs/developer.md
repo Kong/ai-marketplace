@@ -100,6 +100,11 @@ That creates:
 - `plugins/<plugin-name>/.cursor-plugin/plugin.json`
 - optional `plugins/<plugin-name>/mcp.json`
 
+For an MCP-enabled package, generation keeps the host credential flows
+separate: Claude receives sensitive `userConfig` prompts and an inline MCP
+definition, while Cursor and manual setup keep using `mcp.json` with
+`KONNECT_TOKEN`. Do not put a real token or a token default in either manifest.
+
 Root marketplace manifests are generated from plugin discovery, so you do not
 hand-edit marketplace entries when adding a new package.
 
@@ -224,11 +229,13 @@ checks:
 ## What Generate Updates
 
 - the skill arrays in [`plugins/kong-konnect/.claude-plugin/plugin.json`](../plugins/kong-konnect/.claude-plugin/plugin.json)
+- the Claude prompt-backed user configuration and inline MCP definition in that
+  manifest
 - the skill path and metadata in [`plugins/kong-konnect/.cursor-plugin/plugin.json`](../plugins/kong-konnect/.cursor-plugin/plugin.json)
 - the Claude marketplace keywords in [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)
 - the Cursor marketplace catalog in [`.cursor-plugin/marketplace.json`](../.cursor-plugin/marketplace.json)
 - the generated skill inventory in [docs/skills.md](skills.md)
-- the plugin-local MCP config in [`plugins/kong-konnect/mcp.json`](../plugins/kong-konnect/mcp.json)
+- the portable plugin-local MCP config in [`plugins/kong-konnect/mcp.json`](../plugins/kong-konnect/mcp.json)
 
 ## What Stays Manual
 
@@ -247,7 +254,8 @@ checks:
 - canonical marketplace manifest name: `ai-marketplace`
 - first shipped plugin package: `kong-konnect`
 - canonical MCP server name: `kong-konnect`
-- auth variable: `KONNECT_TOKEN`
+- Claude plugin auth: sensitive `userConfig`, with no token default
+- Cursor and manual MCP auth variable: `KONNECT_TOKEN`
 - keep shared behavior in `SKILL.md`
 - keep harness-specific packaging out of skills
 
