@@ -11,17 +11,21 @@ contributor context from the rest of the repository.
 [![AWS Kiro Powers](https://img.shields.io/badge/AWS-Kiro_Powers-232F3E?style=for-the-badge&labelColor=FF9900&logo=amazonaws&logoColor=000000)](./aws.md)
 [![Other Tools](https://img.shields.io/badge/Other_Tools-skills-555555?style=for-the-badge&logo=vercel&logoColor=white)](./other-tools.md)
 
-All routes use the same MCP server:
+All MCP-backed routes use the same server and bearer-token model:
 
 - name: `kong-konnect`
-- URL: `https://us.mcp.konghq.com`
-- auth: `Authorization: Bearer ${KONNECT_TOKEN}`
+- default URL: `https://us.mcp.konghq.com`
+- auth: `Authorization: Bearer <Konnect access token>`
 
-`KONNECT_TOKEN` is only required for MCP-backed installs. If you only install
-the shared skills with `npx skills` or `gh skill`, you do not need the token.
+Claude Code's full plugin prompts for the token and regional MCP URL, stores the
+token securely, and defaults the URL to the US endpoint. Cursor and manual MCP
+setup use `KONNECT_TOKEN` through the portable checked-in configuration. If you
+only install the shared skills with `npx skills` or `gh skill`, you do not need
+a token.
 
 Use [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) as
-the shared checked-in MCP example.
+the portable checked-in MCP example for Cursor and manual setup. See the
+[Claude Code instructions](./claude-code.md) for its prompt-backed setup.
 
 For skill-only installs from GitHub, prefer previewing before install:
 

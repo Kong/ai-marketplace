@@ -52,8 +52,9 @@ The checked-in `pre-commit` and `pre-push` hooks both run `mise run lint`, but
 they only apply after `mise run hooks:install`. CI remains the enforcement path
 for pull requests and pushes to `main`.
 
-If a spot check exercises the shared MCP configuration, export `KONNECT_TOKEN`
-or use the host tool's secure settings flow before you test it.
+For a Claude plugin spot check, use its secure token prompt. If a spot check
+exercises the portable MCP configuration used by Cursor or manual setup, export
+`KONNECT_TOKEN` before testing it.
 
 The shipped shared-skill payload lives under `plugins/kong-konnect/skills/`,
 so install and publish checks should continue to reflect that source tree.
@@ -96,15 +97,21 @@ back to user-profile locations.
 
 - Prefer `gh skill preview` before installing from GitHub.
 - Use scratch projects or disposable profiles when a host writes local plugin or extension state.
-- Store `KONNECT_TOKEN` in the host tool's secure settings flow when available.
+- Confirm Claude masks the token and never writes it into the plugin manifest or
+  user-visible settings.
+- Keep `KONNECT_TOKEN` out of checked-in files and shell examples that contain a
+  real value.
 
 ## Tool Spot Checks
 
 ### Claude Code
 
 - Install path: [docs/install/claude-code.md](./install/claude-code.md)
+- Configuration check: confirm enablement prompts for a masked token and a
+  regional MCP URL whose default is `https://us.mcp.konghq.com`
 - Verify after install: `kong-konnect` appears as installed and `gateway-plugin-datakit` is available in a fresh session
-- MCP check when using the plugin path: confirm `kong-konnect` is configured
+- MCP check when using the plugin path: select the resource region and confirm
+  `kong-konnect` connects without exporting `KONNECT_TOKEN`
 - Quick prompt: `What Kong-specific skills are available in this environment?`
 - Cleanup: uninstall the plugin or discard the scratch profile
 
