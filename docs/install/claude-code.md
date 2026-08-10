@@ -6,15 +6,26 @@
 
 ```bash
 /plugin marketplace add kong/ai-marketplace
-/plugin install ai-marketplace@kong-konnect
+/plugin install kong-konnect@ai-marketplace
 /reload-plugins
 ```
+
+When Claude Code enables the plugin, enter:
+
+- a Konnect personal or system account access token; Claude masks the value and
+  stores it in its secure credential store
+- the regional MCP URL matching your Konnect resources; the default is
+  `https://us.mcp.konghq.com`
+
+Use `https://eu.mcp.konghq.com`, `https://au.mcp.konghq.com`, or
+`https://in.mcp.konghq.com` when your resources are in that region. The full
+Claude plugin does not require you to export `KONNECT_TOKEN`.
 
 ### What gets installed
 
 - The `kong-konnect` plugin package from [`plugins/kong-konnect/`](../../plugins/kong-konnect/)
 - The shared skills from [`plugins/kong-konnect/skills/`](../../plugins/kong-konnect/skills/)
-- The `kong-konnect` MCP server entry
+- The prompt-configured `kong-konnect` MCP server entry
 
 <!-- END HEADER SECTION -->
 
@@ -62,4 +73,5 @@ changes upstream without review.
 If you want the MCP server without the full plugin wrapper, add
 `kong-konnect` manually using
 [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) as the
-reference shape. That is when `KONNECT_TOKEN` is required.
+reference shape. The manual path uses `KONNECT_TOKEN`; set the regional URL in
+the copied configuration when your resources are outside the US region.

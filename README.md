@@ -62,15 +62,20 @@ enforcement path on pull requests and pushes to `main`.
 
 ## Authentication
 
-All install surfaces use the same bearer token model:
+All MCP install surfaces use the same bearer token model, but credential input
+is host-specific:
 
 ```text
-Authorization: Bearer ${KONNECT_TOKEN}
+Authorization: Bearer <Konnect access token>
 ```
 
-`KONNECT_TOKEN` is only needed when you install or use the `kong-konnect` MCP
-server through a plugin wrapper or manual MCP setup. A skill-only install via
-`npx skills` or `gh skill` does not require it.
+- Claude Code's full plugin prompts for the token, masks it, and stores it in
+  Claude's secure credential store. It also prompts for the regional MCP URL
+  and defaults to the US endpoint.
+- Cursor and manual MCP setup use `KONNECT_TOKEN` through the portable checked-in
+  MCP configuration.
+- Skill-only installs through `npx skills` or `gh skill` require neither form of
+  MCP authentication.
 
 ## Skill Install Notes
 
@@ -82,4 +87,5 @@ server through a plugin wrapper or manual MCP setup. A skill-only install via
 - For `gh skill`, preview before install with `gh skill preview kong/ai-marketplace gateway-plugin-datakit`.
 
 Use [`plugins/kong-konnect/mcp.json`](plugins/kong-konnect/mcp.json) as the
-shared checked-in reference shape for the `kong-konnect` MCP server.
+portable checked-in reference shape for Cursor and manual MCP setup. Claude's
+prompt-backed MCP configuration is generated inline in its plugin manifest.
