@@ -5,10 +5,7 @@ license: MIT
 metadata:
   product: kongctl
   category: declarative
-  tags:
-    - kongctl
-    - konnect
-    - apiops
+  tags: kongctl,konnect,apiops
 ---
 
 # kongctl declarative workflows

@@ -92,5 +92,25 @@
     "declarative-konnect"
   ],
   "skills": "skills",
-  "mcpServers": "mcp.json"
+  "mcpServers": "mcp.cursor.json",
+  "variables": {
+    "type": "object",
+    "properties": {
+      "KONNECT_TOKEN": {
+        "type": "string",
+        "title": "Konnect access token",
+        "description": "Personal or system account access token used by the Konnect MCP server.",
+        "minLength": 1
+      },
+      "KONNECT_MCP_URL": {
+        "type": "string",
+        "title": "Konnect MCP URL",
+        "description": "Regional MCP endpoint for your Konnect organization.",
+        "default": "https://us.mcp.konghq.com"
+      }
+    },
+    "required": [
+      "KONNECT_TOKEN"
+    ]
+  }
 }

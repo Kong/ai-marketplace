@@ -22,6 +22,7 @@ def version_targets() -> list[Path]:
             continue
         targets.extend(
             [
+                plugin_dir / "plugin.json",
                 plugin_dir / ".claude-plugin" / "plugin.json",
                 plugin_dir / ".cursor-plugin" / "plugin.json",
             ]

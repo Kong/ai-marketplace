@@ -18,6 +18,8 @@ TOKEN_OPTION = "konnect_token"
 MCP_URL_OPTION = "konnect_mcp_url"
 REPO_URL = "https://github.com/kong/ai-marketplace"
 DEFAULT_PLUGIN = "kong-konnect"
+AGENT_PLUGIN_SCHEMA_URL = "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json"
+CURSOR_MCP_FILE = "mcp.cursor.json"
 
 
 def normalize_name(value: str, label: str) -> str:
@@ -80,9 +82,7 @@ def skill_template(skill_name: str) -> str:
         metadata:
           product: kong
           category: workflow
-          tags:
-            - kong
-            - {skill_name}
+          tags: kong,{skill_name}
         ---
 
         # {title}
@@ -134,6 +134,20 @@ def claude_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, obje
     return data
 
 
+def agent_manifest_template(plugin_name: str) -> dict[str, object]:
+    return {
+        "$schema": AGENT_PLUGIN_SCHEMA_URL,
+        "name": plugin_name,
+        "version": "0.1.0",
+        "description": f"Portable {plugin_display_name(plugin_name)} skills for Agent Plugins clients.",
+        "author": {"name": "kong"},
+        "homepage": REPO_URL,
+        "repository": REPO_URL,
+        "license": "MIT",
+        "keywords": ["kong", plugin_name, "agent-skills"],
+    }
+
+
 def cursor_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, object]:
     data: dict[str, object] = {
         "name": plugin_name,
@@ -146,7 +160,8 @@ def cursor_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, obje
         "skills": "skills",
     }
     if with_mcp:
-        data["mcpServers"] = "mcp.json"
+        data["mcpServers"] = CURSOR_MCP_FILE
+        data["variables"] = cursor_variables()
     return data
 
 
@@ -154,11 +169,31 @@ def mcp_template() -> dict[str, object]:
     return {
         "mcpServers": {
             MCP_NAME: {
-                "type": "http",
-                "url": MCP_URL,
+                "url": "${KONNECT_MCP_URL}",
                 "headers": {"Authorization": f"Bearer ${{{TOKEN_ENV}}}"},
             }
         }
+    }
+
+
+def cursor_variables() -> dict[str, object]:
+    return {
+        "type": "object",
+        "properties": {
+            TOKEN_ENV: {
+                "type": "string",
+                "title": "Konnect access token",
+                "description": "Personal or system account access token used by the Konnect MCP server.",
+                "minLength": 1,
+            },
+            "KONNECT_MCP_URL": {
+                "type": "string",
+                "title": "Konnect MCP URL",
+                "description": "Regional MCP endpoint for your Konnect organization.",
+                "default": MCP_URL,
+            },
+        },
+        "required": [TOKEN_ENV],
     }
 
 
@@ -183,7 +218,7 @@ def claude_user_config() -> dict[str, object]:
 def claude_mcp_servers() -> dict[str, object]:
     return {
         MCP_NAME: {
-            "type": "http",
+            "type": "streamable-http",
             "url": f"${{user_config.{MCP_URL_OPTION}}}",
             "headers": {"Authorization": f"Bearer ${{user_config.{TOKEN_OPTION}}}"},
         }
@@ -208,11 +243,12 @@ def scaffold_plugin(args: argparse.Namespace) -> int:
     plugin_dir = PLUGINS_DIR / plugin_name
     ensure_missing(plugin_dir)
 
+    write_json(plugin_dir / "plugin.json", agent_manifest_template(plugin_name))
     write_json(plugin_dir / ".claude-plugin" / "plugin.json", claude_manifest_template(plugin_name, args.with_mcp))
     write_json(plugin_dir / ".cursor-plugin" / "plugin.json", cursor_manifest_template(plugin_name, args.with_mcp))
     (plugin_dir / "skills").mkdir(parents=True, exist_ok=False)
     if args.with_mcp:
-        write_json(plugin_dir / "mcp.json", mcp_template())
+        write_json(plugin_dir / CURSOR_MCP_FILE, mcp_template())
 
     print(plugin_dir.relative_to(REPO_ROOT))
     return 0
@@ -230,7 +266,7 @@ def build_parser() -> argparse.ArgumentParser:
     plugin_parser.add_argument(
         "--with-mcp",
         action="store_true",
-        help="Also create plugins/<name>/mcp.json with the shared kong-konnect MCP reference shape.",
+        help="Also create Cursor variables and plugins/<name>/mcp.cursor.json; the Agent Plugins package remains skills-only until portable auth is available.",
     )
     plugin_parser.set_defaults(handler=scaffold_plugin)
 

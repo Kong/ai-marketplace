@@ -44,7 +44,7 @@
   },
   "mcpServers": {
     "kong-konnect": {
-      "type": "http",
+      "type": "streamable-http",
       "url": "${user_config.konnect_mcp_url}",
       "headers": {
         "Authorization": "Bearer ${user_config.konnect_token}"

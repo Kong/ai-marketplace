@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: control-plane-bootstrap
-  tags:
-    - kong
-    - konnect
-    - control-plane
-    - bootstrap
-    - gateway
+  tags: kong,konnect,control-plane,bootstrap,gateway
 ---
 
 # Konnect control plane bootstrap

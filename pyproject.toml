@@ -3,5 +3,7 @@ name = "ai-marketplace"
 version = "0.0.0"
 requires-python = ">=3.12"
 dependencies = [
+  "jsonschema==4.25.1",
   "PyYAML>=6,<7",
+  "skills-ref==0.1.1",
 ]

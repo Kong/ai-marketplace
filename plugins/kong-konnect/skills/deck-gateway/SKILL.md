@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: deck
   category: declarative-gateway
-  tags:
-    - kong
-    - deck
-    - gateway
-    - gitops
-    - declarative
+  tags: kong,deck,gateway,gitops,declarative
 ---
 
 # decK gateway workflows

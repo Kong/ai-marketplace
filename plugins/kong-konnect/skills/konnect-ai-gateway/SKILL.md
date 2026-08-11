@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: ai-gateway
-  tags:
-    - kong
-    - konnect
-    - ai-gateway
-    - llm
-    - ai
+  tags: kong,konnect,ai-gateway,llm,ai
 ---
 
 # Konnect AI Gateway triage

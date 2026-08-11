@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: api-catalog
-  tags:
-    - kong
-    - konnect
-    - catalog
-    - api
-    - governance
+  tags: kong,konnect,catalog,api,governance
 ---
 
 # Konnect API catalog workflow

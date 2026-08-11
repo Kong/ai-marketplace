@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: event-gateway
-  tags:
-    - kong
-    - konnect
-    - event-gateway
-    - listeners
-    - policies
+  tags: kong,konnect,event-gateway,listeners,policies
 ---
 
 # Event Gateway operator workflow

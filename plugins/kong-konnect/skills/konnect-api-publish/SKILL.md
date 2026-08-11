@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: api-publication
-  tags:
-    - kong
-    - konnect
-    - api
-    - portal
-    - catalog
+  tags: kong,konnect,api,portal,catalog
 ---
 
 # Konnect API publish workflow

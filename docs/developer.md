@@ -96,14 +96,17 @@ mise run plugin:new -- kong-mesh --with-mcp
 That creates:
 
 - `plugins/<plugin-name>/skills/`
+- `plugins/<plugin-name>/plugin.json`
 - `plugins/<plugin-name>/.claude-plugin/plugin.json`
 - `plugins/<plugin-name>/.cursor-plugin/plugin.json`
-- optional `plugins/<plugin-name>/mcp.json`
+- optional `plugins/<plugin-name>/mcp.cursor.json`
 
 For an MCP-enabled package, generation keeps the host credential flows
 separate: Claude receives sensitive `userConfig` prompts and an inline MCP
-definition, while Cursor and manual setup keep using `mcp.json` with
-`KONNECT_TOKEN`. Do not put a real token or a token default in either manifest.
+definition, while Cursor declares `KONNECT_TOKEN` and `KONNECT_MCP_URL` as
+dashboard-configured variables used by `mcp.cursor.json`. The root Agent
+Plugins manifest remains skills-only while bearer tokens cannot be represented
+portably. Do not put a real token or a token default in any manifest.
 
 Root marketplace manifests are generated from plugin discovery, so you do not
 hand-edit marketplace entries when adding a new package.
@@ -157,9 +160,7 @@ license: MIT
 metadata:
   product: product-name
   category: workflow-category
-  tags:
-    - kong
-    - example-tag
+  tags: kong,example-tag
 ---
 ```
 
@@ -173,6 +174,10 @@ Keep `SKILL.md` as the only file at the skill root. Companion content should
 stay lightweight, non-hidden, non-executable, and easy to review. Set
 `license: MIT` for skills in this repo unless you have an explicit reason to
 ship different terms.
+
+Agent Skills metadata is a string-to-string map. Keep `tags` as one
+comma-separated string; the repo validator splits it only when deriving host
+marketplace keywords.
 
 This repo does not currently allow per-skill MCP dependency declarations. Keep
 shared MCP wiring at the plugin level for v1.
@@ -225,9 +230,13 @@ checks:
 - `SKILL.md` length
 - description budget
 - high-similarity trigger overlap between skills
+- Agent Skills validation through the pinned `skills-ref` dependency
+- root Agent Plugins manifests against the pinned 1.0.0 schema
+- portable `mcp.json` files against the pinned 1.0.0 schema when present
 
 ## What Generate Updates
 
+- the root Agent Plugins manifest in [`plugins/kong-konnect/plugin.json`](../plugins/kong-konnect/plugin.json)
 - the skill arrays in [`plugins/kong-konnect/.claude-plugin/plugin.json`](../plugins/kong-konnect/.claude-plugin/plugin.json)
 - the Claude prompt-backed user configuration and inline MCP definition in that
   manifest
@@ -235,7 +244,7 @@ checks:
 - the Claude marketplace keywords in [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)
 - the Cursor marketplace catalog in [`.cursor-plugin/marketplace.json`](../.cursor-plugin/marketplace.json)
 - the generated skill inventory in [docs/skills.md](skills.md)
-- the portable plugin-local MCP config in [`plugins/kong-konnect/mcp.json`](../plugins/kong-konnect/mcp.json)
+- the Cursor-native MCP config in [`plugins/kong-konnect/mcp.cursor.json`](../plugins/kong-konnect/mcp.cursor.json)
 
 ## What Stays Manual
 
@@ -254,8 +263,10 @@ checks:
 - canonical marketplace manifest name: `ai-marketplace`
 - first shipped plugin package: `kong-konnect`
 - canonical MCP server name: `kong-konnect`
+- Agent Plugins schema version: `1.0.0`, pinned under `schemas/agent-plugins/`
 - Claude plugin auth: sensitive `userConfig`, with no token default
-- Cursor and manual MCP auth variable: `KONNECT_TOKEN`
+- Cursor plugin auth variable: `KONNECT_TOKEN`
+- Agent Plugins MCP auth: client-managed only; no checked-in API-key placeholder
 - keep shared behavior in `SKILL.md`
 - keep harness-specific packaging out of skills
 
@@ -265,6 +276,7 @@ For authoring guidance on what makes a good skill, see [AGENTS.md](../AGENTS.md)
 
 - Cursor: https://cursor.com/
 - Claude Code: https://code.claude.com/docs
+- Agent Plugins: https://agent-plugins.org/
 - GitHub CLI `gh skill`: https://cli.github.com/
 - `npx skills`: https://github.com/vercel-labs/skills
 

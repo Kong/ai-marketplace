@@ -5,11 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: routing
-  tags:
-    - kong
-    - konnect
-    - routing
-    - triage
+  tags: kong,konnect,routing,triage
 ---
 
 # Konnect platform router

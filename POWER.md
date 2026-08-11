@@ -1,7 +1,7 @@
 ---
 name: "ai-marketplace"
 displayName: "Kong AI Marketplace"
-description: "Portable Kong skills plus remote kong-konnect MCP wiring for Kiro"
+description: "Portable Kong skills for Kiro with client-managed Konnect MCP setup"
 version: "1.0.0"
 license: "MIT"
 author: "Kong"
@@ -24,8 +24,9 @@ keywords:
 # Kong AI Marketplace
 
 This power makes the Kong AI Marketplace repo directly installable in
-Kiro. It reuses the root `mcp.json` and the existing `skills/` tree as the
-canonical source of domain guidance.
+Kiro. It reuses the skills under `plugins/kong-konnect/skills/` as the
+canonical source of domain guidance. The power does not package a bearer token
+or an unauthenticated remote MCP declaration.
 
 Use this power when the user is working on Kong Gateway or Konnect workflows
 and needs one of:
@@ -38,13 +39,14 @@ and needs one of:
 
 ## Onboarding
 
-1. Load the `kong-konnect` MCP server from `mcp.json`.
-2. Verify MCP access before relying on live state. If MCP auth fails, say so
-   early and continue with repo artifacts, the relevant skill guidance, or
-   user-provided state.
+1. When live Konnect state is needed, use a `kong-konnect` MCP server configured
+   through Kiro's user-level MCP settings with a securely supplied bearer token.
+2. Verify MCP access before relying on live state. If MCP is absent or auth
+   fails, say so early and continue with repo artifacts, the relevant skill
+   guidance, or user-provided state.
 3. Preserve the user's current toolchain. Do not convert between `decK`,
    `kongctl`, and Terraform unless the user asks or there is a clear blocker.
-4. Use the existing `skills/` tree for the substantive Kong workflow guidance.
+4. Use `plugins/kong-konnect/skills/` for the substantive Kong workflow guidance.
    The Kiro steering files in this repo are only routing and safety layers.
 
 ## Tool Choice

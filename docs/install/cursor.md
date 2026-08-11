@@ -12,6 +12,9 @@ under Cursor's local plugin directory:
    [`.cursor-plugin/plugin.json`](../../plugins/kong-konnect/.cursor-plugin/plugin.json) at the plugin root.
 3. Restart Cursor or run `Developer: Reload Window`.
 4. Confirm `kong-konnect` appears under installed plugins.
+5. Open the plugin's Configure screen and enter the required Konnect access
+   token. Change the MCP URL only when the organization is outside the US
+   region.
 
 <!-- END HEADER SECTION -->
 
@@ -26,7 +29,7 @@ local path above remains the contributor smoke-test flow.
 
 - The `kong-konnect` plugin package from [`plugins/kong-konnect/`](../../plugins/kong-konnect/)
 - The shared skills from [`plugins/kong-konnect/skills/`](../../plugins/kong-konnect/skills/)
-- The `kong-konnect` MCP server entry from [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json)
+- The `kong-konnect` MCP server entry from [`plugins/kong-konnect/mcp.cursor.json`](../../plugins/kong-konnect/mcp.cursor.json)
 
 Cursor uses the plugin manifest in
 [`plugins/kong-konnect/.cursor-plugin/plugin.json`](../../plugins/kong-konnect/.cursor-plugin/plugin.json)
@@ -54,10 +57,19 @@ If you installed via `gh skill`, you can also update one installed skill with
 
 ## MCP Notes
 
-`KONNECT_TOKEN` is only required when Cursor loads or uses the
-`kong-konnect` MCP server. If you only want the shared skills, use the
-skill-only install path instead.
+`KONNECT_TOKEN` is only required when Cursor loads or uses the `kong-konnect`
+MCP server. The native plugin declares it as a required variable; Cursor asks
+an administrator for the value through Plugins → Configure and substitutes it
+into the MCP header without putting the value in this repository.
 
-If you want the MCP server without the full plugin wrapper, use
-[`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) as the
-checked-in reference shape.
+`KONNECT_MCP_URL` defaults to `https://us.mcp.konghq.com`. Set it to the
+regional endpoint for the organization when needed.
+
+If you want the MCP server without the full plugin wrapper, create a user-level
+Cursor MCP entry and use Cursor's documented environment-variable or secure
+configuration support. The checked-in `mcp.cursor.json` is a plugin template;
+its placeholders require the declarations in `.cursor-plugin/plugin.json`.
+
+Cursor can also load the root Agent Plugins format, but that path is currently
+skills-only because Agent Plugins 1.0.0 cannot portably bind an API key. See
+[Agent Plugins](./agent-plugins.md).

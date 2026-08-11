@@ -128,7 +128,9 @@ Required doc content:
    - reference:
      - `.agents/plugins/marketplace.json`
      - `plugins/kong-konnect/.codex-plugin/plugin.json`
-     - `plugins/kong-konnect/mcp.json`
+     - the Codex-native authenticated MCP config; do not reuse
+       `plugins/kong-konnect/mcp.cursor.json` or a portable Agent Plugins
+       `mcp.json` unless its credential semantics match the client
    - explain when `KONNECT_TOKEN` is required
    - clearly separate skill-only install from marketplace/plugin install
 

@@ -5,10 +5,7 @@ license: MIT
 metadata:
   product: kongctl
   category: query
-  tags:
-    - kongctl
-    - konnect
-    - read-only
+  tags: kongctl,konnect,read-only
 ---
 
 # kongctl-query

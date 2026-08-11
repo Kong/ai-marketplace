@@ -4,7 +4,7 @@
 [![Maintenance](https://img.shields.io/badge/maintenance-actively_updated-0a7f5a?style=for-the-badge)](#tech-preview)
 
 Portable Kong skills plus `kong-konnect` MCP configuration for Cursor, Claude
-Code, and shared skill installers.
+Code, Agent Plugins clients, and shared skill installers.
 
 This repo is the contributor-facing source of truth for the packaged skills and
 install metadata. End users normally consume these assets through marketplace
@@ -58,6 +58,7 @@ enforcement path on pull requests and pushes to `main`.
 
 [![Cursor](https://img.shields.io/badge/Cursor-plugin-000000?style=for-the-badge&logo=cursor&logoColor=white)](docs/install/cursor.md)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-111111?style=for-the-badge&logo=anthropic&logoColor=white)](docs/install/claude-code.md)
+[![Agent Plugins](https://img.shields.io/badge/Agent_Plugins-open_standard-4B32C3?style=for-the-badge)](docs/install/agent-plugins.md)
 [![Other Tools](https://img.shields.io/badge/Other_Tools-skills-555555?style=for-the-badge&logo=vercel&logoColor=white)](docs/install/other-tools.md)
 
 ## Authentication
@@ -72,10 +73,13 @@ Authorization: Bearer <Konnect access token>
 - Claude Code's full plugin prompts for the token, masks it, and stores it in
   Claude's secure credential store. It also prompts for the regional MCP URL
   and defaults to the US endpoint.
-- Cursor and manual MCP setup use `KONNECT_TOKEN` through the portable checked-in
-  MCP configuration.
-- Skill-only installs through `npx skills` or `gh skill` require neither form of
-  MCP authentication.
+- Cursor's native plugin declares `KONNECT_TOKEN` and the regional endpoint as
+  dashboard-configured plugin variables.
+- Agent Plugins 1.0.0 does not define API-key prompts or secret references, so
+  its package remains skills-only until Konnect MCP supports client-managed
+  OAuth. Other clients must use their own secure MCP credential setup.
+- Skill-only installs through Agent Plugins, `npx skills`, or `gh skill`
+  require no MCP authentication.
 
 ## Skill Install Notes
 
@@ -86,6 +90,8 @@ Authorization: Bearer <Konnect access token>
 - Be careful with any automatic update path: it can pull newer skill instructions automatically and may introduce supply-chain or security risk.
 - For `gh skill`, preview before install with `gh skill preview kong/ai-marketplace gateway-plugin-datakit`.
 
-Use [`plugins/kong-konnect/mcp.json`](plugins/kong-konnect/mcp.json) as the
-portable checked-in reference shape for Cursor and manual MCP setup. Claude's
-prompt-backed MCP configuration is generated inline in its plugin manifest.
+Cursor's native MCP template is
+[`plugins/kong-konnect/mcp.cursor.json`](plugins/kong-konnect/mcp.cursor.json).
+Claude's prompt-backed MCP configuration is generated inline in its plugin
+manifest. See [Agent Plugins](docs/install/agent-plugins.md) for why the open
+standard package does not yet declare authenticated MCP.

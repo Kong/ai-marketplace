@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: observability
-  tags:
-    - kong
-    - konnect
-    - analytics
-    - observability
-    - debugger
+  tags: kong,konnect,analytics,observability,debugger
 ---
 
 # Konnect observability triage

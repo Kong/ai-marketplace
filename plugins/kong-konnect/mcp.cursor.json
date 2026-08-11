@@ -1,8 +1,7 @@
 {
   "mcpServers": {
     "kong-konnect": {
-      "type": "http",
-      "url": "https://us.mcp.konghq.com",
+      "url": "${KONNECT_MCP_URL}",
       "headers": {
         "Authorization": "Bearer ${KONNECT_TOKEN}"
       }

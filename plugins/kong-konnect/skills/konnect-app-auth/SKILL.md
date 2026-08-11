@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: application-auth
-  tags:
-    - kong
-    - konnect
-    - dev-portal
-    - authentication
-    - application-registration
+  tags: kong,konnect,dev-portal,authentication,application-registration
 ---
 
 # Konnect application auth workflow

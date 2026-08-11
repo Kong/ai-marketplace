@@ -5,11 +5,7 @@ license: MIT
 metadata:
   product: datakit
   category: orchestration
-  tags:
-    - kong
-    - datakit
-    - gateway-plugin-datakit
-    - gateway
+  tags: kong,datakit,gateway-plugin-datakit,gateway
 ---
 
 # Goal

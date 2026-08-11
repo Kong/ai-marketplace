@@ -8,6 +8,7 @@ docs, then applies package-policy and drift checks.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import stat
@@ -17,6 +18,9 @@ from difflib import SequenceMatcher
 from pathlib import Path
 
 import yaml
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import SchemaError
+from skills_ref import validate as validate_agent_skill
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -26,6 +30,16 @@ MCP_URL = "https://us.mcp.konghq.com"
 TOKEN_ENV = "KONNECT_TOKEN"
 TOKEN_OPTION = "konnect_token"
 MCP_URL_OPTION = "konnect_mcp_url"
+CURSOR_MCP_FILE = "mcp.cursor.json"
+AGENT_PLUGINS_VERSION = "1.0.0"
+AGENT_PLUGIN_SCHEMA_URL = f"https://agent-plugins.org/schemas/{AGENT_PLUGINS_VERSION}/plugin.schema.json"
+AGENT_MCP_SCHEMA_URL = f"https://agent-plugins.org/schemas/{AGENT_PLUGINS_VERSION}/mcp.schema.json"
+AGENT_PLUGIN_SCHEMA = REPO_ROOT / "schemas" / "agent-plugins" / AGENT_PLUGINS_VERSION / "plugin.schema.json"
+AGENT_MCP_SCHEMA = REPO_ROOT / "schemas" / "agent-plugins" / AGENT_PLUGINS_VERSION / "mcp.schema.json"
+PINNED_SCHEMA_SHA256 = {
+    AGENT_PLUGIN_SCHEMA: "0a4aad95ce337878ad38802ebf0daa3fde76abe3f65400c86bcbb1ec0b3ab883",
+    AGENT_MCP_SCHEMA: "6539175bfcdf43085855183e86da40ea94b166547a72b47ae9a0a390516d3acb",
+}
 MARKETPLACE_NAME = "ai-marketplace"
 REPO_URL = "https://github.com/kong/ai-marketplace"
 AVAILABLE_SKILLS_START = "<!-- generated:available-skills:start -->"
@@ -161,8 +175,17 @@ class Plugin:
         return self.root / ".cursor-plugin" / "plugin.json"
 
     @property
-    def mcp_config(self) -> Path | None:
+    def agent_manifest(self) -> Path:
+        return self.root / "plugin.json"
+
+    @property
+    def agent_mcp_config(self) -> Path | None:
         path = self.root / "mcp.json"
+        return path if path.exists() else None
+
+    @property
+    def cursor_mcp_config(self) -> Path | None:
+        path = self.root / CURSOR_MCP_FILE
         return path if path.exists() else None
 
 
@@ -276,6 +299,7 @@ def discover_plugins() -> list[Plugin]:
         plugin = Plugin(name=entry.name, root=entry)
         required = [
             plugin.skills_dir,
+            plugin.agent_manifest,
             plugin.claude_manifest,
             plugin.cursor_manifest,
         ]
@@ -312,6 +336,8 @@ def discover_skills(plugin: Plugin) -> list[Skill]:
         metadata = frontmatter.get("metadata")
         if not isinstance(metadata, dict):
             raise ValueError(f"{skill_md}: frontmatter requires metadata mapping")
+        if not all(isinstance(key, str) and isinstance(value, str) for key, value in metadata.items()):
+            raise ValueError(f"{skill_md}: metadata keys and values must be strings for Agent Skills compatibility")
 
         product = metadata.get("product")
         category = metadata.get("category")
@@ -320,10 +346,13 @@ def discover_skills(plugin: Plugin) -> list[Skill]:
             raise ValueError(f"{skill_md}: metadata.product must be a non-empty string")
         if not isinstance(category, str) or not category.strip():
             raise ValueError(f"{skill_md}: metadata.category must be a non-empty string")
-        if not isinstance(tags, list) or not tags:
-            raise ValueError(f"{skill_md}: metadata.tags must be a non-empty list")
-        if not all(isinstance(tag, str) and tag.strip() for tag in tags):
-            raise ValueError(f"{skill_md}: metadata.tags entries must be non-empty strings")
+        if not isinstance(tags, str) or not tags.strip():
+            raise ValueError(f"{skill_md}: metadata.tags must be a non-empty comma-separated string")
+        parsed_tags = [tag.strip() for tag in tags.split(",")]
+        if not all(parsed_tags):
+            raise ValueError(f"{skill_md}: metadata.tags contains an empty comma-separated entry")
+        if len(parsed_tags) != len(set(parsed_tags)):
+            raise ValueError(f"{skill_md}: metadata.tags contains duplicate entries")
 
         skills.append(
             Skill(
@@ -334,7 +363,7 @@ def discover_skills(plugin: Plugin) -> list[Skill]:
                 license=license_value.strip(),
                 product=product.strip(),
                 category=category.strip(),
-                tags=[tag.strip() for tag in tags],
+                tags=parsed_tags,
             )
         )
     return skills
@@ -367,11 +396,31 @@ def sync_skills_doc(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -> str:
     return replace_generated_section(text, AVAILABLE_SKILLS_START, AVAILABLE_SKILLS_END, expected_available_skills(plugin_catalog))
 
 
+def sync_agent_plugin(plugin: Plugin, skills: list[Skill]) -> object:
+    version = (
+        manifest_version(plugin.agent_manifest)
+        or manifest_version(plugin.claude_manifest)
+        or manifest_version(plugin.cursor_manifest)
+        or "0.1.0"
+    )
+    return {
+        "$schema": AGENT_PLUGIN_SCHEMA_URL,
+        "name": plugin.name,
+        "version": version,
+        "description": f"Portable {plugin_display_name(plugin.name)} skills for Agent Plugins clients.",
+        "author": {"name": "kong"},
+        "homepage": REPO_URL,
+        "repository": REPO_URL,
+        "license": "MIT",
+        "keywords": ordered_unique(["kong", plugin.name, "agent-skills"]),
+    }
+
+
 def sync_claude_plugin(plugin: Plugin, skills: list[Skill]) -> object:
     data = load_json(plugin.claude_manifest)
     data["name"] = plugin.name
     data["skills"] = [skill.rel_path for skill in skills]
-    if plugin.mcp_config is not None:
+    if plugin.cursor_mcp_config is not None:
         data.pop("mcpServers", None)
         data.pop("userConfig", None)
         data["userConfig"] = claude_user_config()
@@ -382,16 +431,17 @@ def sync_claude_plugin(plugin: Plugin, skills: list[Skill]) -> object:
 
 
 def sync_cursor_plugin(plugin: Plugin, skills: list[Skill]) -> object:
+    has_mcp = plugin.cursor_mcp_config is not None
     return {
         "name": plugin.name,
         "displayName": plugin_display_name(plugin.name),
-        "version": manifest_version(plugin.claude_manifest) or manifest_version(plugin.cursor_manifest) or "0.1.0",
-        "description": host_plugin_description(plugin.name, "Cursor", plugin.mcp_config is not None),
+        "version": manifest_version(plugin.agent_manifest) or manifest_version(plugin.claude_manifest) or manifest_version(plugin.cursor_manifest) or "0.1.0",
+        "description": host_plugin_description(plugin.name, "Cursor", has_mcp),
         "author": {"name": "kong"},
         "license": "MIT",
         "keywords": derived_keywords(skills),
         "skills": "skills",
-        **({"mcpServers": "mcp.json"} if plugin.mcp_config is not None else {}),
+        **({"mcpServers": CURSOR_MCP_FILE, "variables": cursor_variables()} if has_mcp else {}),
     }
 
 
@@ -415,13 +465,13 @@ def sync_claude_marketplace(plugin_catalog: list[tuple[Plugin, list[Skill]]]) ->
 def sync_cursor_marketplace(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -> object:
     version = next(
         (
-            manifest_version(plugin.claude_manifest) or manifest_version(plugin.cursor_manifest)
+            manifest_version(plugin.agent_manifest) or manifest_version(plugin.claude_manifest) or manifest_version(plugin.cursor_manifest)
             for plugin, _skills in plugin_catalog
-            if manifest_version(plugin.claude_manifest) or manifest_version(plugin.cursor_manifest)
+            if manifest_version(plugin.agent_manifest) or manifest_version(plugin.claude_manifest) or manifest_version(plugin.cursor_manifest)
         ),
         "0.1.0",
     )
-    has_mcp = any(plugin.mcp_config is not None for plugin, _skills in plugin_catalog)
+    has_mcp = any(plugin.cursor_mcp_config is not None for plugin, _skills in plugin_catalog)
     return {
         "name": MARKETPLACE_NAME,
         "owner": {"name": "kong"},
@@ -433,22 +483,42 @@ def sync_cursor_marketplace(plugin_catalog: list[tuple[Plugin, list[Skill]]]) ->
             {
                 "name": plugin.name,
                 "source": plugin.rel_path,
-                "description": host_plugin_description(plugin.name, "Cursor", plugin.mcp_config is not None),
+                "description": host_plugin_description(plugin.name, "Cursor", plugin.cursor_mcp_config is not None),
             }
             for plugin, _skills in plugin_catalog
         ],
     }
 
 
-def sync_plugin_mcp() -> object:
+def sync_cursor_mcp() -> object:
     return {
         "mcpServers": {
             MCP_NAME: {
-                "type": "http",
-                "url": MCP_URL,
+                "url": "${KONNECT_MCP_URL}",
                 "headers": {"Authorization": f"Bearer ${{{TOKEN_ENV}}}"},
             }
         }
+    }
+
+
+def cursor_variables() -> object:
+    return {
+        "type": "object",
+        "properties": {
+            TOKEN_ENV: {
+                "type": "string",
+                "title": "Konnect access token",
+                "description": "Personal or system account access token used by the Konnect MCP server.",
+                "minLength": 1,
+            },
+            "KONNECT_MCP_URL": {
+                "type": "string",
+                "title": "Konnect MCP URL",
+                "description": "Regional MCP endpoint for your Konnect organization.",
+                "default": MCP_URL,
+            },
+        },
+        "required": [TOKEN_ENV],
     }
 
 
@@ -473,7 +543,7 @@ def claude_user_config() -> object:
 def claude_mcp_servers() -> object:
     return {
         MCP_NAME: {
-            "type": "http",
+            "type": "streamable-http",
             "url": f"${{user_config.{MCP_URL_OPTION}}}",
             "headers": {"Authorization": f"Bearer ${{user_config.{TOKEN_OPTION}}}"},
         }
@@ -489,6 +559,7 @@ def manifest_version(path: Path) -> str | None:
 def validate_plugin_versions(plugin: Plugin) -> tuple[list[str], str | None]:
     errors: list[str] = []
     manifests = [
+        plugin.agent_manifest,
         plugin.claude_manifest,
         plugin.cursor_manifest,
     ]
@@ -516,9 +587,12 @@ def validate_static_metadata(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -
     repo_versions: set[str | None] = set()
 
     for plugin, skills in plugin_catalog:
+        agent_plugin = load_json(plugin.agent_manifest)
         claude_plugin = load_json(plugin.claude_manifest)
         cursor_plugin = load_json(plugin.cursor_manifest)
 
+        if agent_plugin.get("name") != plugin.name:
+            errors.append(f"{plugin.agent_manifest.relative_to(REPO_ROOT)}: unexpected plugin name")
         if claude_plugin.get("name") != plugin.name:
             errors.append(f"{plugin.claude_manifest.relative_to(REPO_ROOT)}: unexpected plugin name")
         if cursor_plugin.get("name") != plugin.name:
@@ -536,10 +610,14 @@ def validate_static_metadata(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -
             errors.append(f"{plugin.cursor_manifest.relative_to(REPO_ROOT)}: unexpected author")
         if cursor_plugin.get("keywords") != expected_cursor.get("keywords"):
             errors.append(f"{plugin.cursor_manifest.relative_to(REPO_ROOT)}: unexpected keywords")
-        if plugin.mcp_config is None and "mcpServers" in cursor_plugin:
+        if plugin.cursor_mcp_config is None and "mcpServers" in cursor_plugin:
             errors.append(f"{plugin.cursor_manifest.relative_to(REPO_ROOT)}: unexpected mcpServers")
-        if plugin.mcp_config is not None and cursor_plugin.get("mcpServers") != "mcp.json":
+        if plugin.cursor_mcp_config is not None and cursor_plugin.get("mcpServers") != CURSOR_MCP_FILE:
             errors.append(f"{plugin.cursor_manifest.relative_to(REPO_ROOT)}: unexpected mcpServers")
+        if plugin.cursor_mcp_config is None and "variables" in cursor_plugin:
+            errors.append(f"{plugin.cursor_manifest.relative_to(REPO_ROOT)}: unexpected variables")
+        if plugin.cursor_mcp_config is not None and cursor_plugin.get("variables") != cursor_variables():
+            errors.append(f"{plugin.cursor_manifest.relative_to(REPO_ROOT)}: unexpected variables")
 
     if len(repo_versions) > 1:
         errors.append(f"release versions must match across plugin packages: {sorted(repo_versions)}")
@@ -568,6 +646,71 @@ def validate_static_metadata(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -
             elif entry.get(source_key) != plugin.rel_path:
                 errors.append(f"{label}: plugin {plugin.name} source drift")
 
+    return errors
+
+
+def validate_agent_plugin_schemas(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -> list[str]:
+    errors: list[str] = []
+    schema_specs = [
+        (AGENT_PLUGIN_SCHEMA, AGENT_PLUGIN_SCHEMA_URL),
+        (AGENT_MCP_SCHEMA, AGENT_MCP_SCHEMA_URL),
+    ]
+    schemas: dict[Path, object] = {}
+    for schema_path, expected_id in schema_specs:
+        if not schema_path.exists():
+            errors.append(f"{schema_path.relative_to(REPO_ROOT)}: pinned schema is missing")
+            continue
+        actual_sha256 = hashlib.sha256(schema_path.read_bytes()).hexdigest()
+        if actual_sha256 != PINNED_SCHEMA_SHA256[schema_path]:
+            errors.append(
+                f"{schema_path.relative_to(REPO_ROOT)}: pinned schema checksum changed; verify the versioned upstream source before updating the pin"
+            )
+        schema = load_json(schema_path)
+        schemas[schema_path] = schema
+        if not isinstance(schema, dict) or schema.get("$id") != expected_id:
+            errors.append(f"{schema_path.relative_to(REPO_ROOT)}: unexpected pinned schema $id")
+            continue
+        try:
+            Draft202012Validator.check_schema(schema)
+        except SchemaError as exc:
+            errors.append(f"{schema_path.relative_to(REPO_ROOT)}: invalid pinned schema: {exc.message}")
+
+    def validate_instance(instance_path: Path, schema_path: Path) -> None:
+        schema = schemas.get(schema_path)
+        if not isinstance(schema, dict):
+            return
+        validator = Draft202012Validator(schema)
+        for error in sorted(validator.iter_errors(load_json(instance_path)), key=lambda item: list(item.path)):
+            location = ".".join(str(part) for part in error.absolute_path) or "<root>"
+            errors.append(f"{instance_path.relative_to(REPO_ROOT)}: schema error at {location}: {error.message}")
+
+    for plugin, _skills in plugin_catalog:
+        validate_instance(plugin.agent_manifest, AGENT_PLUGIN_SCHEMA)
+        if plugin.agent_mcp_config is not None:
+            validate_instance(plugin.agent_mcp_config, AGENT_MCP_SCHEMA)
+            config = load_json(plugin.agent_mcp_config)
+            servers = config.get("mcpServers", {}) if isinstance(config, dict) else {}
+            for server_name, server in servers.items() if isinstance(servers, dict) else []:
+                if not isinstance(server, dict) or server.get("type") not in {"streamable-http", "sse"}:
+                    continue
+                values = [server.get("url")]
+                headers = server.get("headers")
+                if isinstance(headers, dict):
+                    values.extend(headers.values())
+                if any(isinstance(value, str) and "${" in value for value in values):
+                    errors.append(
+                        f"{plugin.agent_mcp_config.relative_to(REPO_ROOT)}: remote server {server_name!r} uses a placeholder, but Agent Plugins clients must treat remote URLs and headers literally"
+                    )
+    return errors
+
+
+def validate_with_skills_ref(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -> list[str]:
+    errors: list[str] = []
+    for plugin, skills in plugin_catalog:
+        for skill in skills:
+            skill_dir = plugin.skills_dir / skill.dir_name
+            for error in validate_agent_skill(skill_dir):
+                errors.append(f"{skill_dir.relative_to(REPO_ROOT)}: Agent Skills validation: {error}")
     return errors
 
 
@@ -736,22 +879,25 @@ def validate_text_files() -> list[str]:
     checks: dict[Path, list[str]] = {
         REPO_ROOT / "README.md": [
             "docs/install/README.md",
+            "docs/install/agent-plugins.md",
             "docs/install/cursor.md",
             "npx skills add kong/ai-marketplace --skill gateway-plugin-datakit",
             "supply-chain or security risk",
             "contributor-facing source of truth",
             "SECURITY.md",
-            "plugins/kong-konnect/mcp.json",
+            "plugins/kong-konnect/mcp.cursor.json",
+            "Agent Plugins 1.0.0",
             "Cursor",
         ],
-        REPO_ROOT / "docs" / "install" / "README.md": [MCP_NAME, MCP_URL, TOKEN_ENV, "gh skill", "plugins/kong-konnect/mcp.json", "./cursor.md"],
-        REPO_ROOT / "docs" / "install" / "cursor.md": ["Cursor", "plugins/kong-konnect/.cursor-plugin/plugin.json", ".cursor-plugin/marketplace.json", "plugins/kong-konnect/mcp.json", TOKEN_ENV, ".cursor/plugins/local/kong-konnect"],
+        REPO_ROOT / "docs" / "install" / "README.md": [MCP_NAME, MCP_URL, TOKEN_ENV, "gh skill", "./agent-plugins.md", "./cursor.md"],
+        REPO_ROOT / "docs" / "install" / "agent-plugins.md": ["Agent Plugins 1.0.0", "plugins/kong-konnect/plugin.json", "streamable-http", "client-managed MCP OAuth", "skills-ref", "mcp.json"],
+        REPO_ROOT / "docs" / "install" / "cursor.md": ["Cursor", "plugins/kong-konnect/.cursor-plugin/plugin.json", ".cursor-plugin/marketplace.json", "plugins/kong-konnect/mcp.cursor.json", TOKEN_ENV, "KONNECT_MCP_URL", ".cursor/plugins/local/kong-konnect"],
         REPO_ROOT / "docs" / "install" / "claude-code.md": ["Claude Code", "kong-konnect", MCP_NAME, "plugins/kong-konnect/.claude-plugin/plugin.json", "secure credential store", "regional MCP URL"],
-        REPO_ROOT / "docs" / "install" / "other-tools.md": ["gh skill install kong/ai-marketplace", "gh skill preview", "npx skills add kong/ai-marketplace", MCP_NAME, "plugins/kong-konnect/mcp.json"],
+        REPO_ROOT / "docs" / "install" / "other-tools.md": ["gh skill install kong/ai-marketplace", "gh skill preview", "npx skills add kong/ai-marketplace", MCP_NAME, "client's secret store"],
         REPO_ROOT / "docs" / "release.md": ["workflow_dispatch", "mise run ci", "Tag And Release", "release versions", "main", "plugins/kong-konnect/.cursor-plugin/plugin.json"],
-        REPO_ROOT / "docs" / "structure.md": [".cursor-plugin/marketplace.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/mcp.json", "user configuration", "contributor file map", "AGENTS.md"],
-        REPO_ROOT / "docs" / "developer.md": ["assets/", "references/", "scripts/", "mise install", "mise run preflight", "mise run gen", "mise run deps", "skill:new", "gh skill publish --dry-run", "Consumers generally see", "GitHub Actions workflow is the only publishing path", "kong-skill-authoring", "description budget", "overlap", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "plugin:new", "userConfig", "Cursor"],
-        REPO_ROOT / "docs" / "testing.md": ["mise run preflight", "mise run deps", "mise run lint", "gh skill publish --dry-run", "scratch project", "KONNECT_TOKEN", "docs/install/other-tools.md", "description budget", "overlap", "docs/install/claude-code.md", "docs/install/cursor.md", "plugins/kong-konnect/skills/", ".cursor/plugins/local/kong-konnect"],
+        REPO_ROOT / "docs" / "structure.md": [".cursor-plugin/marketplace.json", "plugins/kong-konnect/plugin.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/mcp.cursor.json", "user configuration", "contributor file map", "AGENTS.md", "schemas/agent-plugins/1.0.0"],
+        REPO_ROOT / "docs" / "developer.md": ["assets/", "references/", "scripts/", "mise install", "mise run preflight", "mise run gen", "mise run deps", "skill:new", "gh skill publish --dry-run", "Consumers generally see", "GitHub Actions workflow is the only publishing path", "kong-skill-authoring", "description budget", "overlap", "plugins/kong-konnect/plugin.json", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "mcp.cursor.json", "skills-ref", "plugin:new", "userConfig", "Cursor"],
+        REPO_ROOT / "docs" / "testing.md": ["mise run preflight", "mise run deps", "mise run lint", "gh skill publish --dry-run", "scratch project", "KONNECT_TOKEN", "docs/install/other-tools.md", "description budget", "overlap", "docs/install/agent-plugins.md", "docs/install/claude-code.md", "docs/install/cursor.md", "plugins/kong-konnect/skills/", ".cursor/plugins/local/kong-konnect", "skills-ref"],
         REPO_ROOT / "SECURITY.md": ["vulnerability@konghq.com", "Do not open a public GitHub issue"],
         REPO_ROOT / "AGENTS.md": ["plugins/<plugin>/skills/", "docs/skills.md", "plugin-aware"],
     }
@@ -803,12 +949,15 @@ def main() -> int:
         errors,
     )
     for plugin, skills in plugin_catalog:
+        compare_or_write(plugin.agent_manifest, dump_json(sync_agent_plugin(plugin, skills)), args.fix, errors)
         compare_or_write(plugin.claude_manifest, dump_json(sync_claude_plugin(plugin, skills)), args.fix, errors)
         compare_or_write(plugin.cursor_manifest, dump_json(sync_cursor_plugin(plugin, skills)), args.fix, errors)
-        if plugin.mcp_config is not None:
-            compare_or_write(plugin.mcp_config, dump_json(sync_plugin_mcp()), args.fix, errors)
+        if plugin.cursor_mcp_config is not None:
+            compare_or_write(plugin.cursor_mcp_config, dump_json(sync_cursor_mcp()), args.fix, errors)
 
     errors.extend(validate_static_metadata(plugin_catalog))
+    errors.extend(validate_agent_plugin_schemas(plugin_catalog))
+    errors.extend(validate_with_skills_ref(plugin_catalog))
     errors.extend(validate_skill_contents(plugin_catalog))
     errors.extend(validate_no_generic_skills(all_skills))
     errors.extend(validate_no_scaffold_placeholders(plugin_catalog))

@@ -188,9 +188,7 @@ license: MIT
 metadata:
   product: product-name
   category: workflow-category
-  tags:
-    - kong
-    - example-tag
+  tags: kong,example-tag
 ---
 ```
 
@@ -202,6 +200,11 @@ Use these fields consistently in this repo:
 - `metadata.product`
 - `metadata.category`
 - `metadata.tags`
+
+Agent Skills requires every metadata value to be a string. Keep `product` and
+`category` as strings, encode `tags` as one comma-separated string with no
+empty entries, and quote values such as `"true"` that YAML would otherwise
+parse as another type.
 
 Treat `description` as the primary trigger surface for the skill.
 

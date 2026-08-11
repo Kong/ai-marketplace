@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: gateway-operations
-  tags:
-    - kong
-    - konnect
-    - gateway
-    - control-plane
-    - data-plane
+  tags: kong,konnect,gateway,control-plane,data-plane
 ---
 
 # Konnect gateway triage

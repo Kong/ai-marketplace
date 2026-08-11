@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: terraform
   category: declarative-gateway
-  tags:
-    - kong
-    - gateway
-    - terraform
-    - hcl
-    - declarative
+  tags: kong,gateway,terraform,hcl,declarative
 ---
 
 # Terraform for self-managed Kong Gateway

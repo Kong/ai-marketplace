@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: access
-  tags:
-    - kong
-    - konnect
-    - access
-    - auth
-    - permissions
+  tags: kong,konnect,access,auth,permissions
 ---
 
 # Konnect access and scope troubleshooting

@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: terraform
   category: declarative-konnect
-  tags:
-    - kong
-    - konnect
-    - terraform
-    - hcl
-    - declarative
+  tags: kong,konnect,terraform,hcl,declarative
 ---
 
 # Terraform for Konnect

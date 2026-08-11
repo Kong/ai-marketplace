@@ -4,14 +4,9 @@ description: Create or refactor a skill in this repo. Use when deciding extend-v
 license: MIT
 metadata:
   product: repo
-  internal: true
+  internal: "true"
   category: skill-authoring
-  tags:
-    - kong
-    - skills
-    - authoring
-    - review
-    - workflow
+  tags: kong,skills,authoring,review,workflow
 ---
 
 # Kong skill authoring

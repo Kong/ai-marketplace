@@ -2,8 +2,9 @@
 
 ![Other Tools](https://img.shields.io/badge/Other_Tools-skills-555555?style=for-the-badge&logo=vercel&logoColor=white)
 
-For tools without a first-class plugin or extension wrapper in Kong AI Marketplace, use
-the shared skills plus the MCP config.
+For tools without a first-class plugin or extension wrapper in Kong AI
+Marketplace, use the shared skills and configure MCP through that client's own
+secure credential surface.
 
 ## Skills
 
@@ -111,9 +112,16 @@ gh skill update gateway-plugin-datakit
 Claude Code has a native plugin update flow. See its install page for the
 current recommended approach.
 
-## MCP config reference
+## MCP configuration
 
-Use [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) as
-the checked-in reference shape for the `kong-konnect` MCP server.
+The `kong-konnect` server uses Streamable HTTP at the regional MCP URL and
+requires:
 
-`KONNECT_TOKEN` is only required if you add and use the MCP server.
+```text
+Authorization: Bearer <Konnect access token>
+```
+
+Do not put the token in a checked-in plugin file. Use the client's secret store,
+credential prompt, or private user-level MCP configuration. If the client
+supports Agent Plugins but cannot securely attach an API-key header, use the
+skills-only package described in [Agent Plugins](./agent-plugins.md).

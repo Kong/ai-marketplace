@@ -23,6 +23,10 @@ Kong AI Marketplace provides Kiro Powers for AWS.
 
 - If a power includes MCP integrations, Kiro registers them in
   `~/.kiro/settings/mcp.json` under the Powers section.
+- This power currently installs skills only. Configure `kong-konnect` in
+  Kiro's user-level MCP settings when live access is needed, and keep the
+  bearer token out of the checked-in power. Agent Plugins 1.0.0 cannot
+  portably represent the API-key header before Konnect MCP OAuth is available.
 - To install from GitHub:
 
    ```bash

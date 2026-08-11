@@ -43,6 +43,8 @@ check.
 `mise run lint` covers more than generated-file drift. It is also the repo's
 default authoring guardrail for:
 
+- Agent Plugins 1.0.0 validation against pinned local schemas
+- Agent Skills validation through `skills-ref`
 - scaffold placeholders
 - `SKILL.md` length
 - description budget
@@ -52,9 +54,11 @@ The checked-in `pre-commit` and `pre-push` hooks both run `mise run lint`, but
 they only apply after `mise run hooks:install`. CI remains the enforcement path
 for pull requests and pushes to `main`.
 
-For a Claude plugin spot check, use its secure token prompt. If a spot check
-exercises the portable MCP configuration used by Cursor or manual setup, export
-`KONNECT_TOKEN` before testing it.
+For a Claude plugin spot check, use its secure token prompt. For a Cursor plugin
+spot check, configure `KONNECT_TOKEN` through the plugin dashboard. The Agent
+Plugins package is intentionally skills-only until Konnect MCP supports
+client-managed OAuth, so do not add a token placeholder merely to make its MCP
+schema pass.
 
 The shipped shared-skill payload lives under `plugins/kong-konnect/skills/`,
 so install and publish checks should continue to reflect that source tree.
@@ -104,6 +108,17 @@ back to user-profile locations.
 
 ## Tool Spot Checks
 
+### Agent Plugins
+
+- Install path: [docs/install/agent-plugins.md](./install/agent-plugins.md)
+- Package root: `plugins/kong-konnect/`
+- Verify: `plugin.json` validates against the pinned Agent Plugins 1.0.0 schema
+  and all child skill directories pass `skills-ref`
+- Expected MCP state before OAuth: no root `mcp.json`
+- If a root `mcp.json` is added later: verify `streamable-http`, the pinned
+  schema URL, and the absence of literal tokens or `${...}` placeholders in
+  remote URLs and headers
+
 ### Claude Code
 
 - Install path: [docs/install/claude-code.md](./install/claude-code.md)
@@ -112,6 +127,10 @@ back to user-profile locations.
 - Verify after install: `kong-konnect` appears as installed and `gateway-plugin-datakit` is available in a fresh session
 - MCP check when using the plugin path: select the resource region and confirm
   `kong-konnect` connects without exporting `KONNECT_TOKEN`
+- Compatibility check: use a disposable `--plugin-dir` session when changing
+  transport fields; Claude Code 2.1.226 loaded `$schema` plus
+  `streamable-http`, while `claude plugin validate --strict` alone did not
+  inspect MCP transport behavior
 - Quick prompt: `What Kong-specific skills are available in this environment?`
 - Cleanup: uninstall the plugin or discard the scratch profile
 
@@ -121,7 +140,8 @@ back to user-profile locations.
 - Local plugin path: `~/.cursor/plugins/local/kong-konnect/`
 - Use a copied directory for the local plugin smoke test; do not rely on a symlinked plugin directory
 - Verify after install: `kong-konnect` appears as installed and `gateway-plugin-datakit` is available in a fresh session
-- MCP check when using the plugin path: confirm `kong-konnect` is configured from `plugins/kong-konnect/mcp.json`
+- MCP check when using the plugin path: confirm `kong-konnect` is configured
+  from `plugins/kong-konnect/mcp.cursor.json` after entering the plugin variables
 - Quick prompt: `What Kong-specific skills are available in this environment?`
 - Cleanup: remove `~/.cursor/plugins/local/kong-konnect/` or discard the scratch profile
 

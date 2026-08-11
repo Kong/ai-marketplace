@@ -71,7 +71,14 @@ automatically, which may introduce supply-chain or security risk if content
 changes upstream without review.
 
 If you want the MCP server without the full plugin wrapper, add
-`kong-konnect` manually using
-[`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) as the
-reference shape. The manual path uses `KONNECT_TOKEN`; set the regional URL in
-the copied configuration when your resources are outside the US region.
+`kong-konnect` manually as an HTTP MCP server and attach the Authorization
+header through Claude's own MCP configuration. Do not copy a real token into
+this repository. Set the regional URL when your resources are outside the US
+region.
+
+The native manifest uses `streamable-http`, matching Agent Plugins. This was
+verified by loading a session-only plugin in Claude Code 2.1.226 and observing
+the server in Claude's MCP inventory; strict manifest validation alone is not
+treated as transport evidence. The definition stays inline because Claude's
+`${user_config...}` credential expansion is client-specific even though the
+transport name is shared.
