@@ -19,6 +19,7 @@
     "./skills/konnect-control-plane-bootstrap",
     "./skills/konnect-event-gateway",
     "./skills/konnect-gateway-triage",
+    "./skills/konnect-monetization",
     "./skills/konnect-observability-triage",
     "./skills/konnect-platform-router",
     "./skills/portal-branding",
