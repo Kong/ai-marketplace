@@ -230,9 +230,11 @@ checks:
 - `SKILL.md` length
 - description budget
 - high-similarity trigger overlap between skills
-- Agent Skills validation through the pinned `skills-ref` dependency
+- the repo's existing Agent Skills structure and metadata checks
 - root Agent Plugins manifests against the pinned 1.0.0 schema
 - portable `mcp.json` files against the pinned 1.0.0 schema when present
+- portable remote MCP URL and credential-safety rules that the schema cannot
+  express
 
 ## What Generate Updates
 

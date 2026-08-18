@@ -5,13 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: dev-portal-design
-  tags:
-    - kong
-    - konnect
-    - dev-portal
-    - mdc
-    - markdown-components
-    - page-design
+  tags: kong,konnect,dev-portal,mdc,markdown-components,page-design
 ---
 
 # Konnect Dev Portal page design

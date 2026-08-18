@@ -5,12 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: dev-portal-branding
-  tags:
-    - kong
-    - konnect
-    - dev-portal
-    - branding
-    - styling
+  tags: kong,konnect,dev-portal,branding,styling
 ---
 
 # Konnect Dev Portal page branding

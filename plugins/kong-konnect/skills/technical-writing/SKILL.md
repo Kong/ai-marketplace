@@ -5,13 +5,7 @@ license: MIT
 metadata:
   product: konnect
   category: documentation
-  tags:
-    - kong
-    - konnect
-    - dev-portal
-    - documentation
-    - api-documentation
-    - writing
+  tags: kong,konnect,dev-portal,documentation,api-documentation,writing
 ---
 
 # Technical documentation writing

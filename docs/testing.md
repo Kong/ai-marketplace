@@ -33,9 +33,10 @@ optional flows:
 2. Run `mise run deps`.
 3. Run `mise run hooks:install` once per checkout.
 4. Run `mise run lint`.
-5. Run `gh skill publish --dry-run` when you change skill metadata or prepare a release, or use `mise run ci` to include it in the standard CI path.
-6. If you changed install docs, plugin manifests, or MCP config surfaces, manually verify only the affected tools.
-7. Use a scratch project or disposable user profile when a tool writes local state.
+5. Run `mise run test` when you change repo validation or scaffolding.
+6. Run `gh skill publish --dry-run` when you change skill metadata or prepare a release, or use `mise run ci` to include tests and both validation paths.
+7. If you changed install docs, plugin manifests, or MCP config surfaces, manually verify only the affected tools.
+8. Use a scratch project or disposable user profile when a tool writes local state.
 
 Use the smallest path that covers the change. Most edits do not require every
 check.
@@ -44,7 +45,8 @@ check.
 default authoring guardrail for:
 
 - Agent Plugins 1.0.0 validation against pinned local schemas
-- Agent Skills validation through `skills-ref`
+- the repo's existing Agent Skills structure and metadata checks
+- portable remote MCP URL and credential-safety rules not encoded by the schema
 - scaffold placeholders
 - `SKILL.md` length
 - description budget
@@ -59,6 +61,9 @@ spot check, configure `KONNECT_TOKEN` through the plugin dashboard. The Agent
 Plugins package is intentionally skills-only until Konnect MCP supports
 client-managed OAuth, so do not add a token placeholder merely to make its MCP
 schema pass.
+
+Use [Testing Agent Plugins](testing-agent-plugins.md) for the minimal portable
+package checks and the Codex CLI smoke test.
 
 The shipped shared-skill payload lives under `plugins/kong-konnect/skills/`,
 so install and publish checks should continue to reflect that source tree.
@@ -113,7 +118,7 @@ back to user-profile locations.
 - Install path: [docs/install/agent-plugins.md](./install/agent-plugins.md)
 - Package root: `plugins/kong-konnect/`
 - Verify: `plugin.json` validates against the pinned Agent Plugins 1.0.0 schema
-  and all child skill directories pass `skills-ref`
+  and all child skill directories pass the repo's skill checks
 - Expected MCP state before OAuth: no root `mcp.json`
 - If a root `mcp.json` is added later: verify `streamable-http`, the pinned
   schema URL, and the absence of literal tokens or `${...}` placeholders in

@@ -30,9 +30,14 @@ run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.
 description = "Validate manifests, skills, and generated content"
 run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.py"
 
+[tasks.test]
+description = "Run focused validator and scaffold sanity tests"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python -m unittest discover -s tests -p 'test_*.py'"
+
 [tasks.ci]
 description = "Run the same validation used in CI"
 run = [
+  { task = "test" },
   { task = "lint" },
   "gh skill publish --dry-run",
 ]

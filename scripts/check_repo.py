@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import ipaddress
 import json
 import re
 import stat
@@ -16,11 +17,11 @@ import sys
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import yaml
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import SchemaError
-from skills_ref import validate as validate_agent_skill
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -72,6 +73,18 @@ SECRET_PATTERNS = [
     re.compile(r"\bkpat_[A-Za-z0-9]{20,}\b"),
     re.compile(r"\bspat_[A-Za-z0-9]{20,}\b"),
 ]
+HTTP_HEADER_NAME_PATTERN = re.compile(r"^[!#$%&'*+.^_`|~0-9A-Za-z-]+$")
+HTTP_HEADER_VALUE_INVALID_PATTERN = re.compile(r"[\x00-\x08\x0a-\x1f\x7f]")
+SENSITIVE_REMOTE_HEADER_VALUE_PATTERN = re.compile(r"^\s*(?:basic|bearer)\s+\S", re.IGNORECASE)
+SENSITIVE_REMOTE_HEADER_NAMES = {
+    "authorization",
+    "proxy-authorization",
+    "cookie",
+    "set-cookie",
+    "x-api-key",
+    "api-key",
+    "x-auth-token",
+}
 SCAFFOLD_PLACEHOLDER_SNIPPETS = [
     "Replace this with a real summary.",
     "replace this bullet with the request pattern that should trigger the skill",
@@ -649,6 +662,74 @@ def validate_static_metadata(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -
     return errors
 
 
+def validate_agent_remote_server(server_name: str, server: dict[str, object]) -> list[str]:
+    """Validate Agent Plugins rules that are normative but not in the JSON schema."""
+    errors: list[str] = []
+    url = server.get("url")
+    if not isinstance(url, str):
+        return errors
+
+    if "${" in url:
+        errors.append(f"remote server {server_name!r} URL uses a placeholder; clients treat it literally")
+
+    try:
+        parsed = urlsplit(url)
+        _port = parsed.port
+    except ValueError as exc:
+        errors.append(f"remote server {server_name!r} URL is invalid: {exc}")
+        parsed = None
+
+    if parsed is not None:
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc or parsed.hostname is None:
+            errors.append(f"remote server {server_name!r} URL must be an absolute HTTP or HTTPS URL")
+        if parsed.username is not None or parsed.password is not None:
+            errors.append(f"remote server {server_name!r} URL must not contain user information")
+        if parsed.fragment:
+            errors.append(f"remote server {server_name!r} URL must not contain a fragment")
+
+        is_loopback = False
+        if parsed.hostname == "localhost":
+            is_loopback = True
+        elif parsed.hostname is not None:
+            try:
+                is_loopback = ipaddress.ip_address(parsed.hostname).is_loopback
+            except ValueError:
+                pass
+        if parsed.scheme == "http" and not is_loopback:
+            errors.append(f"remote server {server_name!r} must use HTTPS unless its host is loopback")
+
+    headers = server.get("headers")
+    if not isinstance(headers, dict):
+        return errors
+
+    seen_header_names: set[str] = set()
+    for name, value in headers.items():
+        if not isinstance(name, str) or not isinstance(value, str):
+            continue
+        normalized_name = name.casefold()
+        if "${" in name or "${" in value:
+            errors.append(
+                f"remote server {server_name!r} header {name!r} uses a placeholder; clients treat it literally"
+            )
+        if not HTTP_HEADER_NAME_PATTERN.fullmatch(name):
+            errors.append(f"remote server {server_name!r} header name {name!r} is not a valid HTTP field name")
+        if normalized_name in seen_header_names:
+            errors.append(f"remote server {server_name!r} repeats header {name!r} with different casing")
+        seen_header_names.add(normalized_name)
+        if HTTP_HEADER_VALUE_INVALID_PATTERN.search(value):
+            errors.append(f"remote server {server_name!r} header {name!r} has an invalid HTTP field value")
+        if normalized_name in SENSITIVE_REMOTE_HEADER_NAMES:
+            errors.append(
+                f"remote server {server_name!r} header {name!r} can carry credentials; portable headers are visible package data"
+            )
+        if SENSITIVE_REMOTE_HEADER_VALUE_PATTERN.search(value) or any(
+            pattern.search(value) for pattern in SECRET_PATTERNS
+        ):
+            errors.append(f"remote server {server_name!r} header {name!r} appears to contain a secret")
+
+    return errors
+
+
 def validate_agent_plugin_schemas(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -> list[str]:
     errors: list[str] = []
     schema_specs = [
@@ -693,24 +774,10 @@ def validate_agent_plugin_schemas(plugin_catalog: list[tuple[Plugin, list[Skill]
             for server_name, server in servers.items() if isinstance(servers, dict) else []:
                 if not isinstance(server, dict) or server.get("type") not in {"streamable-http", "sse"}:
                     continue
-                values = [server.get("url")]
-                headers = server.get("headers")
-                if isinstance(headers, dict):
-                    values.extend(headers.values())
-                if any(isinstance(value, str) and "${" in value for value in values):
-                    errors.append(
-                        f"{plugin.agent_mcp_config.relative_to(REPO_ROOT)}: remote server {server_name!r} uses a placeholder, but Agent Plugins clients must treat remote URLs and headers literally"
-                    )
-    return errors
-
-
-def validate_with_skills_ref(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -> list[str]:
-    errors: list[str] = []
-    for plugin, skills in plugin_catalog:
-        for skill in skills:
-            skill_dir = plugin.skills_dir / skill.dir_name
-            for error in validate_agent_skill(skill_dir):
-                errors.append(f"{skill_dir.relative_to(REPO_ROOT)}: Agent Skills validation: {error}")
+                errors.extend(
+                    f"{plugin.agent_mcp_config.relative_to(REPO_ROOT)}: {error}"
+                    for error in validate_agent_remote_server(str(server_name), server)
+                )
     return errors
 
 
@@ -890,14 +957,14 @@ def validate_text_files() -> list[str]:
             "Cursor",
         ],
         REPO_ROOT / "docs" / "install" / "README.md": [MCP_NAME, MCP_URL, TOKEN_ENV, "gh skill", "./agent-plugins.md", "./cursor.md"],
-        REPO_ROOT / "docs" / "install" / "agent-plugins.md": ["Agent Plugins 1.0.0", "plugins/kong-konnect/plugin.json", "streamable-http", "client-managed MCP OAuth", "skills-ref", "mcp.json"],
+        REPO_ROOT / "docs" / "install" / "agent-plugins.md": ["Agent Plugins 1.0.0", "plugins/kong-konnect/plugin.json", "streamable-http", "client-managed MCP OAuth", "gh skill publish --dry-run", "mcp.json"],
         REPO_ROOT / "docs" / "install" / "cursor.md": ["Cursor", "plugins/kong-konnect/.cursor-plugin/plugin.json", ".cursor-plugin/marketplace.json", "plugins/kong-konnect/mcp.cursor.json", TOKEN_ENV, "KONNECT_MCP_URL", ".cursor/plugins/local/kong-konnect"],
         REPO_ROOT / "docs" / "install" / "claude-code.md": ["Claude Code", "kong-konnect", MCP_NAME, "plugins/kong-konnect/.claude-plugin/plugin.json", "secure credential store", "regional MCP URL"],
         REPO_ROOT / "docs" / "install" / "other-tools.md": ["gh skill install kong/ai-marketplace", "gh skill preview", "npx skills add kong/ai-marketplace", MCP_NAME, "client's secret store"],
         REPO_ROOT / "docs" / "release.md": ["workflow_dispatch", "mise run ci", "Tag And Release", "release versions", "main", "plugins/kong-konnect/.cursor-plugin/plugin.json"],
         REPO_ROOT / "docs" / "structure.md": [".cursor-plugin/marketplace.json", "plugins/kong-konnect/plugin.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/mcp.cursor.json", "user configuration", "contributor file map", "AGENTS.md", "schemas/agent-plugins/1.0.0"],
-        REPO_ROOT / "docs" / "developer.md": ["assets/", "references/", "scripts/", "mise install", "mise run preflight", "mise run gen", "mise run deps", "skill:new", "gh skill publish --dry-run", "Consumers generally see", "GitHub Actions workflow is the only publishing path", "kong-skill-authoring", "description budget", "overlap", "plugins/kong-konnect/plugin.json", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "mcp.cursor.json", "skills-ref", "plugin:new", "userConfig", "Cursor"],
-        REPO_ROOT / "docs" / "testing.md": ["mise run preflight", "mise run deps", "mise run lint", "gh skill publish --dry-run", "scratch project", "KONNECT_TOKEN", "docs/install/other-tools.md", "description budget", "overlap", "docs/install/agent-plugins.md", "docs/install/claude-code.md", "docs/install/cursor.md", "plugins/kong-konnect/skills/", ".cursor/plugins/local/kong-konnect", "skills-ref"],
+        REPO_ROOT / "docs" / "developer.md": ["assets/", "references/", "scripts/", "mise install", "mise run preflight", "mise run gen", "mise run deps", "skill:new", "gh skill publish --dry-run", "Consumers generally see", "GitHub Actions workflow is the only publishing path", "kong-skill-authoring", "description budget", "overlap", "plugins/kong-konnect/plugin.json", "plugins/kong-konnect/.claude-plugin/plugin.json", "plugins/kong-konnect/.cursor-plugin/plugin.json", "mcp.cursor.json", "credential-safety", "plugin:new", "userConfig", "Cursor"],
+        REPO_ROOT / "docs" / "testing.md": ["mise run preflight", "mise run deps", "mise run lint", "mise run test", "gh skill publish --dry-run", "scratch project", "KONNECT_TOKEN", "docs/install/other-tools.md", "description budget", "overlap", "docs/install/agent-plugins.md", "docs/install/claude-code.md", "docs/install/cursor.md", "plugins/kong-konnect/skills/", ".cursor/plugins/local/kong-konnect", "repo's existing Agent Skills"],
         REPO_ROOT / "SECURITY.md": ["vulnerability@konghq.com", "Do not open a public GitHub issue"],
         REPO_ROOT / "AGENTS.md": ["plugins/<plugin>/skills/", "docs/skills.md", "plugin-aware"],
     }
@@ -957,7 +1024,6 @@ def main() -> int:
 
     errors.extend(validate_static_metadata(plugin_catalog))
     errors.extend(validate_agent_plugin_schemas(plugin_catalog))
-    errors.extend(validate_with_skills_ref(plugin_catalog))
     errors.extend(validate_skill_contents(plugin_catalog))
     errors.extend(validate_no_generic_skills(all_skills))
     errors.extend(validate_no_scaffold_placeholders(plugin_catalog))
