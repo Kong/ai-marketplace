@@ -32,19 +32,14 @@ access troubleshooting beyond clear handoffs.
 ## Tool Selection
 
 - Use the shared `kong-konnect` MCP server first for live inspection of existing
-  meters, features, plans, subscriptions, and customer charges. Read the current
-  catalog before adding to it; key collisions and near-duplicate features are the
-  most common avoidable mistake.
-- The shared MCP surface covers the whole billing lifecycle, event ingestion and
-  invoicing included. Search the server's own tool index by name before
-  concluding a step is impossible.
-- Absent `mcp__kong-konnect__*` tools are a missing `KONNECT_TOKEN`, not a broken
-  server: the header is unresolved, so the server is dropped silently. Name the
-  variable, say that MCP headers resolve only at process start so a new session is
-  required, and offer the REST path for a token pasted into the conversation.
-- Load `references/access-and-endpoints.md` before reading or writing live state.
-  The billing REST base path is not discoverable by probing and the base serves no
-  OpenAPI document, so guessing it burns turns and ends in 404s.
+  meters, features, plans, subscriptions, and customer charges. It covers the
+  whole billing lifecycle, event ingestion and invoicing included, so search its
+  own tool index by name before concluding a step is impossible.
+- Absent `mcp__kong-konnect__*` tools mean the environment carries no
+  `KONNECT_TOKEN`, not a broken server: the header is unresolved, so the server is
+  dropped silently rather than failing loudly. Treat it as a credential symptom.
+- Take the billing REST base path from `references/access-and-endpoints.md`. It is
+  the one fact here that cannot be recovered by looking.
 - Billing entities are not reliably covered by the declarative toolchains. Before
   promising a `terraform-konnect` or `kongctl-declarative` path, confirm the
   provider or CLI actually models these resources; otherwise keep changes on the
