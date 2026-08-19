@@ -37,14 +37,27 @@ graduated.
 4. **Wait.** Ingestion is asynchronous. Poll the meter query until the raw total
    matches what was sent, before reading any charge.
 
-Note that events, and sometimes invoice reads, may not be present in the MCP tool
-surface. Fall back to the billing REST API with a personal access token for those
-steps.
+The meter query's `filters` argument is **silently ignored** — it returns the
+unfiltered total and raises nothing, in every syntax. Split a dimension with
+`group_by_dimensions` and read the slice you want. This matters because the
+obvious way to check an exclusion filter is to query the meter with a filter and
+compare; that comparison always "fails", and the filter it appears to disprove is
+working. Prove the exclusion through the charge amount, not through the meter
+query.
+
+Ingestion and charge reads are both on the shared MCP surface —
+`ingest_metering_events`, `list_metering_events`, `list_customer_charges`,
+`list_customer_entitlement_access`. Reach for them by name rather than assuming
+they are missing. Without a token there are no MCP tools at all; see
+`access-and-endpoints.md` for the REST equivalents and the credential
+bootstrap.
 
 ## Reading the result
 
-Query the customer's charges and expand the real-time usage. Then read carefully,
-because two different numbers are both correct:
+Query the customer's charges and expand the real-time usage — the expand token is
+`real_time_usage`, and without it the live figure is simply absent from the
+response rather than zero. Then read carefully, because two different numbers are
+both correct:
 
 - **Booked** stays at zero until the service period closes. It is not a bug and
   not an empty catalog.

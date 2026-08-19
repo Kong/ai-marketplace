@@ -2,7 +2,9 @@
 
 Load when creating or changing meters, features, plans, or rate cards.
 
-Konnect billing is OpenMeter underneath. Inspect the live schema before building
+Konnect billing is OpenMeter underneath, and its feature, plan and charge
+endpoints are flagged pre-release in the live schema while meters are GA. Inspect
+the live schema before building
 a payload — through `kong-konnect` MCP schema lookups, or the billing API's own
 OpenAPI document. The contracts below are the ones that cause repeated errors or
 silent mispricing; they are not a substitute for reading the current schema.
@@ -25,7 +27,10 @@ namespaces, so list what exists before choosing names.
 ## Meters
 
 A meter is an event type, an aggregation, and the dimensions worth grouping or
-filtering by. Add a dimension for anything that will ever need to be excluded
+filtering by. The aggregation fixes what `value_property` must be: `count`
+ignores it, `sum`/`avg`/`min`/`max` need one resolving to a number, and
+`unique_count` needs one resolving to a string. A mismatch is rejected at create
+time, so choose the pair together. Add a dimension for anything that will ever need to be excluded
 from billing, split in reporting, or priced differently — dimensions cannot be
 recovered from events that were ingested without them.
 

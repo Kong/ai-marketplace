@@ -35,13 +35,16 @@ access troubleshooting beyond clear handoffs.
   meters, features, plans, subscriptions, and customer charges. Read the current
   catalog before adding to it; key collisions and near-duplicate features are the
   most common avoidable mistake.
-- The MCP surface covers catalog and subscription reads and writes. Event
-  ingestion and invoice inspection may not be present in it; when they are
-  missing, fall back to the Konnect billing REST API with a personal access
-  token rather than declaring the step impossible.
-- If live state matters and `kong-konnect` MCP is not connected, say so early,
-  suggest connecting it, and continue from user-provided artifacts or the REST
-  API.
+- The shared MCP surface covers the whole billing lifecycle, event ingestion and
+  invoicing included. Search the server's own tool index by name before
+  concluding a step is impossible.
+- Absent `mcp__kong-konnect__*` tools are a missing `KONNECT_TOKEN`, not a broken
+  server: the header is unresolved, so the server is dropped silently. Name the
+  variable, say that MCP headers resolve only at process start so a new session is
+  required, and offer the REST path for a token pasted into the conversation.
+- Load `references/access-and-endpoints.md` before reading or writing live state.
+  The billing REST base path is not discoverable by probing and the base serves no
+  OpenAPI document, so guessing it burns turns and ends in 404s.
 - Billing entities are not reliably covered by the declarative toolchains. Before
   promising a `terraform-konnect` or `kongctl-declarative` path, confirm the
   provider or CLI actually models these resources; otherwise keep changes on the
@@ -51,6 +54,10 @@ access troubleshooting beyond clear handoffs.
 
 Load only the reference that matches the active branch:
 
+- `references/access-and-endpoints.md`
+  - Load first, whenever anything will be read from or written to a live org.
+    Carries the credential bootstrap, the billing REST base path, and the MCP
+    tool inventory.
 - `references/pricing-model-questions.md`
   - Load before creating anything, whenever the pricing model involves an
     included allowance, an overage, a "custom" tier, a bundle, seats, credits,
@@ -64,7 +71,21 @@ Load only the reference that matches the active branch:
 
 ## Workflow
 
-### 1. Establish the pricing model as a table before modeling it
+### 1. Confirm access and read what already exists
+
+Establish which org you can write to before modeling anything. It is one call,
+and it decides whether this session ends in a published catalog or in a mapping
+the user has to build later.
+
+Then list the meters, features and plans that are already there. Key collisions
+and near-duplicate features are the most common avoidable mistake, and an org
+that already carries a catalog usually needs a namespace prefix rather than the
+obvious names. Name the org back to the user before the first write.
+
+Load `references/access-and-endpoints.md` for the credential bootstrap and the
+endpoints.
+
+### 2. Establish the pricing model as a table before modeling it
 
 Reduce the source — a page, a deal sheet, a competitor's tiers — to one table:
 per tier, the price and cadence, every included allowance with its unit, every
@@ -80,7 +101,7 @@ position.
 A wrong number here reaches a published plan and bills a real customer. Confirm
 the tier count against what the source actually renders.
 
-### 2. Define what one billable unit is
+### 3. Define what one billable unit is
 
 Before any entity exists, settle for each metered thing: which event marks it,
 what bounds it, and what makes it idempotent. "A conversation" or "a request" is
@@ -90,7 +111,7 @@ Decide this jointly with the user when the source does not say. It determines th
 meter's aggregation and dimensions, and it is expensive to change once events are
 flowing.
 
-### 3. Resolve the silences with the user
+### 4. Resolve the silences with the user
 
 Load `references/pricing-model-questions.md` and walk the model against it. For
 each under-determined point, offer two or three concrete modelings with their
@@ -100,7 +121,7 @@ Batch the questions into one round so answering is confirmation rather than
 research. Record anything the user does not settle as an explicit stated
 assumption — never as a silent choice.
 
-### 4. Present the mapping, then wait
+### 5. Present the mapping, then wait
 
 Before writing: the meter list, the feature list, one plan's full definition, a
 tier-to-rate-card table for the rest, the assumptions carried, and what you are
@@ -109,7 +130,7 @@ deliberately not creating. Get approval.
 Plans are versioned and publishing is a commitment. A wrong catalog is retired by
 archiving versions, not by editing them in place.
 
-### 5. Create in dependency order, then publish
+### 6. Create in dependency order, then publish
 
 Meters, then features, then plans, then publish. Resolve ids by key at each step
 instead of hardcoding them, so a partial run can be repeated safely.
@@ -117,7 +138,7 @@ instead of hardcoding them, so a partial run can be repeated safely.
 Load `references/catalog-entity-mechanics.md` for the entity contracts and the
 price-type semantics that decide what actually gets charged.
 
-### 6. Prove the money with seeded usage
+### 7. Prove the money with seeded usage
 
 A catalog that creates cleanly can still bill wrong. Subscribe a mock customer,
 seed a scenario whose arithmetic you can do by hand, and make the engine agree.
@@ -128,10 +149,10 @@ supposed to be excluded, so one number tests both the tiering and the filter.
 Load `references/usage-proof-and-invoicing.md` for the seeding sequence and for
 reading charges and invoices correctly.
 
-### 7. Report the arithmetic, not a success list
+### 8. Report the arithmetic, not a success list
 
 State which plan, what usage, which tier it landed in, what the engine computed,
-and what will be billed when. Restate every assumption from step 3 that is still
+and what will be billed when. Restate every assumption from step 4 that is still
 load-bearing.
 
 ## Konnect-Specific Gotchas
@@ -139,6 +160,10 @@ load-bearing.
 - Konnect billing is OpenMeter underneath. Its entity model is meters →
   features → plans → subscriptions, and each layer references the one below by
   id, so creation order is forced.
+- A meter's aggregation fixes what `value_property` has to be. `count` ignores
+  it; `sum`, `avg`, `min` and `max` need one resolving to a number; `unique_count`
+  needs one resolving to a string. Decide it together with the aggregation — the
+  wrong pairing is rejected at create time.
 - A price with tiers has two very different meanings. Graduated charges each
   tier's rate only on usage inside that tier; volume reprices *every* unit at the
   reached tier's rate. Picking volume where graduated was meant silently
@@ -161,6 +186,8 @@ load-bearing.
 
 Before answering, verify that you can state:
 
+- which org this was written to, and that no key collides with an entity that
+  was already in it
 - what one billable unit is for every metered feature
 - which pricing silences the user resolved, and which remain as stated
   assumptions
