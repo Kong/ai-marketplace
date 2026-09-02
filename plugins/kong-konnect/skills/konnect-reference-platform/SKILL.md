@@ -60,7 +60,8 @@ Require these properties unless the user deliberately chooses another model:
 
 - no custom registry or generated orchestration format
 - one default branch with distinct development and production resources
-- stable, versioned OpenAPI files for Catalog versions
+- a root beta OpenAPI contract plus immutable, stable versioned files
+- an explicit current-production version in the production Catalog manifest
 - generated decK files committed so reviewers can inspect exact Gateway state
 - apply-only reconciliation until deletion semantics are intentionally designed
 
@@ -126,6 +127,10 @@ configuration to `deck-gateway`.
 Validate more than YAML syntax:
 
 - regenerate committed decK from the OpenAPI source and require a clean diff
+- verify release automation opens a reviewed service PR, advances the root
+  beta, and derives production generation from the manifest's stable selector
+- reject modification or deletion of stable release files already on the
+  target branch
 - validate every decK file and every `kongctl` manifest supported by the
   installed CLI
 - check that each CI identity and manifest is limited to its intended repo,
