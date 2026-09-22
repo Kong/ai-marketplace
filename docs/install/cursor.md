@@ -47,17 +47,32 @@ Install only one skill:
 npx skills add kong/ai-marketplace --skill gateway-plugin-datakit
 ```
 
-That does not require `KONNECT_TOKEN`.
+Skill-only installs do not require MCP authentication.
 
 If you installed via `gh skill`, you can also update one installed skill with
 `gh skill update gateway-plugin-datakit`.
 
-## MCP Notes
+## MCP authentication
 
-`KONNECT_TOKEN` is only required when Cursor loads or uses the
-`kong-konnect` MCP server. If you only want the shared skills, use the
-skill-only install path instead.
+Cursor loads the plugin's
+[`mcp.json`](../../plugins/kong-konnect/mcp.json), which uses the global URL
+without a bearer header. [Cursor documents OAuth for remote servers in
+`mcp.json`](https://cursor.com/docs/context/mcp); the plugin-bundled entry has
+not been tested by Kong as of 2026-09-18. On first use, follow the connection
+prompt and complete the browser login.
 
-If you want the MCP server without the full plugin wrapper, use
-[`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) as the
-checked-in reference shape.
+From a checkout of this repository, the local install steps above can be run as:
+
+```bash
+mkdir -p ~/.cursor/plugins/local/kong-konnect
+cp -R plugins/kong-konnect/. ~/.cursor/plugins/local/kong-konnect/
+```
+
+Restart Cursor or run `Developer: Reload Window`, then connect the server.
+For MCP alone, copy the shipped MCP entry into your Cursor MCP settings
+instead of installing the plugin.
+
+For CI or headless use, see the separate
+[PAT/SPAT configuration](./README.md#ci-and-headless-authentication).
+Before switching an existing installation, follow the
+[migration steps](./README.md#migrating-from-the-old-server).

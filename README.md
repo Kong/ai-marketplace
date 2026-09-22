@@ -62,20 +62,30 @@ enforcement path on pull requests and pushes to `main`.
 
 ## Authentication
 
-All MCP install surfaces use the same bearer token model, but credential input
-is host-specific:
+The `kong-konnect` MCP server uses OAuth by default at
+`https://global.mcp.konghq.com/`. Supported interactive clients register
+automatically and open a browser login when you first connect or use the server.
+No token needs to be pasted. Skill-only installs do not require MCP authentication.
 
-```text
-Authorization: Bearer <Konnect access token>
-```
+For CI and headless clients, including the Copilot cloud agent, use a Konnect
+personal access token (`kpat_`) or system account token (`spat_`) in an
+`Authorization: Bearer` header. See the separate
+[headless configuration example](docs/install/README.md#ci-and-headless-authentication).
 
-- Claude Code's full plugin prompts for the token, masks it, and stores it in
-  Claude's secure credential store. It also prompts for the regional MCP URL
-  and defaults to the US endpoint.
-- Cursor and manual MCP setup use `KONNECT_TOKEN` through the portable checked-in
-  MCP configuration.
-- Skill-only installs through `npx skills` or `gh skill` require neither form of
-  MCP authentication.
+## MCP Server
+
+The shipped [MCP configuration](plugins/kong-konnect/mcp.json) uses HTTP and the
+global URL without an authorization header, allowing clients to use OAuth.
+The server supports OAuth 2.1 with PKCE and dynamic client registration.
+Regional URLs for `us`, `eu`, `au`, and `in` are also available for region pinning;
+see the [installation guide](docs/install/README.md#server-and-authentication).
+
+Follow the client instructions for [Claude Code](docs/install/claude-code.md),
+[Cursor](docs/install/cursor.md), or
+[Claude.ai, Claude Desktop, and Codex CLI](docs/install/other-tools.md#remote-mcp-with-oauth).
+Existing users should read
+[Migrating from the old server](docs/install/README.md#migrating-from-the-old-server)
+to remove duplicate entries before reconnecting.
 
 ## Skill Install Notes
 
@@ -85,7 +95,3 @@ Authorization: Bearer <Konnect access token>
 - Prefer native plugin update flows in supported host tools over custom startup hooks.
 - Be careful with any automatic update path: it can pull newer skill instructions automatically and may introduce supply-chain or security risk.
 - For `gh skill`, preview before install with `gh skill preview kong/ai-marketplace gateway-plugin-datakit`.
-
-Use [`plugins/kong-konnect/mcp.json`](plugins/kong-konnect/mcp.json) as the
-portable checked-in reference shape for Cursor and manual MCP setup. Claude's
-prompt-backed MCP configuration is generated inline in its plugin manifest.

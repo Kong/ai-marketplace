@@ -34,3 +34,16 @@ Kong AI Marketplace provides Kiro Powers for AWS.
    ```bash
    gh skill install kong/ai-marketplace gateway-plugin-datakit
    ```
+
+## MCP authentication
+
+The shared [`mcp.json`](../../plugins/kong-konnect/mcp.json) now uses
+`https://global.mcp.konghq.com/` without a bearer header. OAuth is the default
+for supported interactive clients. Kiro's OAuth flow has not been verified
+by Kong for this launch; the power install steps above are not evidence of an
+OAuth test.
+
+For CI or headless integrations, use a separate hand-written configuration
+with a [PAT or SPAT bearer token](./README.md#ci-and-headless-authentication).
+See the [migration steps](./README.md#migrating-from-the-old-server) before
+replacing an old stdio or PAT-configured entry.

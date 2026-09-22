@@ -12,10 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLUGINS_DIR = REPO_ROOT / "plugins"
 MCP_NAME = "kong-konnect"
-MCP_URL = "https://us.mcp.konghq.com"
-TOKEN_ENV = "KONNECT_TOKEN"
-TOKEN_OPTION = "konnect_token"
-MCP_URL_OPTION = "konnect_mcp_url"
+MCP_URL = "https://global.mcp.konghq.com/"
 REPO_URL = "https://github.com/kong/ai-marketplace"
 DEFAULT_PLUGIN = "kong-konnect"
 
@@ -129,8 +126,7 @@ def claude_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, obje
         "skills": [],
     }
     if with_mcp:
-        data["userConfig"] = claude_user_config()
-        data["mcpServers"] = claude_mcp_servers()
+        data["mcpServers"] = "./mcp.json"
     return data
 
 
@@ -156,36 +152,7 @@ def mcp_template() -> dict[str, object]:
             MCP_NAME: {
                 "type": "http",
                 "url": MCP_URL,
-                "headers": {"Authorization": f"Bearer ${{{TOKEN_ENV}}}"},
             }
-        }
-    }
-
-
-def claude_user_config() -> dict[str, object]:
-    return {
-        TOKEN_OPTION: {
-            "type": "string",
-            "title": "Konnect access token",
-            "description": "Personal or system account access token used by the Konnect MCP server.",
-            "sensitive": True,
-            "required": True,
-        },
-        MCP_URL_OPTION: {
-            "type": "string",
-            "title": "Konnect MCP URL",
-            "description": "Regional MCP endpoint for your Konnect organization.",
-            "default": MCP_URL,
-        },
-    }
-
-
-def claude_mcp_servers() -> dict[str, object]:
-    return {
-        MCP_NAME: {
-            "type": "http",
-            "url": f"${{user_config.{MCP_URL_OPTION}}}",
-            "headers": {"Authorization": f"Bearer ${{user_config.{TOKEN_OPTION}}}"},
         }
     }
 

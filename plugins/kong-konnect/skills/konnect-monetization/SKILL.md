@@ -35,9 +35,10 @@ access troubleshooting beyond clear handoffs.
   meters, features, plans, subscriptions, and customer charges. It covers the
   whole billing lifecycle, event ingestion and invoicing included, so search its
   own tool index by name before concluding a step is impossible.
-- Absent `mcp__kong-konnect__*` tools mean the environment carries no
-  `KONNECT_TOKEN`, not a broken server: the header is unresolved, so the server is
-  dropped silently rather than failing loudly. Treat it as a credential symptom.
+- Absent `kong-konnect` MCP tools usually mean the client has not completed the
+  OAuth login for the server (or, for a headless PAT/SPAT configuration, the
+  bearer header is unset); treat it as a credential symptom and point to
+  `docs/install/README.md`.
 - Take the billing REST base path from `references/access-and-endpoints.md`. It is
   the one fact here that cannot be recovered by looking.
 - Billing entities are not reliably covered by the declarative toolchains. Before

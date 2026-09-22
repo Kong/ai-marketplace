@@ -24,14 +24,12 @@ MCP config.
   - Canonical shared skills shipped by the `kong-konnect` plugin and by
     shared-skill installers.
 - `plugins/kong-konnect/.claude-plugin/plugin.json`
-  - Claude Code plugin manifest local to the `kong-konnect` package. It declares
-    prompt-backed user configuration and an inline MCP definition so secrets use
-    Claude's secure credential store.
+  - Claude Code plugin manifest local to the `kong-konnect` package.
 - `plugins/kong-konnect/.cursor-plugin/plugin.json`
   - Cursor plugin manifest local to the `kong-konnect` package.
 - `plugins/kong-konnect/mcp.json`
-  - Portable environment-variable MCP reference shape used by Cursor and manual
-    MCP setup. Claude does not consume this file through the full plugin.
+  - Generated HTTP MCP configuration using the global URL and OAuth.
+  - Source: `sync_plugin_mcp()` in `scripts/check_repo.py`.
 
 ## Generated Inventory
 
@@ -51,3 +49,9 @@ MCP config.
   - Canonical publishing workflow for tags and GitHub releases.
 - `docs/release.md`
   - Contributor-facing release preparation and trigger process.
+
+## Installation Guides
+
+- `docs/install/README.md`
+  - Client index, OAuth default, headless PAT/SPAT example, and migration from
+    the archived stdio server or a PAT-configured plugin.
