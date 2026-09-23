@@ -37,11 +37,32 @@ Kong AI Marketplace provides Kiro Powers for AWS.
 
 ## MCP authentication
 
-The shared [`mcp.json`](../../plugins/kong-konnect/mcp.json) now uses
-`https://global.mcp.konghq.com/` without a bearer header. OAuth is the default
-for supported interactive clients. Kiro's OAuth flow has not been verified
-by Kong for this launch; the power install steps above are not evidence of an
-OAuth test.
+Tested with Kiro CLI 2.23.1 on 2026-09-23 using fresh browser OAuth with PKCE
+and explicit `oauthScopes`, without a token. Search, schema discovery, reads,
+and a disposable control-plane create/read/delete test passed on the CLI
+surface. Token refresh and the Kiro IDE one-click install route were not tested.
+
+Add this entry to `~/.kiro/settings/mcp.json`, preserving any existing servers:
+
+```json
+{
+  "mcpServers": {
+    "kong-konnect": {
+      "url": "https://global.mcp.konghq.com/",
+      "oauthScopes": [
+        "konnect:read",
+        "konnect:write",
+        "offline_access",
+        "openid"
+      ]
+    }
+  }
+}
+```
+
+Explicit `oauthScopes` are required for this Kiro CLI setup: without them,
+Kiro omits the scope parameter and Kong Identity rejects authorization with
+"The scope of your request is missing".
 
 For CI or headless integrations, use a separate hand-written configuration
 with a [PAT or SPAT bearer token](./README.md#ci-and-headless-authentication).

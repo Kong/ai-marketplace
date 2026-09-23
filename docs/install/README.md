@@ -30,9 +30,11 @@ Regional hosts also answer at `https://us.mcp.konghq.com/`,
 
 Follow the [Claude Code](./claude-code.md), [Cursor](./cursor.md), or
 [Claude.ai, Claude Desktop, and Codex CLI](./other-tools.md#remote-mcp-with-oauth)
-instructions. Only Claude Code's direct `claude mcp add --transport http` OAuth
-flow has a recorded Kong test as of 2026-09-18. The other client instructions
-are based on client documentation, not Kong end-to-end tests.
+instructions. Tested with Claude Code's direct
+`claude mcp add --transport http` OAuth flow on 2026-09-18 and
+[Kiro CLI 2.23.1](./aws.md#mcp-authentication) on 2026-09-23 (CLI surface,
+explicit `oauthScopes`). The other client instructions are based on client
+documentation, not Kong end-to-end tests.
 
 ## CI and headless authentication
 
