@@ -52,8 +52,10 @@ The checked-in `pre-commit` and `pre-push` hooks both run `mise run lint`, but
 they only apply after `mise run hooks:install`. CI remains the enforcement path
 for pull requests and pushes to `main`.
 
-If a spot check exercises the shared MCP configuration, export `KONNECT_TOKEN`
-or use the host tool's secure settings flow before you test it.
+If a spot check exercises the shared MCP configuration, complete the host's
+OAuth browser login. For a separate headless bearer-auth configuration, supply
+the PAT/SPAT secret through the host's supported secret settings. Record which
+client and install path were actually tested.
 
 The shipped shared-skill payload lives under `plugins/kong-konnect/skills/`,
 so install and publish checks should continue to reflect that source tree.
@@ -96,7 +98,7 @@ back to user-profile locations.
 
 - Prefer `gh skill preview` before installing from GitHub.
 - Use scratch projects or disposable profiles when a host writes local plugin or extension state.
-- Store `KONNECT_TOKEN` in the host tool's secure settings flow when available.
+- Store the PAT/SPAT secret in the host tool's secure settings flow when available.
 
 ## Tool Spot Checks
 

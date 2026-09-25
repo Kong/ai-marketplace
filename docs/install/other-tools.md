@@ -82,7 +82,7 @@ Update one installed skill:
 gh skill update gateway-plugin-datakit
 ```
 
-These skill-only installs do not require `KONNECT_TOKEN`.
+These skill-only installs do not require MCP authentication.
 
 To validate GitHub-side publishability without publishing:
 
@@ -111,9 +111,51 @@ gh skill update gateway-plugin-datakit
 Claude Code has a native plugin update flow. See its install page for the
 current recommended approach.
 
-## MCP config reference
+## Remote MCP with OAuth
 
 Use [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) as
-the checked-in reference shape for the `kong-konnect` MCP server.
+the checked-in reference for the global URL and header-free OAuth configuration.
+The client flows below follow client documentation; Kong has not recorded
+end-to-end OAuth tests for them as of 2026-09-18.
 
-`KONNECT_TOKEN` is only required if you add and use the MCP server.
+### Claude.ai and Claude Desktop
+
+For individual plans in Claude.ai, go to **Customize → Connectors**, click
+**+**, then **Add custom connector**. Enter `kong-konnect` as the name and
+`https://global.mcp.konghq.com/` as the URL. Free users are limited to one custom
+connector.
+
+For Team and Enterprise plans, an Owner must first add the connector through
+**Organization settings → Connectors**, using **Add → Custom → Web**. Members
+can then connect to it individually.
+
+Connect the server and complete the browser login when first prompted. No PAT
+is needed. Claude Desktop shares the connector once it is added in Claude.ai.
+This installs the remote connector, not the repository's skills. See
+[Claude's custom connector instructions](https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp).
+
+### Codex CLI
+
+Add the server directly:
+
+```bash
+codex mcp add kong-konnect --url https://global.mcp.konghq.com/
+```
+
+Complete the browser login when prompted during setup or first use. If login
+has not started, run:
+
+```bash
+codex mcp login kong-konnect
+```
+
+[Codex documents remote MCP OAuth and the login command](https://developers.openai.com/codex/mcp/).
+The Codex plugin was removed pending marketplace approval; these commands
+configure the MCP server directly and do not install a plugin.
+
+### CI and headless clients
+
+For clients such as the Copilot cloud agent that need non-interactive auth,
+use the separate [PAT/SPAT example](./README.md#ci-and-headless-authentication).
+Before switching an existing installation, follow the
+[migration steps](./README.md#migrating-from-the-old-server).

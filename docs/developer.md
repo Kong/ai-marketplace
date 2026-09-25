@@ -247,7 +247,9 @@ checks:
 - canonical marketplace manifest name: `ai-marketplace`
 - first shipped plugin package: `kong-konnect`
 - canonical MCP server name: `kong-konnect`
-- auth variable: `KONNECT_TOKEN`
+- MCP auth: OAuth by default at `https://global.mcp.konghq.com/`; PAT/SPAT bearer
+  header only for headless clients (see
+  [headless authentication](install/README.md#ci-and-headless-authentication))
 - keep shared behavior in `SKILL.md`
 - keep harness-specific packaging out of skills
 

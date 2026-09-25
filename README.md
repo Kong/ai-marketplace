@@ -62,15 +62,30 @@ enforcement path on pull requests and pushes to `main`.
 
 ## Authentication
 
-All install surfaces use the same bearer token model:
+The `kong-konnect` MCP server uses OAuth by default at
+`https://global.mcp.konghq.com/`. Supported interactive clients register
+automatically and open a browser login when you first connect or use the server.
+No token needs to be pasted. Skill-only installs do not require MCP authentication.
 
-```text
-Authorization: Bearer ${KONNECT_TOKEN}
-```
+For CI and headless clients, including the Copilot cloud agent, use a Konnect
+personal access token (`kpat_`) or system account token (`spat_`) in an
+`Authorization: Bearer` header. See the separate
+[headless configuration example](docs/install/README.md#ci-and-headless-authentication).
 
-`KONNECT_TOKEN` is only needed when you install or use the `kong-konnect` MCP
-server through a plugin wrapper or manual MCP setup. A skill-only install via
-`npx skills` or `gh skill` does not require it.
+## MCP Server
+
+The shipped [MCP configuration](plugins/kong-konnect/mcp.json) uses HTTP and the
+global URL without an authorization header, allowing clients to use OAuth.
+The server supports OAuth 2.1 with PKCE and dynamic client registration.
+Regional URLs for `us`, `eu`, `au`, and `in` are also available for region pinning;
+see the [installation guide](docs/install/README.md#server-and-authentication).
+
+Follow the client instructions for [Claude Code](docs/install/claude-code.md),
+[Cursor](docs/install/cursor.md), or
+[Claude.ai, Claude Desktop, and Codex CLI](docs/install/other-tools.md#remote-mcp-with-oauth).
+Existing users should read
+[Migrating from the old server](docs/install/README.md#migrating-from-the-old-server)
+to remove duplicate entries before reconnecting.
 
 ## Skill Install Notes
 
@@ -80,6 +95,3 @@ server through a plugin wrapper or manual MCP setup. A skill-only install via
 - Prefer native plugin update flows in supported host tools over custom startup hooks.
 - Be careful with any automatic update path: it can pull newer skill instructions automatically and may introduce supply-chain or security risk.
 - For `gh skill`, preview before install with `gh skill preview kong/ai-marketplace gateway-plugin-datakit`.
-
-Use [`plugins/kong-konnect/mcp.json`](plugins/kong-konnect/mcp.json) as the
-shared checked-in reference shape for the `kong-konnect` MCP server.

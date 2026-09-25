@@ -2,19 +2,12 @@
 
 Load before reading or writing live state.
 
-## "The MCP is not connected" usually means "there is no token"
+## MCP authentication
 
-The shared server's `Authorization` header interpolates `KONNECT_TOKEN`. Unset,
-the header cannot resolve and the server is dropped without an error, so the
-session simply has no `mcp__kong-konnect__*` tools. Read that absence as a
-credential symptom rather than a broken server.
-
-Headers resolve at process start, so the variable has to be in the environment
-before the session begins; exporting it mid-session changes nothing. Say that a
-new session is needed rather than asking the user to "connect the MCP".
-
-A personal access token pasted into the conversation is usable immediately, but
-only over REST.
+Absent `kong-konnect` MCP tools usually mean the client has not completed the
+OAuth login for the server (or, for a headless PAT/SPAT configuration, the
+bearer header is unset); treat it as a credential symptom and point to
+`docs/install/README.md`.
 
 ## Confirm which org you are about to write to
 
@@ -52,9 +45,9 @@ no OpenAPI document, and `/v1/billing/*`, `/v1/meters`, `/v2/billing/*`,
 `/v1/monetization/*` and `/v1/plans` all answer 404. The published spec lives at
 `https://developer.konghq.com/api/konnect/metering-and-billing/v3/`.
 
-Note the asymmetry: the shared MCP server is pinned to one region
-(`us.mcp.konghq.com`) while REST is region-split, so an org reachable through the
-MCP is not necessarily on the `us` REST host.
+The shared MCP server defaults to the global host (`global.mcp.konghq.com`)
+while REST is region-split, so an org reachable through the MCP is not
+necessarily on the `us` REST host.
 
 ## What the MCP surface actually covers
 

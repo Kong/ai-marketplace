@@ -34,3 +34,37 @@ Kong AI Marketplace provides Kiro Powers for AWS.
    ```bash
    gh skill install kong/ai-marketplace gateway-plugin-datakit
    ```
+
+## MCP authentication
+
+Tested with Kiro CLI 2.23.1 on 2026-09-23 using fresh browser OAuth with PKCE
+and explicit `oauthScopes`, without a token. Search, schema discovery, reads,
+and a disposable control-plane create/read/delete test passed on the CLI
+surface. Token refresh and the Kiro IDE one-click install route were not tested.
+
+Add this entry to `~/.kiro/settings/mcp.json`, preserving any existing servers:
+
+```json
+{
+  "mcpServers": {
+    "kong-konnect": {
+      "url": "https://global.mcp.konghq.com/",
+      "oauthScopes": [
+        "konnect:read",
+        "konnect:write",
+        "offline_access",
+        "openid"
+      ]
+    }
+  }
+}
+```
+
+Explicit `oauthScopes` are required for this Kiro CLI setup: without them,
+Kiro omits the scope parameter and Kong Identity rejects authorization with
+"The scope of your request is missing".
+
+For CI or headless integrations, use a separate hand-written configuration
+with a [PAT or SPAT bearer token](./README.md#ci-and-headless-authentication).
+See the [migration steps](./README.md#migrating-from-the-old-server) before
+replacing an old stdio or PAT-configured entry.

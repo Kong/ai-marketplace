@@ -28,7 +28,8 @@ MCP config.
 - `plugins/kong-konnect/.cursor-plugin/plugin.json`
   - Cursor plugin manifest local to the `kong-konnect` package.
 - `plugins/kong-konnect/mcp.json`
-  - Shared checked-in MCP reference shape for the `kong-konnect` plugin.
+  - Generated HTTP MCP configuration using the global URL and OAuth.
+  - Source: `sync_plugin_mcp()` in `scripts/check_repo.py`.
 
 ## Generated Inventory
 
@@ -48,3 +49,9 @@ MCP config.
   - Canonical publishing workflow for tags and GitHub releases.
 - `docs/release.md`
   - Contributor-facing release preparation and trigger process.
+
+## Installation Guides
+
+- `docs/install/README.md`
+  - Client index, OAuth default, headless PAT/SPAT example, and migration from
+    the archived stdio server or a PAT-configured plugin.

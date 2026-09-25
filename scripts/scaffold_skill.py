@@ -12,8 +12,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PLUGINS_DIR = REPO_ROOT / "plugins"
 MCP_NAME = "kong-konnect"
-MCP_URL = "https://us.mcp.konghq.com"
-TOKEN_ENV = "KONNECT_TOKEN"
+MCP_URL = "https://global.mcp.konghq.com/"
 REPO_URL = "https://github.com/kong/ai-marketplace"
 DEFAULT_PLUGIN = "kong-konnect"
 
@@ -153,7 +152,6 @@ def mcp_template() -> dict[str, object]:
             MCP_NAME: {
                 "type": "http",
                 "url": MCP_URL,
-                "headers": {"Authorization": f"Bearer ${{{TOKEN_ENV}}}"},
             }
         }
     }
