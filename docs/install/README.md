@@ -64,14 +64,17 @@ configuration shape, not a Copilot-specific install file.
 
 ## Migrating from the old server
 
-1. Inspect user, project, and plugin MCP settings for duplicate `kong-konnect`
-   entries. The archived `Kong/mcp-konnect` stdio entry uses that same name,
+1. Inspect user, project, local, and plugin MCP settings for duplicate server
+   URLs under any name, as well as duplicate `kong-konnect` entries. The archived `Kong/mcp-konnect` stdio entry uses that same name,
    `command: node`, args pointing to `mcp-konnect/build/index.js`, and
    `KONNECT_ACCESS_TOKEN` / `KONNECT_REGION` environment variables. An older
    PAT entry uses `headers.Authorization` with `Bearer ...` on
    `https://us.mcp.konghq.com`.
 2. Remove the old stdio entry and duplicate manual entries. Choose either the
    current plugin or one manual HTTP entry so the server is configured once.
+   Claude Code silently suppresses the plugin server if a user, project, or
+   local entry has the same URL, even under a different name. Remove that
+   old entry so the plugin server can appear in `/mcp`; no reinstall is needed.
 3. For interactive use, update to the shipped global URL without `headers`,
    then reconnect and complete the OAuth browser login.
 4. If you need headless authentication, retain one explicit PAT/SPAT
@@ -80,8 +83,8 @@ configuration shape, not a Copilot-specific install file.
 Find and remove the old entry in your client:
 
 - Claude Code: run `claude mcp list`, then
-  `claude mcp remove kong-konnect -s <local|user|project>`, replacing the scope
-  placeholder with the scope containing the old entry.
+  `claude mcp remove <name> -s <local|user|project>`, replacing the name and scope
+  placeholders with the old entry (for example, `claude mcp remove konnect -s user`).
 - Cursor: check `~/.cursor/mcp.json` and `.cursor/mcp.json`; remove the old
   `kong-konnect` entry from `mcpServers`.
 - Claude Desktop: remove the old stdio entry from `claude_desktop_config.json`.

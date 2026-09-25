@@ -65,8 +65,21 @@ The plugin loads the global URL from
 [`plugins/kong-konnect/mcp.json`](../../plugins/kong-konnect/mcp.json) and uses
 OAuth. On first use Claude Code marks the server as needing authentication.
 Run `/mcp`, select the `kong-konnect` server (shown as a plugin server when
-installed via the plugin), and follow the browser login. For the direct-add
-path you can also run `claude mcp login kong-konnect`.
+installed via the plugin), and follow the browser login. From an interactive
+terminal, the plugin CLI form is:
+
+```bash
+claude mcp login plugin:kong-konnect:kong-konnect
+```
+
+It requires a terminal; `claude mcp login kong-konnect` does not address the
+plugin server. That shorter name applies only to the direct-add path.
+
+Claude Code silently suppresses the plugin server when a user, project, or
+local MCP entry points to the same URL under any name. Remove the old entry
+with `claude mcp remove <name> -s <local|user|project>`, using its actual
+name and scope, so the plugin server can appear in `/mcp`. The plugin does
+not need to be reinstalled.
 
 For the MCP server alone, run this shell command instead of installing the plugin:
 
