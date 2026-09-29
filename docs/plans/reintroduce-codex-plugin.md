@@ -129,7 +129,8 @@ Required doc content:
      - `.agents/plugins/marketplace.json`
      - `plugins/kong-konnect/.codex-plugin/plugin.json`
      - `plugins/kong-konnect/mcp.json`
-   - explain when `KONNECT_TOKEN` is required
+   - default interactive MCP connections to OAuth; reserve PAT/SPAT bearer
+     authentication for CI and headless use
    - clearly separate skill-only install from marketplace/plugin install
 
 4. `docs/release.md`

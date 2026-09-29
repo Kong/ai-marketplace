@@ -102,5 +102,5 @@
       "category": "development"
     }
   ],
-  "description": "Kong skills and Konnect MCP configuration for Claude Code."
+  "description": "Kong skills and the hosted Konnect MCP server for Claude Code."
 }

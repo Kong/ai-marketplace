@@ -219,17 +219,21 @@ def plugin_display_name(plugin_name: str) -> str:
 
 
 def host_plugin_description(plugin_name: str, host: str, has_mcp: bool) -> str:
-    base = f"Portable {plugin_display_name(plugin_name)} skills"
+    base = f"{plugin_display_name(plugin_name)} skills"
     if has_mcp:
-        base += " plus shared MCP configuration"
+        return f"{base} and the hosted Konnect MCP server for managing AI and API gateways from {host}."
+    return f"{base} for {host}."
+
+
+def repo_host_description(host: str, has_mcp: bool) -> str:
+    base = "Kong skills"
+    if has_mcp:
+        base += " and the hosted Konnect MCP server"
     return f"{base} for {host}."
 
 
 def repo_cursor_description(has_mcp: bool) -> str:
-    base = "Portable Kong skills"
-    if has_mcp:
-        base += " plus shared MCP configuration"
-    return f"{base} for Cursor."
+    return repo_host_description("Cursor", has_mcp)
 
 
 def derived_keywords(skills: list[Skill]) -> list[str]:
@@ -367,6 +371,7 @@ def sync_skills_doc(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -> str:
 def sync_claude_plugin(plugin: Plugin, skills: list[Skill]) -> object:
     data = load_json(plugin.claude_manifest)
     data["name"] = plugin.name
+    data["description"] = host_plugin_description(plugin.name, "Claude Code", plugin.mcp_config is not None)
     data["skills"] = [skill.rel_path for skill in skills]
     if plugin.mcp_config is not None:
         data["mcpServers"] = "./mcp.json"
@@ -379,6 +384,7 @@ def sync_cursor_plugin(plugin: Plugin, skills: list[Skill]) -> object:
     return {
         "name": plugin.name,
         "displayName": plugin_display_name(plugin.name),
+        **({"logo": "assets/logo.png"} if (plugin.root / "assets/logo.png").is_file() else {}),
         "version": manifest_version(plugin.claude_manifest) or manifest_version(plugin.cursor_manifest) or "0.1.0",
         "description": host_plugin_description(plugin.name, "Cursor", plugin.mcp_config is not None),
         "author": {"name": "kong"},
@@ -393,6 +399,8 @@ def sync_claude_marketplace(plugin_catalog: list[tuple[Plugin, list[Skill]]]) ->
     path = REPO_ROOT / ".claude-plugin" / "marketplace.json"
     data = load_json(path)
     data["name"] = MARKETPLACE_NAME
+    has_mcp = any(plugin.mcp_config is not None for plugin, _skills in plugin_catalog)
+    data["description"] = repo_host_description("Claude Code", has_mcp)
     data["plugins"] = [
         {
             "name": plugin.name,

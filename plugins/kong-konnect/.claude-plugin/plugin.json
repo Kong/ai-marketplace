@@ -1,7 +1,7 @@
 {
   "name": "kong-konnect",
   "version": "1.0.0",
-  "description": "Portable Kong Konnect skills plus remote MCP configuration for Claude Code.",
+  "description": "Kong Konnect skills and the hosted Konnect MCP server for managing AI and API gateways from Claude Code.",
   "author": {
     "name": "kong"
   },

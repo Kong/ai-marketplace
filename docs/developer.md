@@ -98,6 +98,8 @@ That creates:
 - `plugins/<plugin-name>/skills/`
 - `plugins/<plugin-name>/.claude-plugin/plugin.json`
 - `plugins/<plugin-name>/.cursor-plugin/plugin.json`
+- optional `plugins/<plugin-name>/assets/logo.png`; `mise run gen` then adds
+  `"logo": "assets/logo.png"` to the Cursor manifest
 - optional `plugins/<plugin-name>/mcp.json`
 
 Root marketplace manifests are generated from plugin discovery, so you do not
