@@ -4,14 +4,14 @@
     "name": "kong"
   },
   "metadata": {
-    "description": "Portable Kong skills plus shared MCP configuration for Cursor.",
+    "description": "Kong skills and the hosted Konnect MCP server for Cursor.",
     "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "kong-konnect",
       "source": "./plugins/kong-konnect",
-      "description": "Portable Kong Konnect skills plus shared MCP configuration for Cursor."
+      "description": "Kong Konnect skills and the hosted Konnect MCP server for managing AI and API gateways from Cursor."
     }
   ]
 }

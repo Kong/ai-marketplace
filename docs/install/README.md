@@ -65,7 +65,8 @@ configuration shape, not a Copilot-specific install file.
 ## Migrating from the old server
 
 1. Inspect user, project, local, and plugin MCP settings for duplicate server
-   URLs under any name, as well as duplicate `kong-konnect` entries. The archived `Kong/mcp-konnect` stdio entry uses that same name,
+   URLs under any name, as well as duplicate `kong-konnect` entries. The
+   archived `Kong/mcp-konnect` stdio entry uses that same name,
    `command: node`, args pointing to `mcp-konnect/build/index.js`, and
    `KONNECT_ACCESS_TOKEN` / `KONNECT_REGION` environment variables. An older
    PAT entry uses `headers.Authorization` with `Bearer ...` on

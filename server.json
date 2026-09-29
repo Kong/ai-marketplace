@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.konghq/konnect",
+  "title": "Kong Konnect",
+  "description": "Manage Kong Konnect AI and API gateways, routes, plugins, and analytics from your agent.",
+  "version": "1.0.0",
+  "websiteUrl": "https://developer.konghq.com/konnect-platform/konnect-mcp/",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://global.mcp.konghq.com/"
+    },
+    {
+      "type": "streamable-http",
+      "url": "https://{region}.mcp.konghq.com/",
+      "variables": {
+        "region": {
+          "description": "Konnect region to connect to directly instead of the global endpoint",
+          "isRequired": true,
+          "choices": ["us", "eu", "au", "in"],
+          "default": "us"
+        }
+      }
+    }
+  ]
+}

@@ -72,14 +72,17 @@ terminal, the plugin CLI form is:
 claude mcp login plugin:kong-konnect:kong-konnect
 ```
 
-It requires a terminal; `claude mcp login kong-konnect` does not address the
-plugin server. That shorter name applies only to the direct-add path.
+The command needs an interactive terminal. Without one it exits with
+`stdin isn't a terminal`. `claude mcp login kong-konnect` applies only to the
+direct-add path below; with the plugin installed it fails with
+`No MCP server named "kong-konnect"`.
 
 Claude Code silently suppresses the plugin server when a user, project, or
-local MCP entry points to the same URL under any name. Remove the old entry
-with `claude mcp remove <name> -s <local|user|project>`, using its actual
-name and scope, so the plugin server can appear in `/mcp`. The plugin does
-not need to be reinstalled.
+local MCP entry points to the same URL under any name, because manual entries
+take precedence over plugin servers. Remove the old entry with
+`claude mcp remove <name> -s <local|user|project>`, using its actual name and
+scope, so the plugin server can appear in `/mcp`. The plugin does not need to
+be reinstalled.
 
 For the MCP server alone, run this shell command instead of installing the plugin:
 

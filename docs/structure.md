@@ -10,6 +10,9 @@ MCP config.
 
 ## Root Marketplace Manifests
 
+- `server.json`
+  - Official MCP Registry listing for the remote Konnect MCP server, published
+    with `mcp-publisher` (domain proof on `konghq.com`).
 - `.cursor-plugin/marketplace.json`
   - Cursor marketplace registry for all plugin packages in this repo.
 - `.claude-plugin/marketplace.json`
@@ -27,6 +30,10 @@ MCP config.
   - Claude Code plugin manifest local to the `kong-konnect` package.
 - `plugins/kong-konnect/.cursor-plugin/plugin.json`
   - Cursor plugin manifest local to the `kong-konnect` package.
+- `plugins/kong-konnect/assets/logo.png`
+  - Cursor marketplace logo. When `assets/logo.png` exists at a plugin
+    root, `sync_cursor_plugin()` in `scripts/check_repo.py` emits the
+    `logo` field in that plugin's Cursor manifest.
 - `plugins/kong-konnect/mcp.json`
   - Generated HTTP MCP configuration using the global URL and OAuth.
   - Source: `sync_plugin_mcp()` in `scripts/check_repo.py`.

@@ -1,8 +1,9 @@
 {
   "name": "kong-konnect",
   "displayName": "Kong Konnect",
+  "logo": "assets/logo.png",
   "version": "1.0.0",
-  "description": "Portable Kong Konnect skills plus shared MCP configuration for Cursor.",
+  "description": "Kong Konnect skills and the hosted Konnect MCP server for managing AI and API gateways from Cursor.",
   "author": {
     "name": "kong"
   },
