@@ -65,4 +65,4 @@ installation paths.
 
 [Support](https://github.com/Kong/ai-marketplace/issues)
 
-License: MIT.
+License: [MIT](LICENSE).
