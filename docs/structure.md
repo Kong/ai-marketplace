@@ -23,6 +23,8 @@ MCP config.
 - `plugins/kong-konnect/`
   - First shipped plugin package. Future product packages should follow the
     same shape.
+- `plugins/kong-konnect/README.md`
+  - Package contents, data handling, installation, privacy, support, and license.
 - `plugins/kong-konnect/skills/`
   - Canonical shared skills shipped by the `kong-konnect` plugin and by
     shared-skill installers.

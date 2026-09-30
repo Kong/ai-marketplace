@@ -3,7 +3,8 @@
   "version": "1.0.0",
   "description": "Kong Konnect skills and the hosted Konnect MCP server for managing AI and API gateways from Claude Code.",
   "author": {
-    "name": "kong"
+    "name": "Kong",
+    "url": "https://konghq.com"
   },
   "skills": [
     "./skills/deck-gateway",
@@ -28,5 +29,9 @@
     "./skills/terraform-kong-gateway",
     "./skills/terraform-konnect"
   ],
-  "mcpServers": "./mcp.json"
+  "mcpServers": "./mcp.json",
+  "privacyPolicyUrl": "https://konghq.com/legal/privacy-policy",
+  "license": "MIT",
+  "homepage": "https://developer.konghq.com/konnect-platform/konnect-mcp/",
+  "repository": "https://github.com/Kong/ai-marketplace"
 }
