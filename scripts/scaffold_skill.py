@@ -130,6 +130,33 @@ def claude_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, obje
     return data
 
 
+def codex_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, object]:
+    data: dict[str, object] = {
+        "name": plugin_name,
+        "version": "0.1.0",
+        "description": host_plugin_description(plugin_name, "Codex and ChatGPT", with_mcp),
+        "author": {"name": "Kong"},
+        "license": "MIT",
+        "skills": "./skills/",
+        "keywords": [],
+        "interface": {
+            "displayName": plugin_display_name(plugin_name),
+            "shortDescription": "Kong workflows",
+            "longDescription": host_plugin_description(plugin_name, "Codex and ChatGPT", with_mcp),
+            "developerName": "Kong",
+            "supportURL": "https://github.com/Kong/ai-marketplace/issues",
+            "privacyPolicyURL": "https://konghq.com/legal/privacy-policy",
+            "termsOfServiceURL": "https://konghq.com/legal/terms-of-use",
+            "category": "Developer Tools",
+            "capabilities": [],
+            "defaultPrompt": ["What Kong workflows are available?"],
+        },
+    }
+    if with_mcp:
+        data["mcpServers"] = "./.mcp.json"
+    return data
+
+
 def cursor_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, object]:
     data: dict[str, object] = {
         "name": plugin_name,
@@ -176,10 +203,12 @@ def scaffold_plugin(args: argparse.Namespace) -> int:
     ensure_missing(plugin_dir)
 
     write_json(plugin_dir / ".claude-plugin" / "plugin.json", claude_manifest_template(plugin_name, args.with_mcp))
+    write_json(plugin_dir / ".codex-plugin" / "plugin.json", codex_manifest_template(plugin_name, args.with_mcp))
     write_json(plugin_dir / ".cursor-plugin" / "plugin.json", cursor_manifest_template(plugin_name, args.with_mcp))
     (plugin_dir / "skills").mkdir(parents=True, exist_ok=False)
     if args.with_mcp:
         write_json(plugin_dir / "mcp.json", mcp_template())
+        write_json(plugin_dir / ".mcp.json", mcp_template())
 
     print(plugin_dir.relative_to(REPO_ROOT))
     return 0

@@ -56,6 +56,7 @@ enforcement path on pull requests and pushes to `main`.
 
 ## Install Targets
 
+[![Codex](https://img.shields.io/badge/Codex-repo_plugin-111111?style=for-the-badge)](docs/install/codex.md)
 [![Cursor](https://img.shields.io/badge/Cursor-plugin-000000?style=for-the-badge&logo=cursor&logoColor=white)](docs/install/cursor.md)
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-111111?style=for-the-badge&logo=anthropic&logoColor=white)](docs/install/claude-code.md)
 [![Other Tools](https://img.shields.io/badge/Other_Tools-skills-555555?style=for-the-badge&logo=vercel&logoColor=white)](docs/install/other-tools.md)

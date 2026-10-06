@@ -2,37 +2,54 @@
 
 ## Goal
 
-Restore Codex as a first-class plugin and marketplace install target after the
-required approval to list on the Codex marketplace has been granted again.
+Restore Codex repo installation and prepare the package used to request public
+directory approval. Public listing is a later, separately approved step.
 Reintroduction must restore the checked-in manifests, sync and validation
 automation, release versioning, and the contributor docs that explain the
 Codex-specific install path.
 
-## Current State
+## Implementation Status (2026-10-06)
 
-Codex marketplace support was intentionally removed because this repo does not
-yet have approval to list plugins on the Codex marketplace. Removal included:
+Codex repo installation and submission packaging are restored to seek directory
+approval. Approval is not a prerequisite for preparing the ZIP or testing a
+local marketplace; public listing still requires review and approval.
 
-- the root Codex marketplace registry file
-- the plugin-local Codex manifest(s)
-- scaffolding, generated sync, validation, and release-prep code for Codex
-- the dedicated Codex install guide
-- contributor/testing docs that treated Codex as a supported plugin host
+Verified against current OpenAI documentation:
 
-Shared skill installers such as `npx skills` and `gh skill` may still exist in
-the repo independently. Do not assume restoring Codex marketplace support means
-changing those flows.
+- [Package your plugin](https://developers.openai.com/plugins/build/plugins):
+  `.codex-plugin/plugin.json` remains supported. Repo catalogs live at
+  `.agents/plugins/marketplace.json`; local source paths resolve from the repo
+  root. Installation/authentication policy and category belong on each entry.
+- [Submission format and fields](https://developers.openai.com/plugins/deploy/submission):
+  the directory accepts the Codex format as well as Agent Plugins. Codex uses
+  an author object, `skills` directory path or path array, and an MCP config
+  file reference. Listing links use `interface.websiteURL`, `supportURL`,
+  `privacyPolicyURL`, and `termsOfServiceURL`. Both icon fields are supplied;
+  screenshots are optional. MCP must ship in the initial ZIP.
+- [MCP review requirements](https://developers.openai.com/plugins/deploy/app-review):
+  tool annotations and their justifications must match actual behavior;
+  successful local packaging does not replace server and submission review.
 
-## Preconditions
+Deltas from the original design below:
 
-Before restoring anything, confirm:
+- Use `skills: "./skills/"` to include the full inventory, rather than an empty
+  or per-skill array. The array form remains supported.
+- Use `mcpServers: "./.mcp.json"`, a plugin-relative configuration file path,
+  rather than `["kong-konnect"]`. The Codex companion `.mcp.json` is generated with the same HTTP configuration
+  as `mcp.json`, without changing Claude or Cursor wiring. This uses the
+  submission guide's filename and passes the local helper's path constraint.
+  The helper predates the documented `interface.supportURL`; retain that
+  field because the current submission reference requires a support URL.
+- Use the publisher object from Claude metadata and preserve its product
+  homepage and canonical repository URL, rather than forcing both to the repo.
+- Use `Developer Tools` for the listing category, a short subtitle within the
+  30-character limit, and capability labels derived from skill categories
+  within the 20-label limit. Do not mirror all 21 skill names as capabilities.
+- Keep the Codex manifest separate; no root Agent Plugins manifest is added.
 
-1. Marketplace approval for Codex has been granted.
-2. The desired install shape is still a root marketplace file plus per-plugin
-   `.codex-plugin/plugin.json` manifests.
-3. The current Codex plugin and marketplace schema still match the previous
-   repository design. If the product changed, update the implementation rather
-   than restoring stale shapes.
+The remaining sections preserve the restoration scope. Their sample manifests
+are historical sketches; use the generated checked-in files as the current
+format.
 
 ## Files To Restore Or Update
 
@@ -211,7 +228,7 @@ plugin and marketplace expectations before committing.
 
 ## Implementation Sequence
 
-1. Confirm marketplace approval and current Codex schema expectations.
+1. Confirm current Codex schema expectations; prepare the submission to seek approval.
 2. Restore the root marketplace file and plugin-local Codex manifest(s).
 3. Restore Codex support in scaffolding, generated sync, validation, and
    release prep.

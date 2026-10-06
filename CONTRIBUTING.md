@@ -33,6 +33,10 @@ Install the repo hooks early. They wire the checked-in `pre-commit` and
 `pre-push` hooks to `mise run lint`, which is the main local authoring
 validator in this repo.
 
+For plugin packaging changes, run `mise run gen` and the affected host checks
+in [docs/testing.md](docs/testing.md). Codex submission packaging is documented
+in [docs/developer.md](docs/developer.md#openai-submission-package).
+
 Before committing, run:
 
 ```bash
