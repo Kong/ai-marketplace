@@ -43,13 +43,12 @@ Deltas from the original design below:
 - Use the publisher object from Claude metadata and preserve its product
   homepage and canonical repository URL, rather than forcing both to the repo.
 - Use `Developer Tools` for the listing category, a short subtitle within the
-  30-character limit, and capability labels derived from skill categories
-  within the 20-label limit. Do not mirror all 21 skill names as capabilities.
+  30-character limit, and curated human-readable capability labels within the 20-label limit.
+  Keep capabilities in the manifest; lint checks their count and length.
 - Keep the Codex manifest separate; no root Agent Plugins manifest is added.
 
-The remaining sections preserve the restoration scope. Their sample manifests
-are historical sketches; use the generated checked-in files as the current
-format.
+The remaining sections preserve the restoration scope. Use the linked
+checked-in manifests as the current format.
 
 ## Files To Restore Or Update
 
@@ -67,11 +66,11 @@ Expected responsibilities:
 
 - the root marketplace file lists all shipped plugins
 - each plugin-local Codex manifest declares the local skills it ships
-- `mcpServers` references the shared `kong-konnect` MCP entry when the plugin
+- `mcpServers` references the generated `.mcp.json` file when the plugin
   has MCP wiring
 - manifest versions stay aligned with the other supported host manifests
 - homepage and repository fields stay aligned with the canonical repo URL
-- generated keywords and capabilities stay derived from shipped skills
+- keywords stay derived from shipped skills; curated capability labels remain in the manifest
 
 ### Automation And Validation Code
 
@@ -87,20 +86,20 @@ Required implementation details:
    - restore `codex_manifest_template(...)`
    - make `plugin:new` create `plugins/<plugin>/.codex-plugin/plugin.json`
    - preserve the current manifest shape conventions:
-     - `skills` list
+     - `skills` directory path
      - `keywords`
      - `interface.displayName`
      - `interface.shortDescription`
      - `interface.category`
      - `interface.capabilities`
-   - if `--with-mcp` is set, wire `mcpServers` to the shared MCP server name
+   - if `--with-mcp` is set, wire `mcpServers` to the generated `.mcp.json` file
 
 2. `scripts/check_repo.py`
    - restore `Plugin.codex_manifest`
    - require the Codex manifest during plugin discovery
    - restore `sync_codex_marketplace(...)`
    - restore `sync_codex_plugin(...)`
-   - restore derived capability generation if it is not already present
+   - preserve curated capabilities and validate their listing limits
    - restore static validation for:
      - plugin names
      - source paths
@@ -169,62 +168,19 @@ Required doc content:
    - restore the root Codex marketplace manifest entry
    - restore the plugin-local Codex manifest entry
 
-## Suggested Manifest Shapes
+## Current Manifest Files
 
-Unless Codex's format changed, the root marketplace file should follow the
-previous repository convention:
+Use the checked-in files rather than copying a sample:
 
-```json
-{
-  "name": "ai-marketplace",
-  "interface": {
-    "displayName": "Kong AI Marketplace"
-  },
-  "plugins": [
-    {
-      "name": "kong-konnect",
-      "source": {
-        "source": "local",
-        "path": "./plugins/kong-konnect"
-      },
-      "policy": {
-        "installation": "AVAILABLE",
-        "authentication": "ON_INSTALL"
-      },
-      "category": "Productivity",
-      "keywords": []
-    }
-  ]
-}
-```
+- [Codex repo marketplace](../../.agents/plugins/marketplace.json)
+- [Kong Konnect Codex manifest](../../plugins/kong-konnect/.codex-plugin/plugin.json)
+- [Codex MCP configuration](../../plugins/kong-konnect/.mcp.json)
 
-And the plugin-local manifest should follow the previous repository convention:
-
-```json
-{
-  "name": "kong-konnect",
-  "version": "1.0.0",
-  "description": "Portable Kong Konnect skills plus remote MCP configuration for Codex.",
-  "author": "kong",
-  "homepage": "https://github.com/kong/ai-marketplace",
-  "repository": "https://github.com/kong/ai-marketplace",
-  "license": "MIT",
-  "keywords": [],
-  "skills": [],
-  "mcpServers": [
-    "kong-konnect"
-  ],
-  "interface": {
-    "displayName": "Kong Konnect",
-    "shortDescription": "Portable Kong Konnect skills and remote MCP wiring.",
-    "category": "development",
-    "capabilities": []
-  }
-}
-```
-
-Treat those as a starting point only. Validate them against current Codex
-plugin and marketplace expectations before committing.
+`mise run gen` maintains the catalog and derived manifest fields. Listing
+capabilities and `extensions.com.openai.review` are maintained in the manifest
+and preserved by generation. Review cases require execution against the demo
+organization before submission; the demo recording URL is added separately
+when the recording is ready.
 
 ## Implementation Sequence
 

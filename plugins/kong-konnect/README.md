@@ -59,6 +59,11 @@ Install the plugin, connect its `kong-konnect` server, and complete the OAuth
 browser prompt. The guides also cover existing server entries and alternative
 installation paths.
 
+For Codex and ChatGPT, follow the [installation guide](https://github.com/Kong/ai-marketplace/blob/main/docs/install/codex.md).
+Install Kong Konnect from the repo marketplace (or the public directory once
+approved and published), complete the MCP OAuth browser prompt, and start a
+new chat to use the bundled skills and tools.
+
 ## Privacy, support, and license
 
 [Privacy](https://konghq.com/legal/privacy-policy)

@@ -48,4 +48,4 @@ run = "git config core.hooksPath .githooks"
 
 [tasks."package:openai"]
 description = "Build the Kong Konnect OpenAI submission ZIP from tracked package files"
-run = "python scripts/build_openai_plugin.py"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/build_openai_plugin.py"

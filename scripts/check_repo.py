@@ -11,6 +11,7 @@ import argparse
 import json
 import re
 import stat
+import struct
 import sys
 from dataclasses import dataclass
 from difflib import SequenceMatcher
@@ -386,11 +387,6 @@ def sync_claude_plugin(plugin: Plugin, skills: list[Skill]) -> object:
     return data
 
 
-def derived_capabilities(skills: list[Skill]) -> list[str]:
-    # Categories summarize the shipped workflows without exceeding the listing budget.
-    return ordered_unique([skill.category for skill in skills])[:20]
-
-
 def sync_codex_plugin(plugin: Plugin, skills: list[Skill]) -> object:
     data = load_json(plugin.codex_manifest)
     claude = load_json(plugin.claude_manifest)
@@ -413,7 +409,6 @@ def sync_codex_plugin(plugin: Plugin, skills: list[Skill]) -> object:
         "displayName": plugin_display_name(plugin.name),
         "developerName": data["author"]["name"],
         "category": "Developer Tools",
-        "capabilities": derived_capabilities(skills),
         "websiteURL": data["homepage"],
     })
     if "privacyPolicyUrl" in claude:
@@ -533,6 +528,20 @@ def validate_plugin_versions(plugin: Plugin) -> tuple[list[str], str | None]:
     return errors, resolved
 
 
+def validate_codex_icon(path: Path) -> str | None:
+    # The repository's generated Codex icons use assets/logo.png.
+    if path.stat().st_size > 5 * 1024 * 1024:
+        return "icon exceeds 5 MiB"
+    with path.open("rb") as stream:
+        header = stream.read(24)
+    if len(header) < 24 or header[:8] != b"\x89PNG\r\n\x1a\n" or header[12:16] != b"IHDR":
+        return "expected a PNG icon with an IHDR header"
+    width, height = struct.unpack(">II", header[16:24])
+    if width != height or not 48 <= width <= 4096:
+        return "icon must be square and between 48 and 4096 pixels"
+    return None
+
+
 # Validation helpers.
 def validate_static_metadata(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -> list[str]:
     errors: list[str] = []
@@ -568,7 +577,19 @@ def validate_static_metadata(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -
         codex = load_json(plugin.codex_manifest)
         if codex != sync_codex_plugin(plugin, skills):
             errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: Codex metadata drift")
+        name = codex.get("name")
+        if not isinstance(name, str) or len(name) > 64 or not re.fullmatch(r"[a-z0-9]+(?:-[a-z0-9]+)*", name):
+            errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: invalid name (lowercase/hyphen, max 64)")
+        author = codex.get("author")
+        author_name = author.get("name") if isinstance(author, dict) else None
+        if not isinstance(author_name, str) or not author_name.strip() or len(author_name) > 120:
+            errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: invalid author.name (max 120)")
         interface = codex.get("interface", {})
+        capabilities = interface.get("capabilities")
+        if not isinstance(capabilities, list) or len(capabilities) > 20 or any(
+            not isinstance(value, str) or not value.strip() or len(value) > 120 for value in capabilities
+        ):
+            errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: invalid interface.capabilities (max 20 labels, 120 characters each)")
         for field, limit in (("displayName", 30), ("shortDescription", 30), ("longDescription", 4000), ("developerName", 80)):
             value = interface.get(field)
             if not isinstance(value, str) or not value.strip() or len(value) > limit:
@@ -586,8 +607,11 @@ def validate_static_metadata(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -
             errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: invalid interface.defaultPrompt")
         for field in ("logo", "composerIcon"):
             value = interface.get(field)
-            if value is not None and (not value.startswith("./") or ".." in Path(value).parts or not (plugin.root / value).is_file()):
+            if value is not None and (not isinstance(value, str) or not value.startswith("./") or ".." in Path(value).parts or not (plugin.root / value).is_file()):
                 errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: invalid interface.{field} path")
+            elif value is not None:
+                if problem := validate_codex_icon(plugin.root / value):
+                    errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: interface.{field}: {problem}")
 
         expected_cursor = sync_cursor_plugin(plugin, skills)
         for field in ("displayName", "description", "license", "skills"):

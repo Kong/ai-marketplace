@@ -11,6 +11,7 @@ From a checkout containing the Codex package:
 ```bash
 codex plugin marketplace add .
 codex plugin marketplace list
+codex plugin add kong-konnect@ai-marketplace
 ```
 
 After this change is available on the public default branch, the remote form is:
@@ -19,7 +20,9 @@ After this change is available on the public default branch, the remote form is:
 codex plugin marketplace add Kong/ai-marketplace
 ```
 
-Restart the ChatGPT desktop app, open the Plugins Directory, choose
+The CLI install command enables the plugin. Complete its MCP OAuth prompt
+when connecting and start a new session. Alternatively, restart the ChatGPT
+desktop app, open the Plugins Directory, choose
 **Kong AI Marketplace**, and install **Kong Konnect**. Complete the OAuth
 browser login when prompted, then start a new chat and check that the Kong
 skills and `kong-konnect` MCP tools are available. Client availability varies;

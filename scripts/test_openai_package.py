@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import json
+import copy
+import struct
 from pathlib import Path
 import tempfile
 import unittest
@@ -104,6 +106,54 @@ class OpenAIPackageTests(unittest.TestCase):
     def test_scaffold_mcp_is_optional(self) -> None:
         self.assertNotIn("mcpServers", scaffold_skill.codex_manifest_template("kong-test", False))
         self.assertEqual(scaffold_skill.codex_manifest_template("kong-test", True)["mcpServers"], "./.mcp.json")
+
+
+class CodexListingTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.catalog = [(plugin, check_repo.discover_skills(plugin)) for plugin in check_repo.discover_plugins()]
+        self.plugin, self.skills = next(item for item in self.catalog if item[0].name == "kong-konnect")
+        self.manifest = check_repo.load_json(self.plugin.codex_manifest)
+
+    def errors_for(self, manifest: dict) -> list[str]:
+        original = check_repo.load_json
+        with patch.object(check_repo, "load_json", side_effect=lambda path: copy.deepcopy(manifest) if path == self.plugin.codex_manifest else original(path)):
+            return check_repo.validate_static_metadata(self.catalog)
+
+    def test_generation_preserves_curated_and_review_metadata(self) -> None:
+        generated = check_repo.sync_codex_plugin(self.plugin, self.skills)
+        self.assertEqual(generated["extensions"], self.manifest["extensions"])
+        self.assertEqual(generated["interface"]["capabilities"], self.manifest["interface"]["capabilities"])
+        review = generated["extensions"]["com.openai"]["review"]
+        self.assertEqual(len(review["test_cases"]["positive"]), 5)
+        self.assertEqual(len(review["test_cases"]["negative"]), 3)
+        self.assertIs(review["commerce"], False)
+
+    def test_capability_limits_reject_instead_of_truncate(self) -> None:
+        for values in (["Label"] * 21, ["x" * 121]):
+            manifest = copy.deepcopy(self.manifest)
+            manifest["interface"]["capabilities"] = values
+            self.assertTrue(any("invalid interface.capabilities" in error for error in self.errors_for(manifest)))
+        manifest["interface"]["capabilities"] = ["x" * 120] * 20
+        self.assertFalse(any("invalid interface.capabilities" in error for error in self.errors_for(manifest)))
+
+    def test_identity_limits(self) -> None:
+        for name in ("Uppercase", "double--hyphen", "a" * 65):
+            manifest = copy.deepcopy(self.manifest)
+            manifest["name"] = name
+            self.assertTrue(any("invalid name" in error for error in self.errors_for(manifest)))
+        manifest = copy.deepcopy(self.manifest)
+        manifest["author"]["name"] = "x" * 121
+        self.assertTrue(any("invalid author.name" in error for error in self.errors_for(manifest)))
+
+    def test_icon_dimensions_and_size(self) -> None:
+        with tempfile.TemporaryDirectory(dir=check_repo.REPO_ROOT / ".tmp") as temp:
+            path = Path(temp) / "icon.png"
+            for width, height, valid in ((48, 48, True), (800, 400, False), (47, 47, False), (4097, 4097, False)):
+                path.write_bytes(b"\x89PNG\r\n\x1a\n" + struct.pack(">I", 13) + b"IHDR" + struct.pack(">II", width, height))
+                self.assertEqual(check_repo.validate_codex_icon(path) is None, valid)
+            with path.open("wb") as stream:
+                stream.truncate(5 * 1024 * 1024 + 1)
+            self.assertIn("5 MiB", check_repo.validate_codex_icon(path))
 
 
 if __name__ == "__main__":
