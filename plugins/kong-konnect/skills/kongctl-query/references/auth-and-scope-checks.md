@@ -19,7 +19,8 @@ Authentication defaults:
 
 - Prefer `kongctl login` for interactive sessions.
 - Use PAT or SPAT environment variables for non-interactive sessions only.
-- Never echo or paste token values back into logs or responses.
+- Inspect variable names only. Never print variable values, tokens, or
+  config-file secrets, and do not read credential files to diagnose auth.
 
 Scope checks:
 
@@ -48,7 +49,7 @@ kongctl get me -o json
 If output defaults or profile behavior may be hiding the real problem, inspect:
 
 ```bash
-env | grep '^KONGCTL_'
+env | grep -o '^KONGCTL_[A-Z0-9_]*'
 ```
 
 ## What To Return

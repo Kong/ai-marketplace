@@ -45,14 +45,13 @@ kongctl get me -o json --jq '{id, email}'
 
 - Profile config and `KONGCTL_*` environment variables can change default
   output behavior.
-- When formatting is surprising, inspect only the relevant overrides instead of
-  assuming the command shape is wrong.
+- When formatting is surprising, inspect override names only; never print
+  variable values or read credential files. Use explicit flags to prove behavior.
 
 Useful checks:
 
 ```bash
-env | grep '^KONGCTL_.*OUTPUT'
-env | grep '^KONGCTL_PROFILE'
+env | grep -o '^KONGCTL_[A-Z0-9_]*' | grep -E 'OUTPUT|^KONGCTL_PROFILE$'
 ```
 
 ## What To Return

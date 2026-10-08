@@ -51,7 +51,8 @@ Load only the branch-specific reference that matches the active problem:
 - Confirm the CLI is installed and runnable: `kongctl version`.
 - Prefer `kongctl login` for interactive sessions. Use PAT or SPAT environment
   variables only when the session is non-interactive.
-- Never echo, log, or commit token values.
+- Inspect environment variable names only, never their values. Do not read
+  credential files or print, log, or commit tokens or config-file secrets.
 - If the user's org, region, or profile context matters, prove that context
   with one org-scoped read such as `kongctl get organization -o json` before
   reasoning about a missing resource.
