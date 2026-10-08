@@ -7,9 +7,12 @@ Use it in both modes:
 - Agent-run mode: execute commands and report outcomes.
 
 Use command help for ground-truth syntax in environments without local docs.
-Before any live `apply`, `sync`, `delete`, or `adopt`, show a plan, diff, or
-`--dry-run` preview and wait for the user to confirm that change in the
-conversation. CLI prompts and `--auto-approve` do not replace this confirmation.
+Before live `apply`, `sync`, or `delete`, show a plan, diff, or `--dry-run`
+preview. For `adopt`, inspect the target and its labels with a read-only query
+and state the exact label change. Wait for the user to confirm the previewed
+change in the conversation. CLI prompts and `--auto-approve` do not replace
+this confirmation. In a CI deployment job, the pull-request plan/diff job and
+merge review are the preview and confirmation.
 
 ## Command Roles
 
@@ -54,10 +57,13 @@ Use these intent mappings:
 `KONGCTL-namespace: <namespace>` so the declarative engine recognizes it as
 managed. Adopt does not modify any resource fields — it only sets the label.
 
-Check `kongctl adopt --help` for a supported preview (`--dry-run`, plan, or
-diff) before execution. Show the resource and namespace change, then wait for
-conversation confirmation. If this CLI version cannot preview adoption, stop
-before mutation and report that limitation.
+`kongctl adopt` has no dry-run, plan, or diff mode. Preview it with a read-only
+query of the target resource and its current labels, for example
+`kongctl get <resource-type> <name-or-id> -o json`. State the exact change
+(add `KONGCTL-namespace: <namespace>`; no other field changes), then wait for
+conversation confirmation before running adopt. If the resource already has a
+namespace label, `--overwrite-namespace` needs its own confirmation of the
+change from the current namespace to the requested one.
 
 ```bash
 kongctl adopt <resource-type> <name-or-id> --namespace <namespace> -o json
@@ -126,7 +132,8 @@ and execution.
   when `!file` tags reference files outside the `-f` directory. Use an
   absolute path — relative values resolve from the config file directory,
   not cwd. Keep the base directory and all resolved references within the
-  owning repository; never include credential, key, or env files.
+  owning repository; never include credential, key, or env files. From within
+  that repository, use `--base-dir "$(git rev-parse --show-toplevel)"`.
 
 ## Output and Approval
 
@@ -135,13 +142,15 @@ and execution.
   is not available with structured output.
 - Use `-o text` for interactive runs that prompt for confirmation.
 - Use `-o json --auto-approve` only after conversation confirmation of the
-  previewed change. GitHub Actions deployment examples use the configured CI
-  workflow and GitHub Secrets.
+  previewed change, or inside a CI deployment job where the pull-request
+  plan/diff job and merge review are the preview and confirmation.
 
 ## Safety Defaults
 
-- Require a plan, diff, or `--dry-run` preview and conversation confirmation
-  before live `apply`, `sync`, `delete`, or `adopt`.
+- Require a plan, diff, or `--dry-run` preview before live `apply`, `sync`, or
+  `delete`; use read-only target and label inspection for `adopt`. Follow the
+  confirmation rules in Output and Approval; namespace overwrites need their
+  own confirmation.
 - Use `--require-any-namespace` or `--require-namespace` as guardrails.
 - Set explicit output with `-o <text|json|yaml>`.
 - Use `--profile <name>` when environment separation matters.

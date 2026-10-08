@@ -49,6 +49,8 @@ Actions:
 - Set an absolute base directory within the owning repository that includes
   the spec paths. Never widen it beyond that repository or reference
   credential, key, or env files; check resolved paths for symlink escapes.
+  From within the owning repository, use
+  `--base-dir "$(git rev-parse --show-toplevel)"`.
 - Move spec files only when the user explicitly asks to change layout.
 
 ### Unexpected Deletes in Sync
