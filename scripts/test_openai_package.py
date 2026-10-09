@@ -145,6 +145,34 @@ class CodexListingTests(unittest.TestCase):
         manifest["author"]["name"] = "x" * 121
         self.assertTrue(any("invalid author.name" in error for error in self.errors_for(manifest)))
 
+    def test_requires_both_icons(self) -> None:
+        for field in ("logo", "composerIcon"):
+            for missing in (True, False):
+                with self.subTest(field=field, missing=missing):
+                    manifest = copy.deepcopy(self.manifest)
+                    if missing:
+                        del manifest["interface"][field]
+                    else:
+                        manifest["interface"][field] = None
+                    self.assertTrue(any(
+                        f"invalid interface.{field} path" in error
+                        for error in self.errors_for(manifest)
+                    ))
+
+    def test_scaffold_icons_report_missing_asset(self) -> None:
+        for with_mcp in (False, True):
+            with self.subTest(with_mcp=with_mcp):
+                manifest = scaffold_skill.codex_manifest_template("kong-test", with_mcp)
+                for field in ("logo", "composerIcon"):
+                    self.assertEqual(manifest["interface"][field], "./assets/logo.png")
+                with patch.object(Path, "is_file", return_value=False):
+                    errors = self.errors_for(manifest)
+                for field in ("logo", "composerIcon"):
+                    self.assertTrue(any(
+                        f"invalid interface.{field} path: './assets/logo.png'" in error
+                        for error in errors
+                    ))
+
     def test_icon_dimensions_and_size(self) -> None:
         with tempfile.TemporaryDirectory(dir=check_repo.REPO_ROOT / ".tmp") as temp:
             path = Path(temp) / "icon.png"

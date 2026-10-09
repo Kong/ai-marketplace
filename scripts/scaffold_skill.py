@@ -144,6 +144,8 @@ def codex_manifest_template(plugin_name: str, with_mcp: bool) -> dict[str, objec
             "shortDescription": "Kong workflows",
             "longDescription": host_plugin_description(plugin_name, "Codex and ChatGPT", with_mcp),
             "developerName": "Kong",
+            "logo": "./assets/logo.png",
+            "composerIcon": "./assets/logo.png",
             "supportURL": "https://github.com/Kong/ai-marketplace/issues",
             "privacyPolicyURL": "https://konghq.com/legal/privacy-policy",
             "termsOfServiceURL": "https://konghq.com/legal/terms-of-use",

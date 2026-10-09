@@ -607,9 +607,9 @@ def validate_static_metadata(plugin_catalog: list[tuple[Plugin, list[Skill]]]) -
             errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: invalid interface.defaultPrompt")
         for field in ("logo", "composerIcon"):
             value = interface.get(field)
-            if value is not None and (not isinstance(value, str) or not value.startswith("./") or ".." in Path(value).parts or not (plugin.root / value).is_file()):
-                errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: invalid interface.{field} path")
-            elif value is not None:
+            if not isinstance(value, str) or not value.startswith("./") or ".." in Path(value).parts or not (plugin.root / value).is_file():
+                errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: invalid interface.{field} path: {value!r}")
+            else:
                 if problem := validate_codex_icon(plugin.root / value):
                     errors.append(f"{plugin.codex_manifest.relative_to(REPO_ROOT)}: interface.{field}: {problem}")
 
