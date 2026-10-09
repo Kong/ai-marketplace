@@ -54,7 +54,10 @@ apis:
 - Paths resolve relative to the YAML file that contains the tag.
 - `--base-dir` widens the allowed boundary for `!file`; it does not change the
   relative resolution base.
-- Prefer adding `--base-dir` over moving specs just to satisfy path checks.
+- Keep resolved paths and `--base-dir` within the owning repository, including
+  symlink targets. Never reference credential, key, or env files.
+- Prefer adding a repository-scoped `--base-dir` over moving specs just to
+  satisfy path checks.
 
 ## Resource-Specific Guidance
 
@@ -90,4 +93,4 @@ kongctl diff -f <path-or-file> --mode apply -o text
 ```
 
 If the config uses `!file` outside the loaded directory, add an absolute
-`--base-dir` that encloses those files.
+`--base-dir` within the owning repository that encloses those files.

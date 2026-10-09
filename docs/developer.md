@@ -98,9 +98,14 @@ That creates:
 - `plugins/<plugin-name>/skills/`
 - `plugins/<plugin-name>/.claude-plugin/plugin.json`
 - `plugins/<plugin-name>/.cursor-plugin/plugin.json`
-- optional `plugins/<plugin-name>/assets/logo.png`; `mise run gen` then adds
-  `"logo": "assets/logo.png"` to the Cursor manifest
-- optional `plugins/<plugin-name>/mcp.json`
+- `plugins/<plugin-name>/.codex-plugin/plugin.json`
+- optional `plugins/<plugin-name>/mcp.json` and Codex `.mcp.json` companion
+
+The Codex manifest sets both `interface.logo` and `interface.composerIcon` to
+`./assets/logo.png`. Add that PNG asset before validation; both icon fields are
+required, and validation reports the missing path until the file exists.
+`mise run gen` also adds `"logo": "assets/logo.png"` to the Cursor manifest
+when the asset exists.
 
 Root marketplace manifests are generated from plugin discovery, so you do not
 hand-edit marketplace entries when adding a new package.
@@ -225,11 +230,13 @@ checks:
 
 ## What Generate Updates
 
+- the Codex manifest in [`plugins/kong-konnect/.codex-plugin/plugin.json`](../plugins/kong-konnect/.codex-plugin/plugin.json) and repo catalog in [`.agents/plugins/marketplace.json`](../.agents/plugins/marketplace.json)
 - the skill arrays in [`plugins/kong-konnect/.claude-plugin/plugin.json`](../plugins/kong-konnect/.claude-plugin/plugin.json)
 - the skill path and metadata in [`plugins/kong-konnect/.cursor-plugin/plugin.json`](../plugins/kong-konnect/.cursor-plugin/plugin.json)
 - the Claude marketplace keywords in [`.claude-plugin/marketplace.json`](../.claude-plugin/marketplace.json)
 - the Cursor marketplace catalog in [`.cursor-plugin/marketplace.json`](../.cursor-plugin/marketplace.json)
 - the generated skill inventory in [docs/skills.md](skills.md)
+- the Codex `.mcp.json` companion with the same content as the shared MCP config
 - the plugin-local MCP config in [`plugins/kong-konnect/mcp.json`](../plugins/kong-konnect/mcp.json)
 
 ## What Stays Manual
@@ -259,6 +266,7 @@ For authoring guidance on what makes a good skill, see [AGENTS.md](../AGENTS.md)
 
 ## Supported Tools
 
+- Codex (repo plugin): [installation](install/codex.md)
 - Cursor: https://cursor.com/
 - Claude Code: https://code.claude.com/docs
 - GitHub CLI `gh skill`: https://cli.github.com/
@@ -310,3 +318,32 @@ Commit the version bump, get it reviewed, and merge it to `main`.
 
 For how the GitHub Actions release is triggered and what it does, see
 [docs/release.md](release.md).
+
+## OpenAI Submission Package
+
+Run validation, stage the intended package files, then build:
+
+```bash
+mise run gen
+mise run lint
+git add plugins/kong-konnect
+mise run package:openai -- .tmp/kong-konnect-openai-plugin.zip
+unzip -l .tmp/kong-konnect-openai-plugin.zip
+```
+
+The builder reads working-tree contents of tracked files. It includes only the
+Codex manifest, `.mcp.json`, skills and companions, logo, README, and
+license, with paths relative to the plugin root. It excludes other host
+manifests, repository metadata, and untracked files. It rejects symlinks,
+credential-bearing MCP configuration, and recognizable Kong tokens/private
+keys. Review the staged payload for other secrets; this is not a general
+secret scanner. Identical inputs produce identical ZIP bytes.
+
+The package contains the hosted MCP connection in its initial ZIP. Do not
+submit a skills-only ZIP intending to add MCP later. The builder neither
+uploads nor submits anything. Portal checks, reviewer access, test cases,
+video, and directory approval remain separate steps. Keep reviewer credentials
+in the portal, never in the package.
+
+Schema sources and changes from the earlier plan are recorded in
+[the reintroduction plan](plans/reintroduce-codex-plugin.md).

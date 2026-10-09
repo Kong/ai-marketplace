@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "kong-konnect": {
+      "type": "http",
+      "url": "https://global.mcp.konghq.com/"
+    }
+  }
+}

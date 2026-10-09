@@ -46,8 +46,11 @@ Symptom: file not found or base-dir boundary violation.
 Actions:
 
 - Verify path is relative to the declarative config file.
-- Set an absolute base directory that includes existing spec paths:
-  `kongctl plan -f <path> --base-dir "$(pwd)" --mode apply -o json`
+- Set an absolute base directory within the owning repository that includes
+  the spec paths. Never widen it beyond that repository or reference
+  credential, key, or env files; check resolved paths for symlink escapes.
+  From within the owning repository, use
+  `--base-dir "$(git rev-parse --show-toplevel)"`.
 - Move spec files only when the user explicitly asks to change layout.
 
 ### Unexpected Deletes in Sync
@@ -58,7 +61,8 @@ Actions:
 
 - Re-check with `diff --mode apply` to isolate create/update intent.
 - Restrict scope with `--require-namespace=<ns>`.
-- Use `--dry-run` before executing `sync` or `delete`.
+- Preview with `--dry-run`, then obtain conversation confirmation before
+  executing `sync` or `delete`.
 
 ### Namespace Label and Adopt Conflicts
 
@@ -108,8 +112,9 @@ Actions:
 
 - Set explicit output: `-o text`, `-o json`, or `-o yaml`.
 - Set explicit profile: `--profile <name>`.
-- Inspect environment overrides:
-  `env | grep '^KONGCTL_'`
+- Inspect environment override names only; never print variable values, tokens,
+  or config-file secrets, or read credential files:
+  `env | grep -o '^KONGCTL_[A-Z0-9_]*'`
 
 ### API/Auth/Network Failures
 
@@ -117,7 +122,8 @@ Symptom: plan or execution fails with auth or transport errors.
 
 Actions:
 
-- Re-authenticate with `kongctl login` or set `KONGCTL_DEFAULT_KONNECT_PAT`.
+- Re-authenticate with `kongctl login`; for headless sessions, have the user
+  configure `KONGCTL_DEFAULT_KONNECT_PAT` through their secret manager.
 - Verify region/base URL configuration.
-- Re-run with diagnostics:
-  `--log-level debug` or `--log-level trace`
+- Keep normal log verbosity; do not enable debug or trace output that could
+  expose credentials or sensitive request data.

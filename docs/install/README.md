@@ -7,6 +7,7 @@ maintains. Most users will follow one tool-specific page and will not need any
 contributor context from the rest of the repository.
 
 [![Claude Code](https://img.shields.io/badge/Claude_Code-plugin-111111?style=for-the-badge&logo=claude&logoColor=white)](./claude-code.md)
+[![Codex](https://img.shields.io/badge/Codex-repo_plugin-111111?style=for-the-badge)](./codex.md)
 [![Cursor](https://img.shields.io/badge/Cursor-plugin-000000?style=for-the-badge&logo=cursor&logoColor=white)](./cursor.md)
 [![AWS Kiro Powers](https://img.shields.io/badge/AWS-Kiro_Powers-232F3E?style=for-the-badge&labelColor=FF9900&logo=amazonaws&logoColor=000000)](./aws.md)
 [![Other Tools](https://img.shields.io/badge/Other_Tools-skills-555555?style=for-the-badge&logo=vercel&logoColor=white)](./other-tools.md)
@@ -95,8 +96,8 @@ Find and remove the old entry in your client:
 See the [Konnect MCP documentation](https://developer.konghq.com/konnect-platform/konnect-mcp/)
 for the current remote server.
 
-The Codex plugin was removed pending marketplace approval. Use the direct
-Codex CLI MCP setup linked above; do not reinstall the removed plugin.
+The [Codex repo plugin](./codex.md) is available for local installation and
+submission preparation. Public directory approval and publication are pending.
 
 ## Skills only
 

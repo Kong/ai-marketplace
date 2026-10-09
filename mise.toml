@@ -34,6 +34,7 @@ run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.
 description = "Run the same validation used in CI"
 run = [
   { task = "lint" },
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_openai_package.py",
   "gh skill publish --dry-run",
 ]
 
@@ -44,3 +45,7 @@ run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/release_pre
 [tasks."hooks:install"]
 description = "Install repo-local git hooks"
 run = "git config core.hooksPath .githooks"
+
+[tasks."package:openai"]
+description = "Build the Kong Konnect OpenAI submission ZIP from tracked package files"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/build_openai_plugin.py"

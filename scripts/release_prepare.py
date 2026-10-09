@@ -24,6 +24,7 @@ def version_targets() -> list[Path]:
             [
                 plugin_dir / ".claude-plugin" / "plugin.json",
                 plugin_dir / ".cursor-plugin" / "plugin.json",
+                plugin_dir / ".codex-plugin" / "plugin.json",
             ]
         )
     return targets

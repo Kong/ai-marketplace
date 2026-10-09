@@ -59,4 +59,5 @@ kongctl diff -f <path-or-file> --mode apply -o text
 ```
 
 If the specs live outside the loaded directory, add an absolute `--base-dir`
-that includes them.
+within the owning repository that includes them. Resolved `!file` paths must
+stay in that repository and must not reference credential, key, or env files.

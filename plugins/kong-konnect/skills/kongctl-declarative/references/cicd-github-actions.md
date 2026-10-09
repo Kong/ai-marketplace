@@ -15,7 +15,7 @@ Use this file when asked to create or modify GitHub Actions workflows for
 3. Install required tooling:
    - `kong/setup-kongctl@v1`
    - `kong/setup-deck@v1` when deck is required
-4. Inject secrets via workflow `env` or step-level `env`.
+4. Provide credentials from GitHub Secrets through workflow or step-level `env`.
 5. Upload artifacts for audit and troubleshooting.
 
 ## Trigger Patterns

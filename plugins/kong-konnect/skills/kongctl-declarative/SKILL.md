@@ -74,13 +74,22 @@ Before editing manifests or proposing execution:
 Use the smallest preview surface that matches intent:
 
 - review or CI path: generate a saved plan or a scoped diff artifact
-- immediate execution path: run a scoped `diff` or inline `--dry-run`
+- apply/sync/delete execution path: run a scoped `diff` or inline `--dry-run`
+- adopt path: read the target resource and its labels, then state the exact
+  namespace label change
 - inspect unexpected deletes, wrong namespace ownership, unresolved `!ref`
   values, and `!file` boundary issues before mutation
 
 ### Execute
 
-- Mutate live state only when the user explicitly asked for it.
+- Run live `apply`, `sync`, or `delete` only after a plan, diff, or `--dry-run`
+  preview and the user confirms that previewed change in the conversation.
+- For `adopt`, preview through read-only inspection of the target and its
+  labels, state the exact label change, and wait for conversation confirmation.
+  Using `--overwrite-namespace` needs its own confirmation.
+- A request for direct execution does not skip these gates. In a CI deployment
+  job, the pull-request plan/diff job and merge review are the preview and
+  confirmation.
 - State the intended effect in plain language before any mutating command.
 - Keep execution aligned with the previewed path instead of switching tools or
   widening scope mid-task.
@@ -100,20 +109,25 @@ After a requested mutation:
   continue with `kongctl`-based inspection as the fallback.
 - Prefer explicit namespace, profile, and output flags when environment or
   profile defaults could obscure behavior.
-- Treat `sync` and `delete` as destructive. Preview them first unless the user
-  explicitly asks for direct execution.
+- Treat `sync` and `delete` as destructive. Follow the Preview and Execute
+  gates for every live mutation.
+- Inspect environment variable names only, never their values. Do not read
+  credential files or print, log, or commit tokens or config-file secrets.
 - Use `adopt` only for existing unmanaged parent resources. `adopt` labels the
   resource for namespace ownership; it does not rewrite the resource fields.
 - Keep OpenAPI files in their existing repository locations. Prefer `!file`
   extraction and `!ref` links over copied literals or hard-coded UUIDs.
+- Keep resolved `!file` paths and `--base-dir` within the repository that owns
+  the declarative config. Never use absolute paths that leave the repository
+  or symlinks that escape it, or reference credential, key, or env files.
 - Do not place non-resource YAML inside a `--recursive` declarative tree. If a
   directory mixes resource YAML with specs or docs, target specific files
   instead of the whole tree.
 - When scope is unclear, inspect existing manifests or live state. Do not
   invent a default starter bundle of Konnect resources.
 - If a required `kongctl` command appears blocked by the agent sandbox rather
-  than by Konnect or the CLI, request an unsandboxed retry before diagnosing
-  the command itself as broken.
+  than by Konnect or the CLI, ask the user to run it or approve a retry outside
+  the sandbox before diagnosing the command itself as broken.
 
 ## Workflow
 
@@ -128,7 +142,7 @@ After a requested mutation:
    - CI/CD workflow work: also load `references/cicd-github-actions.md`
 3. Update manifests in place, preserving the repository's file layout,
    ownership boundaries, and existing reference patterns.
-4. Run the validation gates in order: Preflight, Preview, Execute if requested,
+4. Run the validation gates in order: Preflight, Preview, Execute if confirmed,
    then Prove.
 5. Report the files changed, the exact command path used, and the proof of the
    resulting state or remaining drift.
@@ -140,7 +154,7 @@ Before answering, verify that you can state:
 - why `kongctl` is the correct implementation owner for this request
 - which namespace, profile, and file scope the change owns
 - which preview path proves the change safely
-- whether the user asked only for authoring or for live mutation
+- whether the user confirmed the previewed change before live mutation
 - how post-change proof will confirm the exact resource slice
 - whether `kongctl-query` should provide read-only follow-up proof
 

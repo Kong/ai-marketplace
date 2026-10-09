@@ -40,6 +40,10 @@ optional flows:
 Use the smallest path that covers the change. Most edits do not require every
 check.
 
+`mise run ci` also runs the submission packaging regression checks in
+`scripts/test_openai_package.py`: archive boundaries, reproducibility, unsafe
+paths, credentials, missing assets, discovery, and release ownership.
+
 `mise run lint` covers more than generated-file drift. It is also the repo's
 default authoring guardrail for:
 
@@ -101,6 +105,18 @@ back to user-profile locations.
 - Store the PAT/SPAT secret in the host tool's secure settings flow when available.
 
 ## Tool Spot Checks
+
+### Codex
+
+- Install path: [docs/install/codex.md](./install/codex.md)
+- Use a scratch project or disposable profile; add this checkout with `codex plugin marketplace add .`
+- Install Kong Konnect from the repo marketplace in the desktop app and start a new chat
+- Verify all shipped skills are visible and `gateway-plugin-datakit` can be invoked
+- Connect the bundled `kong-konnect` server with OAuth; verify a catalog lookup without changing resources
+- Confirm there is no duplicate manually configured MCP connection
+- Cleanup: uninstall the plugin and remove the scratch marketplace/profile
+- Packaging: run `mise run package:openai -- .tmp/kong-konnect-openai-plugin.zip` after staging package files; inspect `unzip -l` for all skills and referenced assets
+- A local validation pass does not prove that OpenAI's submission portal accepts the ZIP
 
 ### Claude Code
 
