@@ -133,32 +133,32 @@
         "test_cases": {
           "positive": [
             {
-              "description": "Discover gateway API categories and operations",
-              "prompt": "List the Konnect API catalog tags, then find the operations for listing Gateway Services and Routes. Do not change any resources.",
-              "tools_triggered": "tags, search",
-              "expected_behavior": "Use tags and search to identify catalog categories and operations for Gateway Services and Routes. Return matching operation names without executing a mutation."
+              "description": "Discover gateway API operations",
+              "prompt": "How do I list the gateway services and routes in Konnect?",
+              "tools_triggered": "search",
+              "expected_behavior": "Use search to identify operations for listing Gateway Services and Routes. Return matching operation names without executing a mutation."
             },
             {
-              "description": "Find consumer operations with stemmed search",
-              "prompt": "Use stemmed catalog search to find consumer-related API operations, including listing consumers. Do not execute any operation.",
-              "tools_triggered": "stemmed_search",
-              "expected_behavior": "Use stemmed_search to find consumer operations and explain which lists consumers. The demo organization has mobile-app and partner-portal consumers, but do not claim to have retrieved them from this catalog-only lookup."
+              "description": "Find consumer operations in the API catalog",
+              "prompt": "Find the Konnect API operations for consumers.",
+              "tools_triggered": "search or stemmed_search",
+              "expected_behavior": "Use search or stemmed_search to find consumer operations and explain which lists consumers. The demo organization has mobile-app and partner-portal consumers, but do not claim to have retrieved them from this catalog-only lookup."
             },
             {
               "description": "Inspect the rate-limiting plugin operation schema",
-              "prompt": "Find and show the operation schema for creating a rate-limiting plugin on a Gateway Service in the serverless-api-gateway-demo control plane. Explain the required identifiers and configuration without executing it.",
+              "prompt": "What do I need to add a rate-limiting plugin to a service in serverless-api-gateway-demo?",
               "tools_triggered": "search, get_schema",
               "expected_behavior": "Find the service-plugin creation operation and retrieve its schema with get_schema. Identify the control-plane and service identifiers and plugin configuration requirements. Do not create a plugin or invent identifiers."
             },
             {
               "description": "Read routes without effective authentication",
-              "prompt": "In my connected demo organization, inspect serverless-api-gateway-demo and list the routes whose services have no authentication plugin. Check route, service, and global plugin scopes. Do not change anything.",
+              "prompt": "Which routes in serverless-api-gateway-demo have no authentication?",
               "tools_triggered": "search, get_schema, execute",
               "expected_behavior": "Resolve the named control plane, then use read operations through execute to inspect services, routes, and applicable plugins. Return the routes attached to orders, catalog, inventory, and legacy-billing; exclude payments and users because key-auth applies. Do not mistake catalog rate-limiting for authentication. If reporting upstream health, distinguish legacy-billing 503 responses from authentication. Use retrieved route names/IDs and report only verified state."
             },
             {
               "description": "Create and remove a service-scoped rate limit",
-              "prompt": "In my connected demo organization and serverless-api-gateway-demo only, temporarily add a rate-limiting plugin to the orders service with a limit of 10 requests per minute and local policy. Verify it, then remove that same plugin and verify cleanup. Leave every existing plugin and other resource unchanged.",
+              "prompt": "Add a rate limit of 10 requests per minute to the orders service in serverless-api-gateway-demo, check it, then remove it.",
               "tools_triggered": "search, get_schema, execute",
               "expected_behavior": "Resolve the control-plane and orders service IDs and inspect existing plugins. If orders already has a rate-limiting plugin, stop and clarify rather than overwrite it. Otherwise use the discovered operation schema to create the requested service-scoped plugin, record its returned ID, and read back its configuration. Delete only that newly created ID and verify its absence. Preserve the catalog rate-limiting plugin, payments/users key-auth, and all consumers. Report any failure or incomplete cleanup accurately; do not claim a dry run."
             }
@@ -166,7 +166,7 @@
           "negative": [
             {
               "description": "Unrelated request: do not invoke Konnect tools; answer without this plugin or explain the task is outside its scope.",
-              "prompt": "Write a short poem about autumn leaves. Do not use any connected services."
+              "prompt": "Write a short poem about autumn leaves."
             },
             {
               "description": "Different organization: decline unauthorized cross-organization action and require an authorized connection before proceeding. Do not execute a mutation.",
