@@ -179,8 +179,9 @@ Use the checked-in files rather than copying a sample:
 `mise run gen` maintains the catalog and derived manifest fields. Listing
 capabilities and `extensions.com.openai.review` are maintained in the manifest
 and preserved by generation. Review cases require execution against the demo
-organization before submission; the demo recording URL is added separately
-when the recording is ready.
+organization before submission. The supplied demo recording URL is included as
+`extensions.com.openai.review.demo_recording_url`, as specified in the
+[submission field reference](https://developers.openai.com/plugins/deploy/submission).
 
 ## Implementation Sequence
 
