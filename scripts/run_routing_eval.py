@@ -34,7 +34,9 @@ EXIT_CODES = {results.PASS: 0, results.ROUTING_FAIL: 1, results.INFRA_ERROR: 3}
 PromptfooRunner = Callable[[str, str, Path, "str | None"], "tuple[str, list[dict[str, Any]] | None]"]
 
 
-def run_promptfoo(host: str, skill: str, report: Path, pattern: str | None) -> tuple[str, list[dict[str, Any]] | None]:
+def run_promptfoo(
+    host: str, skill: str, report: Path, pattern: str | None, env: dict[str, str] | None = None
+) -> tuple[str, list[dict[str, Any]] | None]:
     """Run one Promptfoo eval and return its console text and parsed result rows.
 
     Promptfoo exits non-zero for failing or erroring tests, so success is judged by
@@ -51,7 +53,7 @@ def run_promptfoo(host: str, skill: str, report: Path, pattern: str | None) -> t
     else:
         command.append(str(report.with_suffix(".html")))
     proc = subprocess.run(
-        command, cwd=check_repo.REPO_ROOT, env={**os.environ, "ROUTING_SKILL": skill},
+        command, cwd=check_repo.REPO_ROOT, env={**os.environ, **(env or {}), "ROUTING_SKILL": skill},
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False,
     )
     try:

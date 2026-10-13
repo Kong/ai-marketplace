@@ -105,6 +105,25 @@ Results record the failure kind (`invocation`, `provider`, `telemetry`,
 `scenario_validation`), retries per host, and per-trial evidence. A passing
 host never offsets the other. Exit code: 0 pass, 1 `routing_fail`, 3 otherwise.
 
+### Candidate vs merge-base comparison
+
+`mise run eval:routing:compare -- <name> [--base <ref>]` (default `origin/main`)
+evaluates the same scenarios, host configs, models, tools, and trial counts
+against two isolated workspaces under `.tmp/routing/`: `candidate` (working-tree
+skills) and `control` (skills at `git merge-base <ref> HEAD`). Only the
+workspace differs. Each host gets `.tmp/routing/reports/<host>-<skill>.comparison.json`
+with per-scenario and aggregate pass-rate deltas (candidate minus control;
+shape in `scripts/routing_compare.py`). Deltas are reported, not gated, and no
+score baseline is stored; the exit code reflects the candidate's own host state.
+
+A skill absent at the merge base is new: control is skipped and each host is
+judged on absolute thresholds (at least 90% positive recall, 95% near-miss
+specificity) instead of a delta. New skills must also ship at least 5
+positive, 5 near-miss, and 2 sibling scenarios per adjacent skill (at most 5
+adjacent skills); violations are scenario validation failures before any model
+call. Check them offline with
+`python scripts/validate_routing_scenarios.py --new-skill=<name>`.
+
 ## Shared Skill Installers
 
 ### `npx skills`

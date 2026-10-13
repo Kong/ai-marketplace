@@ -54,3 +54,13 @@ test('tests are tagged host=codex and graded only by skill-used assertions', () 
     assert.ok(t.assert.every((a) => a.type === 'skill-used' || a.type === 'not-skill-used'));
   }
 });
+
+test('ROUTING_WORKSPACE_ROOT redirects the workspace for candidate/control runs', () => {
+  process.env.ROUTING_WORKSPACE_ROOT = path.join(os.tmpdir(), 'routing-control');
+  try {
+    const [provider] = loadConfig().providers;
+    assert.strictEqual(provider.config.working_dir, path.join(os.tmpdir(), 'routing-control', 'codex'));
+  } finally {
+    delete process.env.ROUTING_WORKSPACE_ROOT;
+  }
+});

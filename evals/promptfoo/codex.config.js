@@ -10,7 +10,10 @@ const { buildTests, SCENARIOS_DIR } = require('./scenarios');
 
 const MODEL = 'gpt-5.5';
 const LABEL = 'codex-discovery-turn';
-const workspace = path.resolve(__dirname, '..', '..', '.tmp', 'routing', 'codex');
+// ROUTING_WORKSPACE_ROOT lets the candidate/control comparison point each run at its own workspace.
+const workspace = process.env.ROUTING_WORKSPACE_ROOT
+  ? path.resolve(process.env.ROUTING_WORKSPACE_ROOT, 'codex')
+  : path.resolve(__dirname, '..', '..', '.tmp', 'routing', 'codex');
 
 // Discovery only: read-only sandbox, no network or web search, never prompts for
 // approval, and one short turn. Codex cannot be limited to a single tool, so the

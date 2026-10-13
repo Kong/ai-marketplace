@@ -42,6 +42,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_scenarios.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_workspace.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_results.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_compare.py",
   "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "gh skill publish --dry-run",
@@ -63,6 +64,19 @@ run = [
   # Validates scenarios, runs each host independently, retries infrastructure errors once, and
   # reduces each host to pass, routing_fail, or infra_error. Exit: 0 pass, 1 routing_fail, 3 infra_error.
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_eval.py {{usage.name}}",
+]
+
+[tasks."eval:routing:compare"]
+description = "Compare one skill's routing with its merge base, per host: mise run eval:routing:compare -- <name> [--base <ref>]"
+usage = '''
+arg "<name>" help="Skill name; a skill absent at the merge base is judged on absolute thresholds"
+flag "--base <ref>" default="origin/main" help="Ref whose merge base with HEAD is the control"
+'''
+env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
+run = [
+  "npm ci --ignore-scripts --no-audit --no-fund",
+  # Materializes isolated candidate and control workspaces itself. Exit: 0 pass, 1 routing_fail, 3 infra_error.
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_comparison.py {{usage.name}} --base {{usage.base}}",
 ]
 
 [tasks."release:prepare"]

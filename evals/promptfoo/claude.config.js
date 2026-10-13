@@ -5,7 +5,10 @@ const { buildTests, SCENARIOS_DIR } = require('./scenarios');
 
 const MODEL = 'claude-sonnet-5-5';
 const LABELS = { positive: 'claude-stop-on-activation', negative: 'claude-complete-turn' };
-const workspace = path.resolve(__dirname, '..', '..', '.tmp', 'routing', 'claude');
+// ROUTING_WORKSPACE_ROOT lets the candidate/control comparison point each run at its own workspace.
+const workspace = process.env.ROUTING_WORKSPACE_ROOT
+  ? path.resolve(process.env.ROUTING_WORKSPACE_ROOT, 'claude')
+  : path.resolve(__dirname, '..', '..', '.tmp', 'routing', 'claude');
 
 // Discovery only: the sole tool is the native Skill tool, so the agent cannot
 // perform the domain task, read files, run commands, or reach MCP servers.

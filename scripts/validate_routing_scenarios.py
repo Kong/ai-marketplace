@@ -11,7 +11,8 @@ Each *.yaml file declares one target skill and a list of scenarios:
         trials: 3                         # 1-5
         tags: [positive]                  # positive | near-miss | sibling
 
-No provider credentials or model calls are used.
+No provider credentials or model calls are used. `--new-skill=NAME` additionally
+enforces the new-skill scenario minimums for NAME.
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ from pathlib import Path
 import yaml
 
 import check_repo
+import select_changed
 
 SCENARIOS_DIR = check_repo.REPO_ROOT / "evals" / "routing"
 ALLOWED_TAGS = {"positive", "near-miss", "sibling"}
@@ -30,6 +32,11 @@ MAX_TRIALS = 5
 ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 FILE_KEYS = {"skill", "scenarios"}
 SCENARIO_KEYS = {"id", "prompt", "expect", "forbid", "trials", "tags"}
+# Minimum corpus for a net-new skill (no merge-base control exists to compare against).
+MIN_POSITIVES = 5
+MIN_NEAR_MISSES = 5
+MIN_SIBLINGS_PER_ADJACENT = 2
+MAX_ADJACENT = 5
 
 
 def known_skill_names() -> set[str]:
@@ -134,13 +141,86 @@ def validate_scenarios(directory: Path, skills: set[str]) -> list[str]:
     return errors
 
 
+def target_scenarios(directory: Path, skill: str) -> list[dict]:
+    """Well-formed scenario mappings declared for `skill`; malformed content is validate_scenarios' job."""
+    found: list[dict] = []
+    if not directory.is_dir():
+        return found
+    for path in sorted(directory.rglob("*")):
+        if path.suffix not in {".yaml", ".yml"}:
+            continue
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8"))
+        except (yaml.YAMLError, UnicodeDecodeError):
+            continue
+        if isinstance(data, dict) and data.get("skill") == skill and isinstance(data.get("scenarios"), list):
+            found.extend(item for item in data["scenarios"] if isinstance(item, dict))
+    return found
+
+
+def _names(value: object) -> list[str]:
+    return [item for item in value if isinstance(item, str)] if isinstance(value, list) else []
+
+
+def _tagged(scenario: dict, tag: str) -> bool:
+    return tag in _names(scenario.get("tags"))
+
+
+def new_skill_minimum_errors(directory: Path, skill: str, adjacent: list[str]) -> list[str]:
+    """Check the scenario minimums for a new skill; `adjacent` are its obvious adjacent skills.
+
+    Counts distinct scenarios: positives expect the target, near misses forbid it, and a
+    sibling scenario for adjacent skill X expects X and forbids the target.
+    """
+    scenarios = target_scenarios(directory, skill)
+    errors: list[str] = []
+    positives = sum(_tagged(s, "positive") and skill in _names(s.get("expect")) for s in scenarios)
+    if positives < MIN_POSITIVES:
+        errors.append(f"new skill {skill!r} needs at least {MIN_POSITIVES} positive scenarios, found {positives}")
+    near_misses = sum(_tagged(s, "near-miss") and skill in _names(s.get("forbid")) for s in scenarios)
+    if near_misses < MIN_NEAR_MISSES:
+        errors.append(f"new skill {skill!r} needs at least {MIN_NEAR_MISSES} near-miss scenarios, found {near_misses}")
+
+    siblings = [s for s in scenarios if _tagged(s, "sibling") and skill in _names(s.get("forbid"))]
+    for name in adjacent[:MAX_ADJACENT]:
+        count = sum(name in _names(s.get("expect")) for s in siblings)
+        if count < MIN_SIBLINGS_PER_ADJACENT:
+            errors.append(
+                f"new skill {skill!r} needs at least {MIN_SIBLINGS_PER_ADJACENT} sibling scenarios for "
+                f"adjacent skill {name!r}, found {count}"
+            )
+    covered = {name for s in siblings for name in _names(s.get("expect"))}
+    if len(covered) > MAX_ADJACENT:
+        errors.append(f"new skill {skill!r} has sibling scenarios for {len(covered)} adjacent skills; at most {MAX_ADJACENT}")
+    return errors
+
+
+def adjacent_skills(skill: str) -> list[str]:
+    """The skill's obvious adjacent skills in the working tree, capped like PR selection."""
+    catalog = [s for plugin in check_repo.discover_plugins() for s in check_repo.discover_skills(plugin)]
+    texts = {
+        s.name: (check_repo.PLUGINS_DIR / s.plugin_name / "skills" / s.dir_name / "SKILL.md").read_text(encoding="utf-8")
+        for s in catalog
+    }
+    target = next((s for s in catalog if s.name == skill), None)
+    if target is None:
+        raise ValueError(f"unknown skill {skill!r}")
+    return select_changed.adjacent_for(target, catalog, texts)[:MAX_ADJACENT]
+
+
 def main() -> int:
+    new_skills = [a.split("=", 1)[1] for a in sys.argv[1:] if a.startswith("--new-skill=")]
     try:
         skills = known_skill_names()
     except ValueError as exc:
         print(exc, file=sys.stderr)
         return 1
     errors = validate_scenarios(SCENARIOS_DIR, skills)
+    for name in new_skills:
+        try:
+            errors.extend(new_skill_minimum_errors(SCENARIOS_DIR, name, adjacent_skills(name)))
+        except ValueError as exc:
+            errors.append(str(exc))
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
     if errors:
