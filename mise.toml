@@ -28,13 +28,17 @@ run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.
 
 [tasks.lint]
 description = "Validate manifests, skills, and generated content"
-run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.py"
+run = [
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/validate_routing_scenarios.py",
+]
 
 [tasks.ci]
 description = "Run the same validation used in CI"
 run = [
   { task = "lint" },
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_openai_package.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_scenarios.py",
   "gh skill publish --dry-run",
 ]
 
