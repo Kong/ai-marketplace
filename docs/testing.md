@@ -69,17 +69,25 @@ checked-in repo defaults. The `mise` config pins `uv` to Python `3.12` and
 keeps the uv cache and managed Python installs under `.tmp/` instead of falling
 back to user-profile locations.
 
-## Routing Evals (Claude)
+## Routing Evals
 
 `mise run eval:routing -- skill <name>` runs the scenarios in `evals/routing/`
-for one skill through Promptfoo's native Claude Agent SDK provider (Promptfoo,
-SDK, Node, and model are pinned in `package.json`, `package-lock.json`, and
-`mise.toml`). It needs `ANTHROPIC_API_KEY` and makes paid model calls.
+for one skill on each host through Promptfoo's native providers (Promptfoo,
+SDKs, Node, and models are pinned in `package.json`, `package-lock.json`, and
+`mise.toml`). It makes paid model calls. Claude and Codex are separate runs with
+separate reports; one host failing never affects the other's result, and the
+task exits non-zero if either failed.
 
-- The agent only has the `Skill` tool; it selects a skill and does not do the task.
-- Positive scenarios stop once a skill call succeeds; negatives finish the turn.
-- Reports land in `.tmp/routing/reports/` (JSON and HTML): per-trial scenario,
-  host, expected/forbidden routes, observed skills, and pass/fail reason.
+- Claude (`ANTHROPIC_API_KEY`): the agent only has the `Skill` tool. Evidence is
+  a successful native skill call. Positives stop once it succeeds.
+- Codex (local Codex login or `OPENAI_API_KEY`): read-only sandbox, no network,
+  never asks for approval. Evidence is a successful command that reads
+  `.agents/skills/<name>/SKILL.md` in the eval workspace (Promptfoo's
+  `skillCalls`, source `heuristic`); final-answer mentions do not count. Codex
+  cannot be limited to one tool, so the prompt confines it to that read.
+- Reports land in `.tmp/routing/reports/<host>-<skill>.{json,html}`: per-trial
+  scenario, host, expected/forbidden routes, observed skills (with path for
+  Codex), and pass/fail reason.
 
 ## Shared Skill Installers
 

@@ -41,13 +41,13 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_openai_package.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_scenarios.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_workspace.py",
-  "node --test evals/promptfoo/scenarios.test.js",
+  "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "gh skill publish --dry-run",
 ]
 
 [tasks."eval:routing"]
-description = "Run the Claude routing eval for one skill: mise run eval:routing -- skill <name>"
+description = "Run the routing eval for one skill on Claude and Codex, reported separately: mise run eval:routing -- skill <name>"
 usage = '''
 arg "<mode>" help="Selection mode; only `skill` is supported" {
   choices "skill"
@@ -58,8 +58,10 @@ env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "
 run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/validate_routing_scenarios.py",
-  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/claude",
-  "ROUTING_SKILL={{usage.name}} node_modules/.bin/promptfoo eval -c evals/promptfoo/claude.config.js --no-cache --output .tmp/routing/reports/claude-{{usage.name}}.json --output .tmp/routing/reports/claude-{{usage.name}}.html",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/claude --host claude",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/codex --host codex",
+  # Each host runs even if the other fails; the task fails if either host failed.
+  "rc=0; for host in claude codex; do ROUTING_SKILL={{usage.name}} node_modules/.bin/promptfoo eval -c evals/promptfoo/$host.config.js --no-cache --output .tmp/routing/reports/$host-{{usage.name}}.json --output .tmp/routing/reports/$host-{{usage.name}}.html || rc=$?; done; exit $rc",
 ]
 
 [tasks."release:prepare"]

@@ -21,6 +21,15 @@ class RoutingWorkspaceTests(unittest.TestCase):
         prep.prepare_workspace(out)
         self.assertFalse((out / "stale").exists())
 
+    def test_codex_workspace_uses_agents_skills_dir(self) -> None:
+        out = prep.TMP_ROOT / "routing-test" / "codex"
+        self.addCleanup(lambda: prep.shutil.rmtree(out.parent, ignore_errors=True))
+        names = prep.prepare_workspace(out, "codex")
+        self.assertEqual(set(names), validator.known_skill_names())
+        for name in names:
+            self.assertTrue((out / ".agents" / "skills" / name / "SKILL.md").is_file())
+        self.assertFalse((out / ".claude").exists())
+
     def test_rejects_destination_outside_tmp(self) -> None:
         with self.assertRaises(ValueError):
             prep.prepare_workspace(Path("/tmp/routing-elsewhere"))
