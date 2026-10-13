@@ -71,13 +71,19 @@ back to user-profile locations.
 
 ## Routing Evals
 
-`mise run eval:routing -- skill <name>` runs the scenarios in `evals/routing/`
-for one skill on each host through Promptfoo's native providers (Promptfoo,
+`mise run eval:routing -- changed | skill <name> | all` runs the scenarios in
+`evals/routing/` on each host through Promptfoo's native providers (Promptfoo,
 SDKs, Node, and models are pinned in `package.json`, `package-lock.json`, and
 `mise.toml`). It makes paid model calls. Claude and Codex are separate runs with
 separate reports; one host failing never affects the other's result, and the
 task exits non-zero if either failed.
 
+- Modes: `skill <name>` runs one skill; `all` runs every skill that has
+  scenarios; `changed [--base <ref>]` runs skills changed since the base
+  (`scripts/select_changed.py`; default `origin/main`, else `main`) and skips,
+  with a note, changed skills that have no scenarios. Adjacent skills are not
+  added. No selected skills is a no-op success. The pilot corpus covers
+  `konnect-platform-router`, `konnect-gateway-triage`, and `kongctl-declarative`.
 - Claude (`ANTHROPIC_API_KEY`): the agent only has the `Skill` tool. Evidence is
   a successful native skill call. Positives stop once it succeeds.
 - Codex (local Codex login or `OPENAI_API_KEY`): read-only sandbox, no network,

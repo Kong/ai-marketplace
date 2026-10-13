@@ -43,16 +43,18 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_workspace.py",
   "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "gh skill publish --dry-run",
 ]
 
 [tasks."eval:routing"]
-description = "Run the routing eval for one skill on Claude and Codex, reported separately: mise run eval:routing -- skill <name>"
+description = "Run the routing eval on Claude and Codex, reported separately: mise run eval:routing -- changed | skill <name> | all"
 usage = '''
-arg "<mode>" help="Selection mode; only `skill` is supported" {
-  choices "skill"
+arg "<mode>" help="changed: skills changed since --base; skill: one named skill; all: every skill with scenarios" {
+  choices "changed" "skill" "all"
 }
-arg "<name>" help="Target skill name"
+arg "[name]" help="Target skill name (skill mode only)"
+flag "--base <ref>" help="Git base for changed mode (default: origin/main, else main)"
 '''
 env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
 run = [
@@ -60,8 +62,8 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/validate_routing_scenarios.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/claude --host claude",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/codex --host codex",
-  # Each host runs even if the other fails; the task fails if either host failed.
-  "rc=0; for host in claude codex; do ROUTING_SKILL={{usage.name}} node_modules/.bin/promptfoo eval -c evals/promptfoo/$host.config.js --no-cache --output .tmp/routing/reports/$host-{{usage.name}}.json --output .tmp/routing/reports/$host-{{usage.name}}.html || rc=$?; done; exit $rc",
+  # Each skill and host runs even if another fails; the task fails if any run failed.
+  "targets=$(uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_targets.py {{usage.mode}} '{{usage.name}}' ${usage_base:+--base \"$usage_base\"}) || exit $?; rc=0; for skill in $targets; do for host in claude codex; do ROUTING_SKILL=$skill node_modules/.bin/promptfoo eval -c evals/promptfoo/$host.config.js --no-cache --output .tmp/routing/reports/$host-$skill.json --output .tmp/routing/reports/$host-$skill.html || rc=$?; done; done; exit $rc",
 ]
 
 [tasks."release:prepare"]
