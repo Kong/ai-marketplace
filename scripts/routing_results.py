@@ -1,0 +1,232 @@
+"""Reduce Promptfoo routing results into per-host states: pass, routing_fail, infra_error.
+
+Pure functions, no I/O and no model calls. `run_routing_eval.py` feeds this module
+Promptfoo JSON rows; later consumers (candidate/control comparison) read the
+documents it returns.
+
+States
+    pass           every scenario met its route.
+    routing_fail   the host answered and telemetry was valid, but a route was wrong.
+    infra_error    the run could not be judged; never attributed to skill quality.
+                   A persistent one leaves the host *incomplete* (`complete: false`).
+
+Failure kinds (why a trial or host is not `pass`)
+    invocation           routing_fail: expected skill not invoked, or forbidden one was.
+    provider             infra_error: provider error, missing credentials, ceilings,
+                         or no usable report from Promptfoo.
+    telemetry            infra_error: response arrived but skill-call telemetry is malformed.
+    scenario_validation  infra_error: scenarios failed offline validation; nothing was run.
+
+Host result document (`reduce_host` / `host_failure`)
+    {
+      "host": "codex", "skill": "<target>",
+      "state": "pass|routing_fail|infra_error",
+      "complete": bool,              # false only for infra_error
+      "retries": int,                # retry attempts run for this host (0 or 1)
+      "failure_kinds": ["invocation"|"provider"|"telemetry"|"scenario_validation"],
+      "counts": {"pass": n, "routing_fail": n, "infra_error": n},   # final trials
+      "scenarios": [{
+        "id", "state", "passes", "required_passes", "trials": [trial, ...]
+      }],
+      "reason": str | None           # host-level failures only (no scenarios ran)
+    }
+    trial = {
+      "scenario", "trial", "trials", "state", "kind", "reason",
+      "expected": [...], "forbidden": [...], "observed": [skill names],
+      "attempts": int,               # 1, or 2 if retried
+      "evidence": {"skill_calls": [...], "error": str|None, "output": str|None,
+                   "latency_ms", "tokens", "cost"}
+    }
+Rules
+    * A scenario passes when passing trials >= ceil(2/3 * trials) (3 -> 2, 1 -> 1).
+    * Any trial still infra_error after retry makes its scenario, and the host,
+      infra_error (incomplete). Scenario-level states stay visible so real routing
+      failures in the same run are not hidden.
+    * Otherwise any failed scenario makes the host routing_fail.
+
+Cross-host document (`combine_hosts`): `{"state", "complete", "hosts": {host: state}}`.
+Hosts never offset each other: routing_fail on any host wins, then infra_error
+(including a host with no result), and only all-pass is pass.
+"""
+from __future__ import annotations
+
+import math
+from typing import Any
+
+PASS = "pass"
+ROUTING_FAIL = "routing_fail"
+INFRA_ERROR = "infra_error"
+
+INVOCATION = "invocation"
+PROVIDER = "provider"
+TELEMETRY = "telemetry"
+SCENARIO_VALIDATION = "scenario_validation"
+
+HOSTS = ("claude", "codex")
+# Promptfoo ResultFailureReason: 0 none, 1 assertion, 2 error.
+FAILURE_REASON_ERROR = 2
+MAX_TEXT = 300
+
+
+def _clip(text: Any) -> str | None:
+    if not isinstance(text, str) or not text:
+        return None
+    first = text.strip().splitlines()[0] if text.strip() else ""
+    return first[:MAX_TEXT] or None
+
+
+def telemetry_problem(response: Any, host: str) -> str | None:
+    """Return why a provider response cannot be trusted as routing telemetry, else None.
+
+    Promptfoo's skill assertions silently treat missing or malformed `skillCalls` as
+    "no skill used", which would turn a broken run into a false pass or routing_fail.
+    Claude always reports `skillCalls` (even when a hook ends the turn, so its output
+    is not required). Codex omits it when no SKILL.md was read, so absence is valid
+    there, but the response must still carry a string output.
+    """
+    if not isinstance(response, dict):
+        return "provider returned no response object"
+    if host == "codex" and not isinstance(response.get("output"), str):
+        return "response output is missing or not a string"
+    metadata = response.get("metadata")
+    if metadata is not None and not isinstance(metadata, dict):
+        return "response metadata is not an object"
+    calls = (metadata or {}).get("skillCalls")
+    if calls is None:
+        return "response has no skillCalls telemetry" if host == "claude" else None
+    if not isinstance(calls, list):
+        return "skillCalls is not a list"
+    for call in calls:
+        if not isinstance(call, dict) or not isinstance(call.get("name"), str):
+            return "skillCalls entry has no string name"
+    return None
+
+
+def _identity(row: dict[str, Any]) -> tuple[str, int, int, dict[str, Any]]:
+    case = row.get("testCase") or {}
+    meta = case.get("metadata") or {}
+    scenario = meta.get("scenario") or case.get("description") or "unknown"
+    return scenario, int(meta.get("trial") or 1), int(meta.get("trials") or 1), meta
+
+
+def reduce_trial(row: dict[str, Any], host: str) -> dict[str, Any]:
+    """Classify one Promptfoo result row."""
+    scenario, trial, trials, meta = _identity(row)
+    response = row.get("response")
+    calls: list[dict[str, Any]] = []
+    if isinstance(response, dict) and isinstance((response.get("metadata") or {}).get("skillCalls"), list):
+        calls = [c for c in response["metadata"]["skillCalls"] if isinstance(c, dict)]
+    error = row.get("error") or (response.get("error") if isinstance(response, dict) else None)
+    grading = row.get("gradingResult") or {}
+
+    if error or row.get("failureReason") == FAILURE_REASON_ERROR:
+        state, kind, reason = INFRA_ERROR, PROVIDER, _clip(error) or "provider error"
+    elif (problem := telemetry_problem(response, host)) is not None:
+        state, kind, reason = INFRA_ERROR, TELEMETRY, problem
+    elif row.get("success"):
+        state, kind, reason = PASS, None, _clip(grading.get("reason"))
+    else:
+        state, kind = ROUTING_FAIL, INVOCATION
+        reason = _clip(grading.get("reason")) or "routing assertion failed"
+
+    output = response.get("output") if isinstance(response, dict) else None
+    usage = (response or {}).get("tokenUsage") if isinstance(response, dict) else None
+    return {
+        "scenario": scenario,
+        "trial": trial,
+        "trials": trials,
+        "state": state,
+        "kind": kind,
+        "reason": reason,
+        "expected": list(meta.get("expected") or []),
+        "forbidden": list(meta.get("forbidden") or []),
+        "observed": [c["name"] for c in calls if isinstance(c.get("name"), str) and c.get("is_error") is not True],
+        "attempts": 1,
+        "evidence": {
+            "skill_calls": calls,
+            "error": _clip(error),
+            "output": _clip(output),
+            "latency_ms": row.get("latencyMs"),
+            "tokens": usage.get("total") if isinstance(usage, dict) else None,
+            "cost": row.get("cost"),
+        },
+    }
+
+
+def _scenario_state(passes: int, required: int, trials: list[dict[str, Any]]) -> str:
+    if any(t["state"] == INFRA_ERROR for t in trials):
+        return INFRA_ERROR
+    return PASS if passes >= required else ROUTING_FAIL
+
+
+def reduce_host(host: str, skill: str, attempts: list[list[dict[str, Any]]]) -> dict[str, Any]:
+    """Reduce Promptfoo rows to a host result.
+
+    `attempts[0]` is the full run; each later entry holds only the retried trials.
+    The latest row for a (scenario, trial) wins, so a transient failure that passes
+    on retry reports `pass` with `attempts: 2`.
+    """
+    merged: dict[tuple[str, int], dict[str, Any]] = {}
+    for number, rows in enumerate(attempts, start=1):
+        for row in rows:
+            trial = reduce_trial(row, host)
+            trial["attempts"] = number
+            merged[(trial["scenario"], trial["trial"])] = trial
+
+    by_scenario: dict[str, list[dict[str, Any]]] = {}
+    for key in sorted(merged):
+        by_scenario.setdefault(key[0], []).append(merged[key])
+
+    scenarios = []
+    for scenario_id, trials in by_scenario.items():
+        passes = sum(t["state"] == PASS for t in trials)
+        required = math.ceil(2 * trials[0]["trials"] / 3)
+        scenarios.append({
+            "id": scenario_id,
+            "state": _scenario_state(passes, required, trials),
+            "passes": passes,
+            "required_passes": required,
+            "trials": trials,
+        })
+
+    states = {s["state"] for s in scenarios}
+    state = INFRA_ERROR if INFRA_ERROR in states or not scenarios else (ROUTING_FAIL if ROUTING_FAIL in states else PASS)
+    all_trials = [t for s in scenarios for t in s["trials"]]
+    kinds = sorted({t["kind"] for t in all_trials if t["kind"]})
+    return {
+        "host": host,
+        "skill": skill,
+        "state": state,
+        "complete": state != INFRA_ERROR,
+        "retries": max(len(attempts) - 1, 0),
+        "failure_kinds": kinds if scenarios else [PROVIDER],
+        "counts": {s: sum(t["state"] == s for t in all_trials) for s in (PASS, ROUTING_FAIL, INFRA_ERROR)},
+        "scenarios": scenarios,
+        "reason": None if scenarios else "no results were produced",
+    }
+
+
+def host_failure(host: str, skill: str, kind: str, reason: str, retries: int = 0) -> dict[str, Any]:
+    """Host result for a failure outside any trial: no report, crash, or invalid scenarios."""
+    if kind not in (PROVIDER, TELEMETRY, SCENARIO_VALIDATION):
+        raise ValueError(f"host-level failure kind must be infrastructure, got {kind!r}")
+    return {
+        "host": host,
+        "skill": skill,
+        "state": INFRA_ERROR,
+        "complete": False,
+        "retries": retries,
+        "failure_kinds": [kind],
+        "counts": {PASS: 0, ROUTING_FAIL: 0, INFRA_ERROR: 0},
+        "scenarios": [],
+        "reason": _clip(reason) or kind,
+    }
+
+
+def combine_hosts(results: list[dict[str, Any]], required: tuple[str, ...] = HOSTS) -> dict[str, Any]:
+    """Combine independent host results; a passing host never offsets another."""
+    by_host = {r["host"]: r["state"] for r in results}
+    hosts = {host: by_host.get(host, INFRA_ERROR) for host in required}
+    states = set(hosts.values())
+    state = ROUTING_FAIL if ROUTING_FAIL in states else (INFRA_ERROR if INFRA_ERROR in states else PASS)
+    return {"state": state, "complete": INFRA_ERROR not in states, "hosts": hosts}
