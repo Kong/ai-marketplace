@@ -42,6 +42,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_scenarios.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_workspace.py",
   "node --test evals/promptfoo/scenarios.test.js",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "gh skill publish --dry-run",
 ]
 
