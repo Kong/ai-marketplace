@@ -1,0 +1,50 @@
+skill: konnect-platform-router
+scenarios:
+  - id: platform-router-positive-1
+    prompt: "Our Konnect setup is a mess after the reorg. APIs aren't showing up for partners, some of our gateways look off, and nobody knows which team's config is authoritative. Where should I even start?"
+    expect: [konnect-platform-router]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: platform-router-positive-2
+    prompt: "Something in our Konnect environment is broken but I can't tell if it's access, the gateway, or the portal. Can you figure out which area owns this before we dig in?"
+    expect: [konnect-platform-router]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: platform-router-positive-3
+    prompt: "I inherited a Konnect org with control planes, a dev portal, and some analytics dashboards. The team says things are flaky. Who handles what, and what's the first thing to check?"
+    expect: [konnect-platform-router]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: platform-router-near-miss-1
+    prompt: "Write a Python function that retries an HTTP request with exponential backoff and jitter."
+    expect: []
+    forbid: [konnect-platform-router]
+    trials: 3
+    tags: [near-miss]
+  - id: platform-router-near-miss-2
+    prompt: "Our Postgres replica in AWS is lagging by about ten minutes during the nightly batch. How should I tune it?"
+    expect: []
+    forbid: [konnect-platform-router]
+    trials: 3
+    tags: [near-miss]
+  - id: platform-router-near-miss-3
+    prompt: "Help me write a README for my React component library, including install and usage sections."
+    expect: []
+    forbid: [konnect-platform-router]
+    trials: 3
+    tags: [near-miss]
+  - id: platform-router-sibling-1
+    prompt: "Two of our data planes show as disconnected in Konnect since last night's network change. Walk me through what's failing."
+    expect: [konnect-gateway-triage]
+    forbid: [konnect-platform-router]
+    trials: 1
+    tags: [sibling]
+  - id: platform-router-sibling-2
+    prompt: "In our repo that manages Konnect with kongctl YAML, I want to add a new API from this OpenAPI file and plan the change."
+    expect: [kongctl-declarative]
+    forbid: [konnect-platform-router]
+    trials: 1
+    tags: [sibling]

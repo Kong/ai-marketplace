@@ -45,25 +45,28 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_compare.py",
   "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "gh skill publish --dry-run",
 ]
 
 [tasks."eval:routing"]
-description = "Run the routing eval for one skill on Claude and Codex, reported separately: mise run eval:routing -- skill <name>"
+description = "Run the routing eval on Claude and Codex, reported separately: mise run eval:routing -- changed | skill <name> | all"
 usage = '''
-arg "<mode>" help="Selection mode; only `skill` is supported" {
-  choices "skill"
+arg "<mode>" help="changed: skills changed since --base; skill: one named skill; all: every skill with scenarios" {
+  choices "changed" "skill" "all"
 }
-arg "<name>" help="Target skill name"
+arg "[name]" help="Target skill name (skill mode only)"
+flag "--base <ref>" help="Git base for changed mode (default: origin/main, else main)"
 '''
 env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
 run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/claude --host claude",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/codex --host codex",
-  # Validates scenarios, runs each host independently, retries infrastructure errors once, and
-  # reduces each host to pass, routing_fail, or infra_error. Exit: 0 pass, 1 routing_fail, 3 infra_error.
-  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_eval.py {{usage.name}}",
+  # Resolves the mode to skills, then per skill: validates scenarios, runs each host independently,
+  # retries infrastructure errors once, and reduces each host to pass, routing_fail, or infra_error.
+  # Every skill runs; exit: 0 all pass, 1 any routing_fail, else 3 if any infra_error.
+  "targets=$(uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_targets.py {{usage.mode}} '{{usage.name}}' ${usage_base:+--base \"$usage_base\"}) || exit $?; rc=0; for skill in $targets; do uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_eval.py $skill || { r=$?; [ $rc -eq 1 ] || rc=$r; }; done; exit $rc",
 ]
 
 [tasks."eval:routing:compare"]
