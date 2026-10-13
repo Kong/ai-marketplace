@@ -69,6 +69,18 @@ checked-in repo defaults. The `mise` config pins `uv` to Python `3.12` and
 keeps the uv cache and managed Python installs under `.tmp/` instead of falling
 back to user-profile locations.
 
+## Routing Evals (Claude)
+
+`mise run eval:routing -- skill <name>` runs the scenarios in `evals/routing/`
+for one skill through Promptfoo's native Claude Agent SDK provider (Promptfoo,
+SDK, Node, and model are pinned in `package.json`, `package-lock.json`, and
+`mise.toml`). It needs `ANTHROPIC_API_KEY` and makes paid model calls.
+
+- The agent only has the `Skill` tool; it selects a skill and does not do the task.
+- Positive scenarios stop once a skill call succeeds; negatives finish the turn.
+- Reports land in `.tmp/routing/reports/` (JSON and HTML): per-trial scenario,
+  host, expected/forbidden routes, observed skills, and pass/fail reason.
+
 ## Shared Skill Installers
 
 ### `npx skills`
