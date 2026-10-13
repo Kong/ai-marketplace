@@ -89,6 +89,22 @@ task exits non-zero if either failed.
   scenario, host, expected/forbidden routes, observed skills (with path for
   Codex), and pass/fail reason.
 
+### Host result states
+
+Each host reduces to one state (`scripts/routing_results.py` documents the
+output shape), written to `.tmp/routing/reports/<host>-<skill>.result.json`,
+with a cross-host `<skill>.summary.json`:
+
+- `pass`: every scenario met its route (at least 2/3 trials, rounded up).
+- `routing_fail`: the host answered with valid telemetry but routed wrongly.
+- `infra_error`: missing credentials, provider failure, malformed telemetry, or
+  invalid scenarios. Trials are retried once; a persistent failure leaves the
+  host incomplete, never `routing_fail`.
+
+Results record the failure kind (`invocation`, `provider`, `telemetry`,
+`scenario_validation`), retries per host, and per-trial evidence. A passing
+host never offsets the other. Exit code: 0 pass, 1 `routing_fail`, 3 otherwise.
+
 ## Shared Skill Installers
 
 ### `npx skills`
