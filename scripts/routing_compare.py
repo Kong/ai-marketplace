@@ -9,10 +9,13 @@ excluded and make the document `complete: false`.
 Comparison document (`compare_host`, modified skill)
     {
       "host", "skill", "mode": "comparison",
-      "state": <candidate host state>,      # the delta is reported, not gated
+      "state": <candidate host state>,      # the delta is reported, not gated; infra_error on a ceiling breach
       "complete": bool,                     # both sides complete
       "candidate_state", "control_state",
       "failure_kinds": [...], "reason": str|None,   # union / first of both sides' infra failures
+      "usage": {"trials", "tokens", "cost_usd", "latency_ms"},   # candidate + control, incl. retries
+      "usage_by_side": {"candidate": usage, "control": usage},
+      "breaches": [...],                    # ceilings reached on either side; non-empty => infra_error
       "aggregate": {"candidate": side, "control": side, "delta": float|None},
       "scenarios": [{"id", "candidate": side|None, "control": side|None, "delta": float|None}]
     }
@@ -24,6 +27,7 @@ New-skill document (`evaluate_new_skill`, no control exists)
       "host", "skill", "mode": "new_skill", "control": "skipped",
       "state": pass|routing_fail|infra_error, "complete": bool,
       "failure_kinds": [...], "reason": str|None,   # from the host result, e.g. scenario_validation
+      "usage": usage, "breaches": [...],            # from the host result
       "expectations": {
         "positive_recall": check, "near_miss_specificity": check
       },
@@ -61,6 +65,11 @@ def _all_trials(host_result: dict[str, Any]) -> list[dict[str, Any]]:
     return [t for s in host_result["scenarios"] for t in s["trials"]]
 
 
+def _total(*usages: dict[str, Any]) -> dict[str, Any]:
+    keys = ("trials", "tokens", "cost_usd", "latency_ms")
+    return {k: round(sum(u[k] for u in usages), 6) if k == "cost_usd" else sum(u[k] for u in usages) for k in keys}
+
+
 def compare_host(candidate: dict[str, Any], control: dict[str, Any]) -> dict[str, Any]:
     """Per-scenario and aggregate candidate/control deltas for one host."""
     cand, ctrl = _by_scenario(candidate), _by_scenario(control)
@@ -69,16 +78,20 @@ def compare_host(candidate: dict[str, Any], control: dict[str, Any]) -> dict[str
         "control": _side(_all_trials(control), control["state"]),
     }
     aggregate["delta"] = _delta(aggregate["candidate"], aggregate["control"])
+    breaches = candidate["breaches"] + [b for b in control["breaches"] if b not in candidate["breaches"]]
     return {
         "host": candidate["host"],
         "skill": candidate["skill"],
         "mode": "comparison",
-        "state": candidate["state"],
+        "state": results.INFRA_ERROR if breaches else candidate["state"],
         "complete": candidate["complete"] and control["complete"],
         "candidate_state": candidate["state"],
         "control_state": control["state"],
         "failure_kinds": sorted(set(candidate["failure_kinds"]) | set(control["failure_kinds"])),
         "reason": candidate["reason"] or control["reason"],
+        "usage": _total(candidate["usage"], control["usage"]),
+        "usage_by_side": {"candidate": candidate["usage"], "control": control["usage"]},
+        "breaches": breaches,
         "aggregate": aggregate,
         "scenarios": [
             {"id": sid, "candidate": cand.get(sid), "control": ctrl.get(sid), "delta": _delta(cand.get(sid), ctrl.get(sid))}
@@ -125,6 +138,8 @@ def evaluate_new_skill(host_result: dict[str, Any], tags: dict[str, list[str]]) 
         "complete": host_result["complete"],
         "failure_kinds": host_result["failure_kinds"],
         "reason": host_result["reason"],
+        "usage": host_result["usage"],
+        "breaches": host_result["breaches"],
         "expectations": checks,
         "siblings": _side(trials_tagged("sibling"), results.PASS),
     }

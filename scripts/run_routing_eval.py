@@ -9,20 +9,28 @@ are retried; a missing or unreadable report retries the whole host run. Scenario
 validation failures are deterministic and never retried. Hosts run independently;
 a combined summary is written to `.tmp/routing/reports/<skill>.summary.json`.
 
+Ceilings (routing_ceilings.py; env-configurable) bound tokens, cost, concurrency, and
+wall clock. A breach stops the host as `infra_error` of kind `ceiling` with the breach
+recorded in the result; a breached host is never retried. Each result also reports
+tokens, estimated cost, latency, and retries.
+
 Exit code: 0 all hosts pass, 1 any host routing_fail, 3 otherwise (infra_error or
 incomplete host).
 """
 from __future__ import annotations
 
+import functools
 import json
 import os
 import re
+import signal
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any, Callable
 
 import check_repo
+import routing_ceilings as ceilings
 import routing_results as results
 import validate_routing_scenarios as scenarios
 
@@ -35,32 +43,48 @@ PromptfooRunner = Callable[[str, str, Path, "str | None"], "tuple[str, list[dict
 
 
 def run_promptfoo(
-    host: str, skill: str, report: Path, pattern: str | None, env: dict[str, str] | None = None
+    host: str,
+    skill: str,
+    report: Path,
+    pattern: str | None,
+    env: dict[str, str] | None = None,
+    ledger: ceilings.Ledger | None = None,
 ) -> tuple[str, list[dict[str, Any]] | None]:
     """Run one Promptfoo eval and return its console text and parsed result rows.
 
     Promptfoo exits non-zero for failing or erroring tests, so success is judged by
-    whether a readable report was written, not by the exit code.
+    whether a readable report was written, not by the exit code. The run is capped by the
+    ledger's concurrency and timeout; on timeout its whole process group is killed and
+    `CeilingBreach` is raised.
     """
+    ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     report.parent.mkdir(parents=True, exist_ok=True)
     report.unlink(missing_ok=True)
     command = [
         str(PROMPTFOO), "eval", "-c", f"evals/promptfoo/{host}.config.js",
-        "--no-cache", "--no-table", "--output", str(report),
+        "--no-cache", "--no-table", "--max-concurrency", str(ledger.ceilings.max_concurrency),
+        "--output", str(report),  # keep last: the variadic list takes the extra report paths below
     ]
     if pattern:
         command += ["--filter-pattern", pattern]
     else:
         command += [str(report.with_suffix(".html")), str(report.with_suffix(".junit.xml"))]
-    proc = subprocess.run(
+    # Own process group so a timeout also stops the host CLIs Promptfoo spawned.
+    proc = subprocess.Popen(
         command, cwd=check_repo.REPO_ROOT, env={**os.environ, **(env or {}), "ROUTING_SKILL": skill},
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
     )
+    try:
+        stdout, _ = proc.communicate(timeout=ledger.run_timeout())
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        raise ceilings.CeilingBreach(ledger.timeout_breach(host)) from None
     try:
         rows = json.loads(report.read_text())["results"]["results"]
     except (OSError, ValueError, KeyError, TypeError):
         rows = None
-    return proc.stdout, rows
+    return stdout, rows
 
 
 def retry_pattern(descriptions: list[str]) -> str:
@@ -72,34 +96,59 @@ def retry_pattern(descriptions: list[str]) -> str:
 def evaluate_host(
     host: str,
     skill: str,
-    runner: PromptfooRunner = run_promptfoo,
+    runner: PromptfooRunner | None = None,
     reports_dir: Path = REPORTS_DIR,
     validation_errors: list[str] | None = None,
+    ledger: ceilings.Ledger | None = None,
 ) -> dict[str, Any]:
-    """Run, retry once on infrastructure error, and reduce one host."""
+    """Run, retry once on infrastructure error, and reduce one host.
+
+    Ceilings are checked before every Promptfoo launch and after the last run. A breach
+    stops the host (no retry) as infra_error; trials already judged stay in the result.
+    """
     if validation_errors:
         return results.host_failure(host, skill, results.SCENARIO_VALIDATION, "; ".join(validation_errors))
 
+    ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
+    runner = runner or functools.partial(run_promptfoo, ledger=ledger)
     base = reports_dir / f"{host}-{skill}.json"
-    output, rows = runner(host, skill, base, None)
-    if rows is None:
-        print(output)
-        output, rows = runner(host, skill, base.with_suffix(".retry.json"), None)
+    retry_report = base.with_suffix(".retry.json")
+    attempts: list[list[dict[str, Any]]] = []
+    retries = 0
+
+    def launch(report: Path, pattern: str | None) -> tuple[str, list[dict[str, Any]] | None]:
+        ledger.check(host)
+        output, rows = runner(host, skill, report, pattern)
+        if rows is not None:
+            ledger.record(host, rows)
+        return output, rows
+
+    try:
+        output, rows = launch(base, None)
         if rows is None:
             print(output)
-            return results.host_failure(host, skill, results.PROVIDER, _last_line(output) or "no Promptfoo report", retries=1)
-        return results.reduce_host(host, skill, [[], rows])
+            retries = 1
+            output, rows = launch(retry_report, None)
+            if rows is None:
+                print(output)
+                return results.host_failure(host, skill, results.PROVIDER, _last_line(output) or "no Promptfoo report", retries=1)
+            attempts = [[], rows]
+        else:
+            attempts = [rows]
+            broken = [row for row in rows if results.reduce_trial(row, host)["state"] == results.INFRA_ERROR]
+            if broken:
+                descriptions = [(row.get("testCase") or {}).get("description") for row in broken]
+                _, retried = launch(retry_report, retry_pattern([d for d in descriptions if d]))
+                attempts.append(retried or [])
+        breaches = ledger.breaches(host)
+    except ceilings.CeilingBreach as exc:
+        breaches = [exc.breach]
 
-    attempts = [rows]
-    broken = [
-        row for row in rows
-        if results.reduce_trial(row, host)["state"] == results.INFRA_ERROR
-    ]
-    if broken:
-        descriptions = [(row.get("testCase") or {}).get("description") for row in broken]
-        _, retried = runner(host, skill, base.with_suffix(".retry.json"), retry_pattern([d for d in descriptions if d]))
-        attempts.append(retried or [])
-    return results.reduce_host(host, skill, attempts)
+    if not attempts:
+        return results.host_failure(
+            host, skill, results.CEILING, ceilings.describe(breaches[0]), retries=retries, breaches=breaches
+        )
+    return results.reduce_host(host, skill, attempts, breaches)
 
 
 def _last_line(text: str) -> str:
@@ -110,9 +159,10 @@ def _last_line(text: str) -> str:
 def summarize(result: dict[str, Any]) -> str:
     detail = ", ".join(f"{k}={v}" for k, v in result["counts"].items() if v)
     kinds = ",".join(result["failure_kinds"]) or "-"
-    retry = f" retries={result['retries']}" if result["retries"] else ""
+    use = result["usage"]
+    usage = f" tokens={use['tokens']} cost=${use['cost_usd']:.4f} latency={use['latency_ms'] / 1000:.1f}s retries={result['retries']}"
     note = f" ({result['reason']})" if result["reason"] else ""
-    return f"{result['host']}: {result['state']}{'' if result['complete'] else ' [incomplete]'} trials[{detail}] kinds={kinds}{retry}{note}"
+    return f"{result['host']}: {result['state']}{'' if result['complete'] else ' [incomplete]'} trials[{detail}] kinds={kinds}{usage}{note}"
 
 
 def main(argv: list[str]) -> int:
@@ -124,8 +174,13 @@ def main(argv: list[str]) -> int:
         validation_errors = scenarios.validate_scenarios(scenarios.SCENARIOS_DIR, scenarios.known_skill_names())
     except ValueError as exc:
         validation_errors = [str(exc)]
+    try:
+        ledger = ceilings.Ledger(ceilings.Ceilings.from_env())
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     outcomes = [
-        evaluate_host(host, skill, validation_errors=validation_errors) for host in results.HOSTS
+        evaluate_host(host, skill, validation_errors=validation_errors, ledger=ledger) for host in results.HOSTS
     ]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:

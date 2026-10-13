@@ -133,7 +133,7 @@ class VariantWiringTests(ThrowawayRepo):
     def test_default_runner_passes_workspace_root_env(self) -> None:
         seen: dict[str, str] = {}
 
-        def fake_promptfoo(host, skill, report, pattern, env=None):
+        def fake_promptfoo(host, skill, report, pattern, env=None, ledger=None):
             seen.update(env or {})
             return "", [fixtures.row()]
 
@@ -333,7 +333,7 @@ class DriverPolicyTests(ThrowawayRepo):
     def run_main(self, skill: str, scenario_dir: Path, fake, adjacent=("beta", "gamma")) -> tuple[int, list[str]]:
         calls: list[str] = []
 
-        def stub(host, name, report, pattern, env=None):
+        def stub(host, name, report, pattern, env=None, ledger=None):
             calls.append(f"{host}:{Path(env['ROUTING_WORKSPACE_ROOT']).name}")
             return fake()
 

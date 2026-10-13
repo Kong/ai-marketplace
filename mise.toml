@@ -43,6 +43,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_workspace.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_results.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_compare.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ceilings.py",
   "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",

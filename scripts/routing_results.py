@@ -12,8 +12,10 @@ States
 
 Failure kinds (why a trial or host is not `pass`)
     invocation           routing_fail: expected skill not invoked, or forbidden one was.
-    provider             infra_error: provider error, missing credentials, ceilings,
-                         or no usable report from Promptfoo.
+    provider             infra_error: provider error, missing credentials, or no usable
+                         report from Promptfoo.
+    ceiling              infra_error: a token, cost, or timeout ceiling was reached
+                         (routing_ceilings.py); the run is stopped, never a routing_fail.
     telemetry            infra_error: response arrived but skill-call telemetry is malformed.
     scenario_validation  infra_error: scenarios failed offline validation; nothing was run.
 
@@ -23,7 +25,9 @@ Host result document (`reduce_host` / `host_failure`)
       "state": "pass|routing_fail|infra_error",
       "complete": bool,              # false only for infra_error
       "retries": int,                # retry attempts run for this host (0 or 1)
-      "failure_kinds": ["invocation"|"provider"|"telemetry"|"scenario_validation"],
+      "failure_kinds": ["invocation"|"provider"|"telemetry"|"ceiling"|"scenario_validation"],
+      "usage": {"trials", "tokens", "cost_usd", "latency_ms"},   # all attempts, incl. retries
+      "breaches": [{"ceiling", "limit", "observed", "host"}],    # non-empty => infra_error
       "counts": {"pass": n, "routing_fail": n, "infra_error": n},   # final trials
       "scenarios": [{
         "id", "state", "passes", "required_passes", "trials": [trial, ...]
@@ -42,9 +46,12 @@ Rules
     * Any trial still infra_error after retry makes its scenario, and the host,
       infra_error (incomplete). Scenario-level states stay visible so real routing
       failures in the same run are not hidden.
+    * Any ceiling breach makes the host infra_error (incomplete) even if trials were
+      judged; the judged scenarios stay visible but are not trusted as a full result.
     * Otherwise any failed scenario makes the host routing_fail.
 
-Cross-host document (`combine_hosts`): `{"state", "complete", "hosts": {host: state}}`.
+Cross-host document (`combine_hosts`):
+`{"state", "complete", "hosts": {host: state}, "usage": {host: usage}, "breaches": [...]}`.
 Hosts never offset each other: routing_fail on any host wins, then infra_error
 (including a host with no result), and only all-pass is pass.
 """
@@ -53,6 +60,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import routing_ceilings as ceilings
+
 PASS = "pass"
 ROUTING_FAIL = "routing_fail"
 INFRA_ERROR = "infra_error"
@@ -60,6 +69,7 @@ INFRA_ERROR = "infra_error"
 INVOCATION = "invocation"
 PROVIDER = "provider"
 TELEMETRY = "telemetry"
+CEILING = "ceiling"
 SCENARIO_VALIDATION = "scenario_validation"
 
 HOSTS = ("claude", "codex")
@@ -159,13 +169,17 @@ def _scenario_state(passes: int, required: int, trials: list[dict[str, Any]]) ->
     return PASS if passes >= required else ROUTING_FAIL
 
 
-def reduce_host(host: str, skill: str, attempts: list[list[dict[str, Any]]]) -> dict[str, Any]:
+def reduce_host(
+    host: str, skill: str, attempts: list[list[dict[str, Any]]], breaches: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
     """Reduce Promptfoo rows to a host result.
 
     `attempts[0]` is the full run; each later entry holds only the retried trials.
     The latest row for a (scenario, trial) wins, so a transient failure that passes
-    on retry reports `pass` with `attempts: 2`.
+    on retry reports `pass` with `attempts: 2`. `breaches` are ceilings reached during
+    the run; any of them makes the host infra_error.
     """
+    breaches = breaches or []
     merged: dict[tuple[str, int], dict[str, Any]] = {}
     for number, rows in enumerate(attempts, start=1):
         for row in rows:
@@ -190,9 +204,9 @@ def reduce_host(host: str, skill: str, attempts: list[list[dict[str, Any]]]) -> 
         })
 
     states = {s["state"] for s in scenarios}
-    state = INFRA_ERROR if INFRA_ERROR in states or not scenarios else (ROUTING_FAIL if ROUTING_FAIL in states else PASS)
+    state = INFRA_ERROR if INFRA_ERROR in states or not scenarios or breaches else (ROUTING_FAIL if ROUTING_FAIL in states else PASS)
     all_trials = [t for s in scenarios for t in s["trials"]]
-    kinds = sorted({t["kind"] for t in all_trials if t["kind"]})
+    kinds = sorted({t["kind"] for t in all_trials if t["kind"]} | ({CEILING} if breaches else set()))
     return {
         "host": host,
         "skill": skill,
@@ -201,14 +215,18 @@ def reduce_host(host: str, skill: str, attempts: list[list[dict[str, Any]]]) -> 
         "retries": max(len(attempts) - 1, 0),
         "failure_kinds": kinds if scenarios else [PROVIDER],
         "counts": {s: sum(t["state"] == s for t in all_trials) for s in (PASS, ROUTING_FAIL, INFRA_ERROR)},
+        "usage": ceilings.usage([row for rows in attempts for row in rows]),
+        "breaches": breaches,
         "scenarios": scenarios,
-        "reason": None if scenarios else "no results were produced",
+        "reason": ceilings.describe(breaches[0]) if breaches else (None if scenarios else "no results were produced"),
     }
 
 
-def host_failure(host: str, skill: str, kind: str, reason: str, retries: int = 0) -> dict[str, Any]:
-    """Host result for a failure outside any trial: no report, crash, or invalid scenarios."""
-    if kind not in (PROVIDER, TELEMETRY, SCENARIO_VALIDATION):
+def host_failure(
+    host: str, skill: str, kind: str, reason: str, retries: int = 0, breaches: list[dict[str, Any]] | None = None
+) -> dict[str, Any]:
+    """Host result for a failure outside any trial: no report, crash, invalid scenarios, or a ceiling."""
+    if kind not in (PROVIDER, TELEMETRY, SCENARIO_VALIDATION, CEILING):
         raise ValueError(f"host-level failure kind must be infrastructure, got {kind!r}")
     return {
         "host": host,
@@ -218,6 +236,8 @@ def host_failure(host: str, skill: str, kind: str, reason: str, retries: int = 0
         "retries": retries,
         "failure_kinds": [kind],
         "counts": {PASS: 0, ROUTING_FAIL: 0, INFRA_ERROR: 0},
+        "usage": ceilings.usage([]),
+        "breaches": breaches or [],
         "scenarios": [],
         "reason": _clip(reason) or kind,
     }
@@ -229,4 +249,10 @@ def combine_hosts(results: list[dict[str, Any]], required: tuple[str, ...] = HOS
     hosts = {host: by_host.get(host, INFRA_ERROR) for host in required}
     states = set(hosts.values())
     state = ROUTING_FAIL if ROUTING_FAIL in states else (INFRA_ERROR if INFRA_ERROR in states else PASS)
-    return {"state": state, "complete": INFRA_ERROR not in states, "hosts": hosts}
+    return {
+        "state": state,
+        "complete": INFRA_ERROR not in states,
+        "hosts": hosts,
+        "usage": {r["host"]: r["usage"] for r in results if "usage" in r},
+        "breaches": [b for r in results for b in r.get("breaches") or []],
+    }

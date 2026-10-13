@@ -9,9 +9,12 @@ name: Skill routing evals
 # paths beneath a skill directory, then the diff is re-checked by scripts/select_changed.py
 # (via routing_targets.py). Nothing here ever selects the full catalog.
 #
-# Cost, token, concurrency, and timeout ceilings are owned by #20. Seams for them:
-# workflow/job `concurrency`, job `timeout-minutes`, `strategy.max-parallel`, and
-# artifact `retention-days`.
+# Ceilings: the changed-skill job targets ten minutes (`timeout-minutes`, plus an eval
+# deadline below it so a breach is reported rather than the job cancelled). Token, cost,
+# per-run timeout, and Promptfoo concurrency ceilings are enforced by scripts/routing_ceilings.py;
+# override defaults with repository variables named ROUTING_*. A breach is an advisory
+# infra_error shown in the summary and a warning annotation. Runs for one PR share a
+# concurrency group (newer pushes cancel older runs) and `max-parallel` bounds paid jobs.
 
 on:
   pull_request:
@@ -26,10 +29,15 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: skill-evals-${{ github.event.pull_request.number || inputs.skill }}
+  cancel-in-progress: true
+
 jobs:
   select:
     name: Select changed skills
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       contents: read
     outputs:
@@ -78,10 +86,12 @@ jobs:
     needs: select
     if: ${{ needs.select.outputs.has_skills == 'true' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
     strategy:
       fail-fast: false
+      max-parallel: 3
       matrix:
         skill: ${{ fromJSON(needs.select.outputs.skills) }}
     steps:
@@ -98,6 +108,12 @@ jobs:
           BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          # Empty values fall back to the defaults in scripts/routing_ceilings.py.
+          ROUTING_MAX_TOKENS: ${{ vars.ROUTING_MAX_TOKENS }}
+          ROUTING_MAX_COST_USD: ${{ vars.ROUTING_MAX_COST_USD }}
+          ROUTING_MAX_CONCURRENCY: ${{ vars.ROUTING_MAX_CONCURRENCY }}
+          ROUTING_RUN_TIMEOUT_SECONDS: ${{ vars.ROUTING_RUN_TIMEOUT_SECONDS }}
+          ROUTING_JOB_TIMEOUT_SECONDS: ${{ vars.ROUTING_JOB_TIMEOUT_SECONDS }}
         run: |
           set +e
           mise run eval:routing:compare -- "$SKILL" --base "$BASE_REF"
@@ -109,6 +125,10 @@ jobs:
             cat ".tmp/routing/reports/$SKILL.comparison-summary.json" 2>/dev/null || echo "no summary written"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+          breaches="$(jq -r '.breaches // [] | map("\(.host) \(.ceiling) limit \(.limit) observed \(.observed)") | join("; ")' ".tmp/routing/reports/$SKILL.comparison-summary.json" 2>/dev/null || true)"
+          if [ -n "$breaches" ]; then
+            echo "::warning title=ceiling::$SKILL: ceiling breached, run stopped as infra_error: $breaches"
+          fi
           # 0 pass, 1 routing_fail, 3 infra_error are advisory results; anything else is a harness error.
           case "$rc" in
             0) ;;
@@ -126,3 +146,4 @@ jobs:
             .tmp/promptfoo/logs/
           include-hidden-files: true
           if-no-files-found: warn
+          retention-days: 14

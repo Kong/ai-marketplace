@@ -26,6 +26,7 @@ from typing import Any
 
 import check_repo
 import prepare_routing_workspace as workspaces
+import routing_ceilings as ceilings
 import routing_compare as compare
 import routing_results as results
 import run_routing_eval as runner
@@ -58,6 +59,7 @@ def evaluate_variant(
     validation_errors: list[str],
     run: runner.PromptfooRunner | None = None,
     routing_dir: Path | None = None,
+    ledger: ceilings.Ledger | None = None,
 ) -> dict[str, Any]:
     """Materialize one variant's workspace for `host` and reduce its routing run.
 
@@ -68,15 +70,27 @@ def evaluate_variant(
     root = routing_dir / variant
     if not validation_errors:
         workspaces.prepare_workspace(root / host, host, ref)
+    ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     run = run or (lambda h, s, report, pattern: runner.run_promptfoo(
-        h, s, report, pattern, env={"ROUTING_WORKSPACE_ROOT": str(root)}
+        h, s, report, pattern, env={"ROUTING_WORKSPACE_ROOT": str(root)}, ledger=ledger
     ))
     return runner.evaluate_host(
-        host, skill, run, reports_dir=routing_dir / "reports" / variant, validation_errors=validation_errors
+        host, skill, run, reports_dir=routing_dir / "reports" / variant, validation_errors=validation_errors, ledger=ledger
+    )
+
+
+def usage_note(doc: dict[str, Any]) -> str:
+    use = doc["usage"]
+    return f" tokens={use['tokens']} cost=${use['cost_usd']:.4f} latency={use['latency_ms'] / 1000:.1f}s" + (
+        f" BREACH: {'; '.join(ceilings.describe(b) for b in doc['breaches'])}" if doc["breaches"] else ""
     )
 
 
 def describe(doc: dict[str, Any]) -> str:
+    return _describe(doc) + usage_note(doc)
+
+
+def _describe(doc: dict[str, Any]) -> str:
     if doc["mode"] == "new_skill":
         parts = [
             f"{name}={c['passes']}/{c['trials']} (need {c['required']:.0%}, {'met' if c['met'] else 'NOT met'})"
@@ -113,15 +127,20 @@ def main(argv: list[str]) -> int:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
 
+    try:
+        ledger = ceilings.Ledger(ceilings.Ceilings.from_env())  # one budget for candidate, control, and retries
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
     tags = {s["id"]: s.get("tags") or [] for s in scenarios.target_scenarios(scenarios.SCENARIOS_DIR, skill)}
     print(f"{skill}: {'new skill (no control)' if is_new else 'modified'}; merge base {base[:12]}")
     docs = []
     for host in results.HOSTS:
-        candidate = evaluate_variant("candidate", host, skill, None, validation_errors)
+        candidate = evaluate_variant("candidate", host, skill, None, validation_errors, ledger=ledger)
         if is_new:
             doc = compare.evaluate_new_skill(candidate, tags)
         else:
-            control = evaluate_variant("control", host, skill, base, validation_errors)
+            control = evaluate_variant("control", host, skill, base, validation_errors, ledger=ledger)
             doc = compare.compare_host(candidate, control)
         docs.append(doc)
 

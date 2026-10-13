@@ -103,12 +103,12 @@ with a cross-host `<skill>.summary.json`:
 
 - `pass`: every scenario met its route (at least 2/3 trials, rounded up).
 - `routing_fail`: the host answered with valid telemetry but routed wrongly.
-- `infra_error`: missing credentials, provider failure, malformed telemetry, or
-  invalid scenarios. Trials are retried once; a persistent failure leaves the
+- `infra_error`: missing credentials, provider failure, malformed telemetry,
+  invalid scenarios, or a reached ceiling. Trials are retried once; a persistent failure leaves the
   host incomplete, never `routing_fail`.
 
 Results record the failure kind (`invocation`, `provider`, `telemetry`,
-`scenario_validation`), retries per host, and per-trial evidence. A passing
+`ceiling`, `scenario_validation`), retries per host, and per-trial evidence. A passing
 host never offsets the other. Exit code: 0 pass, 1 `routing_fail`, 3 otherwise.
 
 ### Candidate vs merge-base comparison
@@ -146,8 +146,28 @@ Each selected skill runs `mise run eval:routing:compare` in its own job. A
 errors still fail. Provider keys come from the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`
 secrets, only in that step. Reports (JSON, HTML, JUnit, per-trial evidence) and
 Promptfoo logs upload as the `routing-reports-<skill>` artifact and are never committed.
-Spend, token, concurrency, and timeout ceilings are not set here (tracked in #20).
-Actions are pinned by commit SHA.
+The job targets ten minutes (`timeout-minutes: 10`); jobs for one PR share a
+concurrency group and `max-parallel` bounds paid jobs. Ceilings are described under
+[Ceilings](#ceilings). Actions are pinned by commit SHA.
+
+### Ceilings
+
+`scripts/routing_ceilings.py` enforces limits for every routing run, local or CI.
+Defaults are in code; override with environment variables (in CI, repository
+variables of the same name): `ROUTING_MAX_TOKENS` and `ROUTING_MAX_COST_USD`
+(per host, across candidate, control, and retries), `ROUTING_MAX_CONCURRENCY`
+(Promptfoo `--max-concurrency`), `ROUTING_RUN_TIMEOUT_SECONDS` (one Promptfoo run;
+the run is killed), and `ROUTING_JOB_TIMEOUT_SECONDS` (whole eval; keep it below the
+CI job timeout). Promptfoo reports tokens and cost only when a run ends, so those
+ceilings are checked after each run and before every later launch: spend stops at
+the next boundary and can overshoot by at most one run.
+
+A breach makes the host `infra_error` (kind `ceiling`, incomplete, never
+`routing_fail`, never retried). It is recorded in `breaches` in the result,
+comparison, and summary documents, printed as `BREACH: ...` in the console, and
+raised as a warning annotation in CI. Judged trials stay in the report but the
+host result is not trusted. Each host reports `usage` (trials, tokens, estimated
+cost, latency) and retries.
 
 ## Shared Skill Installers
 
