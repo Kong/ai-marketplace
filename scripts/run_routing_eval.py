@@ -51,7 +51,7 @@ def run_promptfoo(
     if pattern:
         command += ["--filter-pattern", pattern]
     else:
-        command.append(str(report.with_suffix(".html")))
+        command += [str(report.with_suffix(".html")), str(report.with_suffix(".junit.xml"))]
     proc = subprocess.run(
         command, cwd=check_repo.REPO_ROOT, env={**os.environ, **(env or {}), "ROUTING_SKILL": skill},
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False,

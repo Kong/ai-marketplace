@@ -1,0 +1,128 @@
+name: Skill routing evals
+
+# Advisory only: never configure these jobs as required checks. Model-backed routing
+# results are reported as warnings and artifacts; deterministic validation stays in
+# validate.yml (`mise run ci`).
+#
+# Paid provider calls happen only in `evaluate`, which runs only when `select` finds at
+# least one changed skill that has routing scenarios. Pull requests are triggered only by
+# paths beneath a skill directory, then the diff is re-checked by scripts/select_changed.py
+# (via routing_targets.py). Nothing here ever selects the full catalog.
+#
+# Cost, token, concurrency, and timeout ceilings are owned by #20. Seams for them:
+# workflow/job `concurrency`, job `timeout-minutes`, `strategy.max-parallel`, and
+# artifact `retention-days`.
+
+on:
+  pull_request:
+    paths:
+      - "plugins/*/skills/**"
+  workflow_dispatch:
+    inputs:
+      skill:
+        description: Name of one skill with routing scenarios to evaluate against origin/main
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  select:
+    name: Select changed skills
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      skills: ${{ steps.select.outputs.skills }}
+      has_skills: ${{ steps.select.outputs.has_skills }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: Select skills from the base/head diff
+        id: select
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          SKILL_INPUT: ${{ inputs.skill }}
+        run: |
+          set -euo pipefail
+          run_py() { uv run --python 3.12 --cache-dir .tmp/uv-cache python "$@"; }
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            targets="$(run_py scripts/routing_targets.py skill "$SKILL_INPUT")"
+          else
+            # Show the confirmed diff-derived selection (changed, adjacent, removed, ignored).
+            {
+              echo '### Skills selected from the diff'
+              echo '```json'
+              run_py scripts/select_changed.py "$BASE_SHA" HEAD
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+            # Changed skills that have routing scenarios; fails rather than selecting the whole catalog.
+            targets="$(run_py scripts/routing_targets.py changed --base "$BASE_SHA")"
+          fi
+          skills="$(printf '%s\n' "$targets" | jq -R 'select(length > 0)' | jq -sc .)"
+          has_skills="$(jq -r 'length > 0' <<<"$skills")"
+          echo "skills=$skills" >> "$GITHUB_OUTPUT"
+          echo "has_skills=$has_skills" >> "$GITHUB_OUTPUT"
+          if [ "$has_skills" != "true" ]; then
+            echo "No changed skills with routing scenarios; no provider calls will be made." | tee -a "$GITHUB_STEP_SUMMARY"
+          fi
+
+  evaluate:
+    name: Routing evals (${{ matrix.skill }})
+    needs: select
+    if: ${{ needs.select.outputs.has_skills == 'true' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        skill: ${{ fromJSON(needs.select.outputs.skills) }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
+      - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+      - name: Compare candidate with merge base on Codex and Claude
+        env:
+          SKILL: ${{ matrix.skill }}
+          BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          set +e
+          mise run eval:routing:compare -- "$SKILL" --base "$BASE_REF"
+          rc=$?
+          set -e
+          {
+            echo "### Routing eval: $SKILL"
+            echo '```json'
+            cat ".tmp/routing/reports/$SKILL.comparison-summary.json" 2>/dev/null || echo "no summary written"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          # 0 pass, 1 routing_fail, 3 infra_error are advisory results; anything else is a harness error.
+          case "$rc" in
+            0) ;;
+            1) echo "::warning title=routing_fail::$SKILL: routing regressed on at least one host (advisory)" ;;
+            3) echo "::warning title=infra_error::$SKILL: provider or telemetry failure, result incomplete (advisory)" ;;
+            *) exit "$rc" ;;
+          esac
+      - name: Upload JSON, JUnit, HTML, and transcripts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: routing-reports-${{ matrix.skill }}
+          path: |
+            .tmp/routing/reports/
+            .tmp/promptfoo/logs/
+          include-hidden-files: true
+          if-no-files-found: warn

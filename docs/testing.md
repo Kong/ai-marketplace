@@ -91,7 +91,7 @@ task exits non-zero if either failed.
   `.agents/skills/<name>/SKILL.md` in the eval workspace (Promptfoo's
   `skillCalls`, source `heuristic`); final-answer mentions do not count. Codex
   cannot be limited to one tool, so the prompt confines it to that read.
-- Reports land in `.tmp/routing/reports/<host>-<skill>.{json,html}`: per-trial
+- Reports land in `.tmp/routing/reports/<host>-<skill>.{json,html,junit.xml}`: per-trial
   scenario, host, expected/forbidden routes, observed skills (with path for
   Codex), and pass/fail reason.
 
@@ -129,6 +129,25 @@ positive, 5 near-miss, and 2 sibling scenarios per adjacent skill (at most 5
 adjacent skills); violations are scenario validation failures before any model
 call. Check them offline with
 `python scripts/validate_routing_scenarios.py --new-skill=<name>`.
+
+### Advisory workflow
+
+`.github/workflows/skill-evals.yml` is separate from `validate.yml` and advisory:
+do not make it a required check. It runs on pull requests only when a path under
+`plugins/*/skills/**` changes. The `select` job then re-checks the base/head diff with
+`scripts/routing_targets.py changed` (built on `select_changed.py`) and ends with no
+provider call unless a changed skill has routing scenarios. It never selects the full
+catalog, and changes to evals, docs, manifests, steering, or scripts never match the
+path filter. `workflow_dispatch` takes one required `skill` name and compares it with
+`origin/main`.
+
+Each selected skill runs `mise run eval:routing:compare` in its own job. A
+`routing_fail` or `infra_error` becomes a warning annotation, not a red job; harness
+errors still fail. Provider keys come from the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`
+secrets, only in that step. Reports (JSON, HTML, JUnit, per-trial evidence) and
+Promptfoo logs upload as the `routing-reports-<skill>` artifact and are never committed.
+Spend, token, concurrency, and timeout ceilings are not set here (tracked in #20).
+Actions are pinned by commit SHA.
 
 ## Shared Skill Installers
 
