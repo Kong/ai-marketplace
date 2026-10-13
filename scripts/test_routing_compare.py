@@ -201,6 +201,14 @@ class DeltaTests(unittest.TestCase):
         self.assertEqual((codex["host"], codex["aggregate"]["delta"]), ("codex", -1.0))
         self.assertEqual(r.combine_hosts([claude, codex])["state"], r.ROUTING_FAIL)
 
+    def test_passing_candidate_with_failed_control_combines_to_incomplete_infra_error(self) -> None:
+        claude = compare.compare_host(host_doc("claude", pos=[True]), host_doc("claude", pos=[True]))
+        codex = compare.compare_host(host_doc("codex", pos=[True]), r.host_failure("codex", "alpha", r.PROVIDER, "down"))
+        self.assertEqual((codex["state"], codex["complete"]), (r.PASS, False))
+        combined = r.combine_hosts([claude, codex])
+        self.assertEqual((combined["state"], combined["complete"]), (r.INFRA_ERROR, False))
+        self.assertEqual(driver.runner.EXIT_CODES[combined["state"]], 3)
+
     def test_no_stored_baseline_input(self) -> None:
         self.assertEqual(compare.compare_host.__code__.co_argcount, 2)
 
@@ -294,6 +302,15 @@ class NewSkillMinimumTests(unittest.TestCase):
         self.assertEqual(len(errors), 1)
         self.assertIn("adjacent skill 'gamma', found 1", errors[0])
 
+    def test_positive_and_near_miss_need_three_trials_but_siblings_do_not(self) -> None:
+        content = scenario_yaml().replace("trials: 3, tags: [near-miss]", "trials: 1, tags: [near-miss]")
+        errors = self.errors(content)
+        self.assertEqual(len(errors), 5)
+        self.assertTrue(all("needs trials: 3" in e for e in errors))
+
+    def test_max_adjacent_is_shared_with_selection(self) -> None:
+        self.assertIs(validator.MAX_ADJACENT, validator.select_changed.MAX_ADJACENT)
+
     def test_sibling_must_forbid_the_target(self) -> None:
         content = scenario_yaml(siblings={"beta": 2}).replace("forbid: [alpha], trials: 1", "forbid: [], trials: 1")
         self.assertTrue(any("adjacent skill 'beta', found 0" in e for e in self.errors(content, ("beta",))))
@@ -320,7 +337,7 @@ class NewSkillMinimumTests(unittest.TestCase):
              mock.patch.object(validator, "adjacent_skills", return_value=["beta"]), \
              mock.patch.object(validator, "known_skill_names", return_value={"alpha", "beta"}), \
              mock.patch("sys.argv", ["v", "--new-skill=alpha"]), mock.patch("sys.stderr"):
-            self.assertEqual(validator.main(), 1)
+            self.assertEqual(validator.main(), 2)
         with mock.patch.object(validator, "SCENARIOS_DIR", self.dir), \
              mock.patch.object(validator, "known_skill_names", return_value={"alpha", "beta"}), \
              mock.patch("sys.argv", ["v"]), mock.patch("builtins.print"):
@@ -364,9 +381,25 @@ class DriverPolicyTests(ThrowawayRepo):
     def test_new_skill_below_minimums_fails_validation_and_runs_nothing(self) -> None:
         directory = self.scenario_dir(scenario_yaml(positives=1, skill="gamma", siblings={"beta": 2, "gamma2": 0}))
         code, calls = self.run_main("gamma", directory, lambda: self.fail("must not run"))
-        self.assertEqual((code, calls), (3, []))
-        doc = (self.repo / ".tmp/routing/reports/codex-gamma.comparison.json").read_text()
-        self.assertIn("scenario_validation", doc)
+        self.assertEqual((code, calls), (2, []))
+        self.assertFalse((self.repo / ".tmp/routing/candidate").exists())
+
+    def test_new_skill_positive_scenarios_need_three_trials(self) -> None:
+        content = scenario_yaml(skill="gamma", siblings={"beta": 2, "alpha": 2}).replace(
+            "trials: 3, tags: [positive]", "trials: 1, tags: [positive]"
+        )
+        code, calls = self.run_main("gamma", self.scenario_dir(content), lambda: self.fail("must not run"), adjacent=("beta", "alpha"))
+        self.assertEqual((code, calls), (2, []))
+
+    def test_unexpected_exception_is_a_harness_error_not_routing_fail(self) -> None:
+        directory = self.scenario_dir(scenario_yaml(skill="alpha"))
+        (directory / "gamma.yaml").rename(directory / "alpha.yaml")
+
+        def boom():
+            raise RuntimeError("boom")
+        with mock.patch("traceback.print_exc"), mock.patch("sys.stderr"):
+            code, _ = self.run_main("alpha", directory, boom)
+        self.assertEqual(code, 2)
 
     def test_new_skill_runs_candidate_only_and_reports_absolute_expectations(self) -> None:
         directory = self.scenario_dir(scenario_yaml(skill="gamma", siblings={"beta": 2, "alpha": 2}))
@@ -394,6 +427,28 @@ class DriverPolicyTests(ThrowawayRepo):
         )
         self.assertEqual(code, 0)
         self.assertIn('"mode": "comparison"', (self.repo / ".tmp/routing/reports/codex-alpha.comparison.json").read_text())
+
+
+class ExitCodeTests(unittest.TestCase):
+    def test_uncaught_exception_exits_2_for_eval_runner(self) -> None:
+        import run_routing_eval as runner
+
+        with mock.patch.object(runner.scenarios, "known_skill_names", side_effect=RuntimeError("boom")), \
+             mock.patch("sys.stderr"), mock.patch("traceback.print_exc"):
+            self.assertEqual(runner.main(["run", "alpha"]), 2)
+
+    def test_invalid_scenarios_exit_2_before_any_host_runs(self) -> None:
+        import run_routing_eval as runner
+
+        with mock.patch.object(runner.scenarios, "known_skill_names", return_value={"alpha"}), \
+             mock.patch.object(runner.scenarios, "validate_scenarios", return_value=["bad"]), \
+             mock.patch.object(runner, "evaluate_host", side_effect=AssertionError("ran")), \
+             mock.patch("sys.stderr"):
+            self.assertEqual(runner.main(["run", "alpha"]), 2)
+
+    def test_workspace_errors_exit_2(self) -> None:
+        with mock.patch("sys.stderr"):
+            self.assertEqual(prep.main(["p", "/tmp/not-under-the-repo-tmp"]), 2)
 
 
 class DescribeTests(unittest.TestCase):

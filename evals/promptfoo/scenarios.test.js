@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { buildTests } = require('./scenarios');
+const { buildTests, trialCap } = require('./scenarios');
 
 const labels = { positive: 'pos', negative: 'neg' };
 const FIXTURE = `
@@ -63,3 +63,16 @@ test('fails when the skill has no scenarios', () =>
   withFixture((dir) => {
     assert.throws(() => buildTests({ skill: 'gamma', host: 'claude', providerLabels: labels, dir }), /no routing scenarios/);
   }));
+
+test('maxTrials caps trials per scenario and keeps metadata consistent', () =>
+  withFixture((dir) => {
+    const tests = buildTests({ skill: 'alpha', host: 'claude', providerLabels: labels, dir, maxTrials: 1 });
+    assert.strictEqual(tests.length, 3);
+    assert.deepStrictEqual(tests.map((t) => t.metadata.trials), [1, 1, 1]);
+    assert.match(tests[0].description, /trial 1\/1/);
+  }));
+
+test('trialCap reads positive integers and ignores anything else', () => {
+  assert.strictEqual(trialCap('1'), 1);
+  for (const bad of [undefined, '', '0', '-2', 'x']) assert.strictEqual(trialCap(bad), Infinity);
+});

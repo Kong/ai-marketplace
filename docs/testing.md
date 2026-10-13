@@ -19,6 +19,7 @@ Baseline local tools:
 - `mise`
 - `uv`
 - `git`
+- `node` and `npm` (routing evals and their tests; `mise install` provides the pinned Node)
 
 `mise run preflight` checks the repo's baseline tools and can also check
 optional flows:
@@ -42,7 +43,9 @@ check.
 
 `mise run ci` also runs the submission packaging regression checks in
 `scripts/test_openai_package.py`: archive boundaries, reproducibility, unsafe
-paths, credentials, missing assets, discovery, and release ownership.
+paths, credentials, missing assets, discovery, and release ownership, plus the
+routing eval unit tests (Python `scripts/test_routing_*.py` and
+`scripts/test_select_changed.py`, and Node `evals/promptfoo/*.test.js`). None make model calls.
 
 `mise run lint` covers more than generated-file drift. It is also the repo's
 default authoring guardrail for:
@@ -51,6 +54,7 @@ default authoring guardrail for:
 - `SKILL.md` length
 - description budget
 - high-similarity trigger overlap between skills
+- routing scenario validation (`scripts/validate_routing_scenarios.py`)
 
 The checked-in `pre-commit` and `pre-push` hooks both run `mise run lint`, but
 they only apply after `mise run hooks:install`. CI remains the enforcement path
@@ -81,9 +85,18 @@ task exits non-zero if either failed.
 - Modes: `skill <name>` runs one skill; `all` runs every skill that has
   scenarios; `changed [--base <ref>]` runs skills changed since the base
   (`scripts/select_changed.py`; default `origin/main`, else `main`) and skips,
-  with a note, changed skills that have no scenarios. Adjacent skills are not
-  added. No selected skills is a no-op success. Every selected skill runs; the exit code is 1 if any skill had a routing failure, else 3 if any had an infrastructure error. The pilot corpus covers
+  with a note, modified changed skills that have no scenarios (a changed skill that is
+  new at the merge base and lacks the minimums is a validation failure instead, see below).
+  No selected skills is a no-op success. Every selected skill runs; the worst
+  exit code wins (see [Exit codes](#exit-codes)). The pilot corpus covers
   `konnect-platform-router`, `konnect-gateway-triage`, and `kongctl-declarative`.
+- Adjacent skills (`select_changed.py`: routers, skills named in a changed `SKILL.md`, nearest
+  descriptions; at most 5 and never the full catalog) are run by the workflow in addition to
+  changed skills: only those that have scenarios, candidate-only (no control comparison), with
+  `ROUTING_MAX_TRIALS=1` capping every scenario at one trial. They check that each adjacent
+  skill's own expected/forbidden routes still hold; changed skills keep their scenario trials.
+  Adjacent skills without scenarios are skipped with a note, and adjacent skills never run
+  without a changed skill that has scenarios. `routing_targets.py adjacent` lists them.
 - Claude (`ANTHROPIC_API_KEY`): the agent only has the `Skill` tool. Evidence is
   a successful native skill call. Positives stop once it succeeds.
 - Codex (local Codex login or `OPENAI_API_KEY`): read-only sandbox, no network,
@@ -104,12 +117,30 @@ with a cross-host `<skill>.summary.json`:
 - `pass`: every scenario met its route (at least 2/3 trials, rounded up).
 - `routing_fail`: the host answered with valid telemetry but routed wrongly.
 - `infra_error`: missing credentials, provider failure, malformed telemetry,
-  invalid scenarios, or a reached ceiling. Trials are retried once; a persistent failure leaves the
+  or a reached ceiling (invalid scenarios exit 2 before any run). Trials are retried once; a persistent failure leaves the
   host incomplete, never `routing_fail`.
 
 Results record the failure kind (`invocation`, `provider`, `telemetry`,
-`ceiling`, `scenario_validation`), retries per host, and per-trial evidence. A passing
-host never offsets the other. Exit code: 0 pass, 1 `routing_fail`, 3 otherwise.
+`ceiling`; `scenario_validation` only from library callers), retries per host, and per-trial evidence. A passing
+host never offsets the other, and a host that is incomplete (for example a comparison
+whose control run hit an `infra_error`) is `infra_error` even if its candidate passed;
+`routing_fail` on any host still takes precedence.
+
+### Exit codes
+
+Every routing script and task (`run_routing_eval.py`, `run_routing_comparison.py`,
+`mise run eval:routing`, `eval:routing:compare`) uses one table:
+
+| Code | Meaning |
+| --- | --- |
+| 0 | `pass` |
+| 1 | `routing_fail` |
+| 2 | usage, scenario validation (including new-skill minimums), or harness error (unexpected exceptions are caught and exit 2) |
+| 3 | `infra_error` (provider, telemetry, ceiling; result incomplete) |
+
+When one task runs several skills, harness error (2) outranks `routing_fail` (1), which
+outranks `infra_error` (3). `validate_routing_scenarios.py` and
+`prepare_routing_workspace.py` also exit 2 on errors, so `mise run lint` still fails.
 
 ### Candidate vs merge-base comparison
 
@@ -127,8 +158,10 @@ judged on absolute thresholds (at least 90% positive recall, 95% near-miss
 specificity) instead of a delta. New skills must also ship at least 5
 positive, 5 near-miss, and 2 sibling scenarios per adjacent skill (at most 5
 adjacent skills); violations are scenario validation failures before any model
-call. Check them offline with
-`python scripts/validate_routing_scenarios.py --new-skill=<name>`.
+call, exit 2. Their positive and near-miss scenarios must use `trials: 3`. Changed mode
+(`routing_targets.py changed`) and the comparison driver enforce this, so a new skill
+without a corpus cannot pass silently. Check them offline with
+`uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/validate_routing_scenarios.py --new-skill=<name>`.
 
 ### Advisory workflow
 
@@ -141,11 +174,16 @@ catalog, and changes to evals, docs, manifests, steering, or scripts never match
 path filter. `workflow_dispatch` takes one required `skill` name and compares it with
 `origin/main`.
 
-Each selected skill runs `mise run eval:routing:compare` in its own job. A
-`routing_fail` or `infra_error` becomes a warning annotation, not a red job; harness
-errors still fail. Provider keys come from the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`
-secrets, only in that step. Reports (JSON, HTML, JUnit, per-trial evidence) and
-Promptfoo logs upload as the `routing-reports-<skill>` artifact and are never committed.
+Each changed skill runs `mise run eval:routing:compare` in its own job; each adjacent
+skill with scenarios runs `mise run eval:routing -- skill <name>` with one trial,
+candidate-only. A `routing_fail` or `infra_error` becomes a warning annotation, not a
+red job; exit 2 and any other code (harness or validation errors) fail the job. Provider keys come from the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`
+secrets, only in that step. The artifact `routing-reports-<mode>-<skill>` holds the full Promptfoo JSON
+(`reports/{candidate,control}/<host>-<skill>.json` or `reports/<host>-<skill>.json`), whose
+raw model responses and skill calls are the diagnostic transcript (no extra transcript
+capture is enabled), plus HTML, JUnit, result and comparison documents, and Promptfoo logs; none are
+committed. HTML and JUnit come from the first full run, while `*.result.json` and the
+comparison reflect the state after the single retry (retried trials are in `*.retry.json`).
 The job targets ten minutes (`timeout-minutes: 10`); jobs for one PR share a
 concurrency group and `max-parallel` bounds paid jobs. Ceilings are described under
 [Ceilings](#ceilings). Actions are pinned by commit SHA.

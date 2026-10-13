@@ -66,8 +66,8 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/codex --host codex",
   # Resolves the mode to skills, then per skill: validates scenarios, runs each host independently,
   # retries infrastructure errors once, and reduces each host to pass, routing_fail, or infra_error.
-  # Every skill runs; exit: 0 all pass, 1 any routing_fail, else 3 if any infra_error.
-  "targets=$(uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_targets.py {{usage.mode}} '{{usage.name}}' ${usage_base:+--base \"$usage_base\"}) || exit $?; rc=0; for skill in $targets; do uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_eval.py $skill || { r=$?; [ $rc -eq 1 ] || rc=$r; }; done; exit $rc",
+  # Every skill runs; worst exit wins: harness error (2 or other) > 1 routing_fail > 3 infra_error (see docs/testing.md).
+  "targets=$(uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_targets.py {{usage.mode}} '{{usage.name}}' ${usage_base:+--base \"$usage_base\"}) || exit 2; rc=0; for skill in $targets; do uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_eval.py $skill; r=$?; case $r in 0) ;; 1) [ $rc -eq 2 ] || rc=1 ;; 3) [ $rc -eq 0 ] && rc=3 ;; *) rc=2 ;; esac; done; exit $rc",
 ]
 
 [tasks."eval:routing:compare"]
@@ -79,7 +79,7 @@ flag "--base <ref>" default="origin/main" help="Ref whose merge base with HEAD i
 env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
 run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
-  # Materializes isolated candidate and control workspaces itself. Exit: 0 pass, 1 routing_fail, 3 infra_error.
+  # Materializes isolated candidate and control workspaces itself. Exit codes: see docs/testing.md.
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_comparison.py {{usage.name}} --base {{usage.base}}",
 ]
 

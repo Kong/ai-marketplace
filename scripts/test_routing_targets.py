@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import routing_targets as targets
 import select_changed
@@ -64,6 +65,70 @@ class ResolveTests(unittest.TestCase):
         self.assertEqual(skills, ["alpha"])
         self.assertEqual(len(notices), 1)
         self.assertIn("gamma", notices[0])
+
+    def branch_with(self, *names: str) -> None:
+        self.git("branch", "base")
+        self.git("checkout", "-q", "-b", "work")
+        for name in names:
+            self.write_skill(name, "edit")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "change")
+
+    def test_adjacent_mode_lists_only_adjacent_skills_with_scenarios(self) -> None:
+        self.branch_with("alpha")
+        with mock.patch.object(select_changed, "MAX_ADJACENT", 5):
+            skills, notices = targets.resolve("adjacent", None, "base", {"alpha", "beta"}, self.repo)
+        self.assertEqual(skills, ["beta"])
+        self.assertEqual(notices, ["gamma: adjacent but has no routing scenarios, skipped"])
+
+    def test_adjacent_mode_is_capped_and_never_the_full_catalog(self) -> None:
+        self.branch_with("alpha")
+        selected = select_changed.select(self.repo, "base")
+        self.assertLessEqual(len(selected["adjacent"]), select_changed.MAX_ADJACENT)
+        skills, _ = targets.resolve("adjacent", None, "base", {"alpha", "beta", "gamma"}, self.repo)
+        self.assertEqual(skills, selected["adjacent"])
+        self.assertNotIn("alpha", skills)
+
+    def test_changed_skill_that_is_also_adjacent_counts_once_as_changed(self) -> None:
+        self.branch_with("alpha", "beta")
+        covered = {"alpha", "beta", "gamma"}
+        changed, _ = targets.resolve("changed", None, "base", covered, self.repo)
+        adjacent, _ = targets.resolve("adjacent", None, "base", covered, self.repo)
+        self.assertEqual(changed, ["alpha", "beta"])
+        self.assertEqual(adjacent, ["gamma"])
+
+    def test_adjacent_without_any_scenarios_is_a_noop_with_notes(self) -> None:
+        self.branch_with("alpha")
+        skills, notices = targets.resolve("adjacent", None, "base", set(), self.repo)
+        self.assertEqual(skills, [])
+        self.assertTrue(notices)
+
+    def test_new_skill_below_minimums_fails_as_scenario_validation(self) -> None:
+        self.git("branch", "base")
+        self.git("checkout", "-q", "-b", "work")
+        self.write_skill("delta")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "new")
+        with mock.patch.object(targets, "new_skill_errors", return_value=["needs at least 5 positive scenarios"]) as check:
+            with self.assertRaisesRegex(ValueError, "scenario_validation.*positive"):
+                self.resolve("changed", base="base")
+        check.assert_called_once_with("delta")
+
+    def test_new_skill_meeting_minimums_is_selected(self) -> None:
+        self.git("branch", "base")
+        self.git("checkout", "-q", "-b", "work")
+        self.write_skill("delta")
+        self.git("add", "-A")
+        self.git("commit", "-q", "-m", "new")
+        with mock.patch.object(targets, "new_skill_errors", return_value=[]):
+            skills, _ = targets.resolve("changed", None, "base", {"delta"}, self.repo)
+        self.assertEqual(skills, ["delta"])
+
+    def test_modified_skill_without_scenarios_is_only_a_note_and_never_checked(self) -> None:
+        self.branch_with("gamma")
+        with mock.patch.object(targets, "new_skill_errors", side_effect=AssertionError("modified skill")):
+            skills, notices = self.resolve("changed", base="base")
+        self.assertEqual((skills, len(notices)), ([], 1))
 
     def test_changed_mode_with_no_skill_changes_selects_nothing(self) -> None:
         self.git("branch", "base")

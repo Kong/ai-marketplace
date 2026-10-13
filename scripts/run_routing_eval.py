@@ -14,8 +14,9 @@ wall clock. A breach stops the host as `infra_error` of kind `ceiling` with the 
 recorded in the result; a breached host is never retried. Each result also reports
 tokens, estimated cost, latency, and retries.
 
-Exit code: 0 all hosts pass, 1 any host routing_fail, 3 otherwise (infra_error or
-incomplete host).
+Exit codes are tabulated in docs/testing.md. Invalid scenarios, usage errors and
+unexpected exceptions exit 2 before any provider call (or as a harness error), never as
+a routing result.
 """
 from __future__ import annotations
 
@@ -26,6 +27,7 @@ import re
 import signal
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 from typing import Any, Callable
 
@@ -165,23 +167,44 @@ def summarize(result: dict[str, Any]) -> str:
     return f"{result['host']}: {result['state']}{'' if result['complete'] else ' [incomplete]'} trials[{detail}] kinds={kinds}{usage}{note}"
 
 
+HARNESS_ERROR = 2  # exit 1 is routing_fail, which is also Python's uncaught-traceback code
+
+
+def guarded(entry: Callable[[list[str]], int]) -> Callable[[list[str]], int]:
+    """Turn an unexpected exception into a harness error (exit 2) instead of a routing_fail-looking 1."""
+
+    @functools.wraps(entry)
+    def wrapper(argv: list[str]) -> int:
+        try:
+            return entry(argv)
+        except Exception:  # noqa: BLE001 - last-resort boundary
+            traceback.print_exc()
+            print(f"ERROR: harness crashed in {entry.__module__}; not a routing result", file=sys.stderr)
+            return HARNESS_ERROR
+
+    return wrapper
+
+
+@guarded
 def main(argv: list[str]) -> int:
     if len(argv) != 2:
         print(__doc__, file=sys.stderr)
-        return 2
+        return HARNESS_ERROR
     skill = argv[1]
     try:
         validation_errors = scenarios.validate_scenarios(scenarios.SCENARIOS_DIR, scenarios.known_skill_names())
     except ValueError as exc:
         validation_errors = [str(exc)]
+    if validation_errors:
+        for error in validation_errors:
+            print(f"ERROR: scenario_validation: {error}", file=sys.stderr)
+        return HARNESS_ERROR
     try:
         ledger = ceilings.Ledger(ceilings.Ceilings.from_env())
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
-    outcomes = [
-        evaluate_host(host, skill, validation_errors=validation_errors, ledger=ledger) for host in results.HOSTS
-    ]
+        return HARNESS_ERROR
+    outcomes = [evaluate_host(host, skill, ledger=ledger) for host in results.HOSTS]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:
         (REPORTS_DIR / f"{outcome['host']}-{skill}.result.json").write_text(json.dumps(outcome, indent=2) + "\n")

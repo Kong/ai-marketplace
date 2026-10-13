@@ -12,7 +12,7 @@ Each *.yaml file declares one target skill and a list of scenarios:
         tags: [positive]                  # positive | near-miss | sibling
 
 No provider credentials or model calls are used. `--new-skill=NAME` additionally
-enforces the new-skill scenario minimums for NAME.
+enforces the new-skill scenario minimums for NAME. Exit 0 ok, 2 on any error.
 """
 from __future__ import annotations
 
@@ -36,7 +36,8 @@ SCENARIO_KEYS = {"id", "prompt", "expect", "forbid", "trials", "tags"}
 MIN_POSITIVES = 5
 MIN_NEAR_MISSES = 5
 MIN_SIBLINGS_PER_ADJACENT = 2
-MAX_ADJACENT = 5
+NEW_SKILL_TRIALS = 3  # positive and near-miss scenarios of a new skill
+MAX_ADJACENT = select_changed.MAX_ADJACENT
 
 
 def known_skill_names() -> set[str]:
@@ -181,6 +182,13 @@ def new_skill_minimum_errors(directory: Path, skill: str, adjacent: list[str]) -
     if near_misses < MIN_NEAR_MISSES:
         errors.append(f"new skill {skill!r} needs at least {MIN_NEAR_MISSES} near-miss scenarios, found {near_misses}")
 
+    for scenario in scenarios:
+        if (_tagged(scenario, "positive") or _tagged(scenario, "near-miss")) and scenario.get("trials") != NEW_SKILL_TRIALS:
+            errors.append(
+                f"new skill {skill!r} scenario {scenario.get('id')!r} needs trials: {NEW_SKILL_TRIALS} "
+                f"(positive and near-miss), found {scenario.get('trials')!r}"
+            )
+
     siblings = [s for s in scenarios if _tagged(s, "sibling") and skill in _names(s.get("forbid"))]
     for name in adjacent[:MAX_ADJACENT]:
         count = sum(name in _names(s.get("expect")) for s in siblings)
@@ -214,7 +222,7 @@ def main() -> int:
         skills = known_skill_names()
     except ValueError as exc:
         print(exc, file=sys.stderr)
-        return 1
+        return 2
     errors = validate_scenarios(SCENARIOS_DIR, skills)
     for name in new_skills:
         try:
@@ -224,7 +232,7 @@ def main() -> int:
     for error in errors:
         print(f"ERROR: {error}", file=sys.stderr)
     if errors:
-        return 1
+        return 2
     print("routing-scenarios-ok")
     return 0
 

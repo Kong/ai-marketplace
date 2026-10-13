@@ -245,7 +245,8 @@ def host_failure(
 
 def combine_hosts(results: list[dict[str, Any]], required: tuple[str, ...] = HOSTS) -> dict[str, Any]:
     """Combine independent host results; a passing host never offsets another."""
-    by_host = {r["host"]: r["state"] for r in results}
+    # An incomplete host (e.g. an infra_error control behind a passing candidate) is never a pass.
+    by_host = {r["host"]: (r["state"] if r.get("complete", True) or r["state"] != PASS else INFRA_ERROR) for r in results}
     hosts = {host: by_host.get(host, INFRA_ERROR) for host in required}
     states = set(hosts.values())
     state = ROUTING_FAIL if ROUTING_FAIL in states else (INFRA_ERROR if INFRA_ERROR in states else PASS)

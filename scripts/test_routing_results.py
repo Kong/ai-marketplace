@@ -123,6 +123,16 @@ class CombineTests(unittest.TestCase):
         missing = r.combine_hosts([self.result("codex", r.PASS)])
         self.assertEqual((missing["state"], missing["hosts"]["claude"]), (r.INFRA_ERROR, r.INFRA_ERROR))
 
+    def test_incomplete_passing_host_is_infra_error(self) -> None:
+        c = r.combine_hosts([{"host": "claude", "state": r.PASS, "complete": False}, self.result("codex", r.PASS)])
+        self.assertEqual((c["state"], c["complete"]), (r.INFRA_ERROR, False))
+        self.assertEqual(c["hosts"], {"claude": r.INFRA_ERROR, "codex": r.PASS})
+
+    def test_routing_fail_still_outranks_an_incomplete_pass(self) -> None:
+        incomplete_pass = {"host": "claude", "state": r.PASS, "complete": False}
+        c = r.combine_hosts([incomplete_pass, self.result("codex", r.ROUTING_FAIL)])
+        self.assertEqual(c["state"], r.ROUTING_FAIL)
+
     def test_all_pass(self) -> None:
         c = r.combine_hosts([self.result("claude", r.PASS), self.result("codex", r.PASS)])
         self.assertEqual((c["state"], c["complete"]), (r.PASS, True))

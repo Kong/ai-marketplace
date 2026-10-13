@@ -81,7 +81,7 @@ def main(argv: list[str]) -> int:
         names = prepare_workspace(Path(args.workspace), args.host, args.ref)
     except (ValueError, subprocess.CalledProcessError, select_changed.SelectionError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
+        return 2
     print(f"prepared {len(names)} {args.host} skills in {args.workspace}")
     return 0
 

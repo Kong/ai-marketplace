@@ -12,8 +12,9 @@ routing_compare.py). No score baseline is stored anywhere.
 A skill absent at the merge base is new: control is skipped, the scenario minimums are
 enforced as scenario validation, and the candidate is judged on absolute thresholds.
 
-Exit code matches run_routing_eval.py: 0 all hosts pass, 1 any routing_fail, 3 otherwise.
-For a modified skill the state is the candidate's own; deltas are reported, not gated.
+Exit codes are tabulated in docs/testing.md; scenario validation failures (including the new-skill
+minimums) and unexpected exceptions exit 2 before any provider call. For a modified skill the
+state is the candidate's own; deltas are reported, not gated.
 """
 from __future__ import annotations
 
@@ -106,6 +107,7 @@ def _describe(doc: dict[str, Any]) -> str:
     )
 
 
+@runner.guarded
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("skill")
@@ -125,13 +127,17 @@ def main(argv: list[str]) -> int:
             )
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
+        return runner.HARNESS_ERROR
+    if validation_errors:
+        for error in validation_errors:
+            print(f"ERROR: scenario_validation: {error}", file=sys.stderr)
+        return runner.HARNESS_ERROR
 
     try:
         ledger = ceilings.Ledger(ceilings.Ceilings.from_env())  # one budget for candidate, control, and retries
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
-        return 2
+        return runner.HARNESS_ERROR
     tags = {s["id"]: s.get("tags") or [] for s in scenarios.target_scenarios(scenarios.SCENARIOS_DIR, skill)}
     print(f"{skill}: {'new skill (no control)' if is_new else 'modified'}; merge base {base[:12]}")
     docs = []

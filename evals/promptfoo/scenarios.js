@@ -15,10 +15,16 @@ function scenarioFiles(dir) {
     .map((file) => path.join(dir, file));
 }
 
+// ROUTING_MAX_TRIALS (positive integer) caps trials per scenario; adjacent-skill runs use 1.
+function trialCap(value = process.env.ROUTING_MAX_TRIALS) {
+  const cap = Number.parseInt(value, 10);
+  return Number.isInteger(cap) && cap > 0 ? cap : Infinity;
+}
+
 // A scenario that expects a skill is "positive": the turn may stop once the
 // activation is observed. One that expects none is a "negative": the turn runs
 // to completion so that non-activation is observable.
-function buildTests({ skill, host, providerLabels, dir = SCENARIOS_DIR }) {
+function buildTests({ skill, host, providerLabels, dir = SCENARIOS_DIR, maxTrials = trialCap() }) {
   const tests = [];
   for (const file of scenarioFiles(dir)) {
     const data = yaml.load(fs.readFileSync(file, 'utf8'));
@@ -29,9 +35,10 @@ function buildTests({ skill, host, providerLabels, dir = SCENARIOS_DIR }) {
         ...scenario.expect.map((name) => ({ type: 'skill-used', value: name })),
         ...scenario.forbid.map((name) => ({ type: 'not-skill-used', value: name })),
       ];
-      for (let trial = 1; trial <= scenario.trials; trial += 1) {
+      const trials = Math.min(scenario.trials, maxTrials);
+      for (let trial = 1; trial <= trials; trial += 1) {
         tests.push({
-          description: `${scenario.id} | ${host} | trial ${trial}/${scenario.trials} | expect [${scenario.expect}] forbid [${scenario.forbid}]`,
+          description: `${scenario.id} | ${host} | trial ${trial}/${trials} | expect [${scenario.expect}] forbid [${scenario.forbid}]`,
           vars: { request: scenario.prompt },
           providers: [providerLabels[mode]],
           assert,
@@ -44,7 +51,7 @@ function buildTests({ skill, host, providerLabels, dir = SCENARIOS_DIR }) {
             forbidden: scenario.forbid,
             tags: scenario.tags,
             trial,
-            trials: scenario.trials,
+            trials,
           },
         });
       }
@@ -56,4 +63,4 @@ function buildTests({ skill, host, providerLabels, dir = SCENARIOS_DIR }) {
   return tests;
 }
 
-module.exports = { buildTests, SCENARIOS_DIR };
+module.exports = { buildTests, trialCap, SCENARIOS_DIR };

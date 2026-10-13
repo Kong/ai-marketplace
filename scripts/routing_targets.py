@@ -3,11 +3,15 @@
     routing_targets.py skill NAME
     routing_targets.py all
     routing_targets.py changed [--base REF]   (default base: origin/main, else main)
+    routing_targets.py adjacent [--base REF]
 
-`skill` requires the named skill to have scenarios. `all` and `changed` cover only
-skills that have scenarios under evals/routing/ and report the rest on stderr, so a
-skill without a corpus is never silently counted as passing. `changed` uses
-select_changed.py and evaluates its changed skills, not its adjacent ones.
+`skill` requires the named skill to have scenarios. `all`, `changed` and `adjacent` cover
+only skills that have scenarios under evals/routing/ and report the rest on stderr, so a
+skill without a corpus is never silently counted as passing. `changed` and `adjacent` use
+select_changed.py: `changed` lists changed skills, `adjacent` lists their (capped) adjacent
+skills, which the workflow runs with one trial each. A changed skill that is new at the
+merge base must already meet the new-skill scenario minimums (exit 2 otherwise), so a new
+skill cannot pass by having no corpus. Modified skills without scenarios are only a NOTE.
 No model calls.
 """
 from __future__ import annotations
@@ -41,6 +45,20 @@ def default_base(repo: Path) -> str:
     raise select_changed.SelectionError("no origin/main or main ref; pass --base")
 
 
+def new_skills(repo: Path, base: str, changed: list[str]) -> list[str]:
+    """Changed skills absent at the merge base of `base` and HEAD."""
+    out = subprocess.run(["git", "merge-base", base, "HEAD"], cwd=repo, capture_output=True, text=True, check=False)
+    if out.returncode != 0:
+        raise select_changed.SelectionError(f"cannot find merge base of {base} and HEAD: {out.stderr.strip()}")
+    catalog, _ = select_changed.load_catalog(repo, out.stdout.strip())
+    existing = {skill.name for skill in catalog.values()}
+    return [skill for skill in changed if skill not in existing]
+
+
+def new_skill_errors(skill: str) -> list[str]:
+    return scenarios.new_skill_minimum_errors(scenarios.SCENARIOS_DIR, skill, scenarios.adjacent_skills(skill))
+
+
 def resolve(mode: str, name: str | None, base: str | None, covered: set[str], repo: Path) -> tuple[list[str], list[str]]:
     """Return (skills to evaluate, notices)."""
     if mode == "skill":
@@ -49,7 +67,15 @@ def resolve(mode: str, name: str | None, base: str | None, covered: set[str], re
         return [name], []
     if mode == "all":
         return sorted(covered), []
-    result = select_changed.select(repo, base or default_base(repo))
+    base = base or default_base(repo)
+    result = select_changed.select(repo, base)
+    if mode == "adjacent":
+        adjacent = [skill for skill in result["adjacent"] if skill in covered]
+        notices = [f"{skill}: adjacent but has no routing scenarios, skipped" for skill in result["adjacent"] if skill not in covered]
+        return adjacent, notices
+    errors = [error for skill in new_skills(repo, base, result["changed"]) for error in new_skill_errors(skill)]
+    if errors:
+        raise ValueError("scenario_validation: " + "; ".join(errors))
     changed = [skill for skill in result["changed"] if skill in covered]
     notices = [f"{skill}: changed but has no routing scenarios, skipped" for skill in result["changed"] if skill not in covered]
     return changed, notices
@@ -57,7 +83,7 @@ def resolve(mode: str, name: str | None, base: str | None, covered: set[str], re
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("mode", choices=["changed", "skill", "all"])
+    parser.add_argument("mode", choices=["changed", "adjacent", "skill", "all"])
     parser.add_argument("name", nargs="?", help="skill name (skill mode only)")
     parser.add_argument("--base", help="git base ref for changed mode")
     args = parser.parse_args(argv)
