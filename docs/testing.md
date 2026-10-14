@@ -146,8 +146,10 @@ The override variables are for local experiments only; CI always uses the pinned
 | Claude | `ANTHROPIC_API_KEY` environment variable | `ANTHROPIC_API_KEY` secret |
 | Codex | local Codex login, or `OPENAI_API_KEY` | `OPENAI_API_KEY` secret |
 
-With `--agent` you only need the key for the selected agent. Missing credentials give
-`infra_error`, never `routing_fail`. Never commit keys; reports and transcripts stay under
+With `--agent` you only need the key for the selected agent. Locally, missing credentials give
+`infra_error`, never `routing_fail`. In CI an agent whose key is missing (fork PRs get no
+secrets, and CI has no Codex login) is skipped with an `agent_skipped` warning instead; with no
+keys at all the eval is skipped with a single warning and no provider call. Never commit keys; reports and transcripts stay under
 `.tmp/` and out of git.
 
 ### Is a skill covered?
@@ -218,9 +220,13 @@ selects the full catalog. `workflow_dispatch` takes one required `skill` and com
   descriptions; at most 5) run candidate-only with `ROUTING_MAX_TRIALS=1`, only if they have
   scenarios and only alongside a changed skill that has scenarios. Others are skipped with a note.
 - A `routing_fail` or `infra_error` is a warning annotation, not a red job; exit 2 and any other
-  code fail the job. A new skill below the minimums fails in `select`. CI never passes `--agent`
-  and fails if a summary is partial.
+  code fail the job. A new skill below the minimums fails in `select`.
 - Keys come from the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` secrets, only in the eval step.
+  `scripts/routing_ci_agents.py` reads only whether each is non-empty (never the value) and
+  runs just the agents that have one, passing `--agent <agents>`; each skipped agent gets a
+  warning annotation, and the job summary lists agents run and skipped. Results then carry
+  `partial: true` and `agents_run`. This is still safe because a partial result is accepted only
+  when `agents_run` is exactly the agents that had keys; any other partial result fails the job.
 - The artifact `routing-reports-<mode>-<skill>` holds the full Promptfoo JSON (raw model responses
   and skill calls are the diagnostic transcript; no extra capture is enabled), HTML, JUnit, result
   and comparison documents, and Promptfoo logs. HTML and JUnit come from the first full run;

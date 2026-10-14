@@ -11,6 +11,10 @@ name: Skill routing evals
 # paths beneath a skill directory, then the diff is re-checked by scripts/select_changed.py
 # (via routing_targets.py). Nothing here ever selects the full catalog.
 #
+# An agent whose API key is missing (always the case for fork PRs, which get no secrets) is skipped
+# with a warning annotation instead of failing as infra_error; with no keys at all nothing runs.
+# The decision lives in scripts/routing_ci_agents.py.
+#
 # Ceilings: the changed-skill job targets ten minutes (`timeout-minutes`, plus an eval
 # deadline below it so a breach is reported rather than the job cancelled). Token, cost,
 # per-run timeout, and Promptfoo concurrency ceilings are enforced by scripts/routing_ceilings.py;
@@ -113,7 +117,7 @@ jobs:
           persist-credentials: false
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-      - name: Evaluate on Codex and Claude (compare with merge base; adjacent skills candidate-only, 1 trial)
+      - name: Evaluate on the agents that have API keys (compare with merge base; adjacent skills candidate-only, 1 trial)
         env:
           SKILL: ${{ matrix.skill }}
           MODE: ${{ matrix.mode }}
@@ -129,20 +133,35 @@ jobs:
         run: |
           # CI always uses the pinned model and effort: never let a variable or secret leak in.
           unset ROUTING_CODEX_MODEL ROUTING_CODEX_EFFORT ROUTING_CLAUDE_MODEL ROUTING_CLAUDE_EFFORT
-          # CI always runs both agents: never pass --agent, which would make a partial result.
-          # (Partial runs are local-only; the guard below fails the job if a summary is partial.)
+          run_py() { uv run --python 3.12 --cache-dir .tmp/uv-cache python "$@"; }
+          # An agent without its API key is skipped, not run into an infra_error. Only key presence is
+          # read (never printed); fork PRs get no secrets and so skip cleanly. See scripts/routing_ci_agents.py.
+          plan="$(run_py scripts/routing_ci_agents.py plan)"
+          agents="$(jq -r '.agents | join(",")' <<<"$plan")"
+          while IFS= read -r message; do
+            echo "::warning title=agent_skipped::$message"
+          done < <(jq -r '.messages[]' <<<"$plan")
+          if [ -z "$agents" ]; then
+            echo "::warning title=agent_skipped::skipping routing evals: no API keys are configured"
+            {
+              echo "### Routing eval ($MODE): $SKILL"
+              echo "Skipped: no API keys are configured; no provider calls were made."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           set +e
           if [ "$MODE" = "adjacent" ]; then
             summary=".tmp/routing/reports/$SKILL.summary.json"
-            ROUTING_MAX_TRIALS=1 mise run eval:routing -- skill "$SKILL"
+            ROUTING_MAX_TRIALS=1 mise run eval:routing -- skill "$SKILL" --agent "$agents"
           else
             summary=".tmp/routing/reports/$SKILL.comparison-summary.json"
-            mise run eval:routing:compare -- "$SKILL" --base "$BASE_REF"
+            mise run eval:routing:compare -- "$SKILL" --base "$BASE_REF" --agent "$agents"
           fi
           rc=$?
           set -e
           {
             echo "### Routing eval ($MODE): $SKILL"
+            jq -r '.summary' <<<"$plan"
             echo '```json'
             cat "$summary" 2>/dev/null || echo "no summary written"
             echo '```'
@@ -151,8 +170,9 @@ jobs:
           if [ -n "$breaches" ]; then
             echo "::warning title=ceiling::$SKILL: ceiling breached, run stopped as infra_error: $breaches"
           fi
-          if [ "$(jq -r '.partial // false' "$summary" 2>/dev/null)" = "true" ]; then
-            echo "::error title=partial::$SKILL ($MODE): CI must run both agents, summary is partial"
+          # A partial result is acceptable only when the agents run are exactly those with keys.
+          if [ -f "$summary" ] && ! run_py scripts/routing_ci_agents.py verify "$summary" "$agents"; then
+            echo "::error title=partial::$SKILL ($MODE): result scope is not explained by the missing API keys"
             exit 2
           fi
           # Only 0, 1 (routing_fail) and 3 (infra_error) are advisory results (docs/testing.md);

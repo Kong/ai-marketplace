@@ -49,6 +49,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_settings.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_agents.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_coverage.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ci_agents.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "gh skill publish --dry-run",
