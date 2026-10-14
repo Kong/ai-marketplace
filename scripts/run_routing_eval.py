@@ -1,6 +1,6 @@
 """Run the routing eval for one skill on each host and reduce each host to a state.
 
-    python scripts/run_routing_eval.py <skill>
+    python scripts/run_routing_eval.py <skill> [--agent claude|codex ...]
 
 Per host: validate scenarios offline, run Promptfoo, classify every trial (see
 routing_results.py), retry infrastructure errors once, then write
@@ -14,12 +14,14 @@ wall clock. A breach stops the host as `infra_error` of kind `ceiling` with the 
 recorded in the result; a breached host is never retried. Each result also reports
 tokens, estimated cost, latency, and retries.
 
-Exit codes are tabulated in docs/testing.md. Invalid scenarios, usage errors and
+`--agent` limits the run to some agents (repeatable or comma-separated); the summary then records
+`agents_run` and `partial: true`. Exit codes are tabulated in docs/testing.md. Invalid scenarios, usage errors and
 unexpected exceptions exit 2 before any provider call (or as a harness error), never as
 a routing result.
 """
 from __future__ import annotations
 
+import argparse
 import functools
 import json
 import os
@@ -32,6 +34,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 import check_repo
+import routing_agents as agents_lib
 import routing_ceilings as ceilings
 import routing_results as results
 import routing_settings as settings_lib
@@ -189,10 +192,18 @@ def guarded(entry: Callable[[list[str]], int]) -> Callable[[list[str]], int]:
 
 @guarded
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print(__doc__, file=sys.stderr)
+    parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    parser.add_argument("skill")
+    parser.add_argument("--agent", action="append", help="claude or codex; repeat or comma-separate (default: both)")
+    args = parser.parse_args(argv[1:])
+    skill = args.skill
+    try:
+        agents = agents_lib.parse_agents(args.agent)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
         return HARNESS_ERROR
-    skill = argv[1]
+    if agents_lib.is_partial(agents):
+        print(f"WARNING: partial run, {', '.join(agents)} only; not a both-agent result", file=sys.stderr)
     try:
         settings = settings_lib.load()  # fail fast on invalid ROUTING_*_MODEL / _EFFORT
     except ValueError as exc:
@@ -213,15 +224,15 @@ def main(argv: list[str]) -> int:
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return HARNESS_ERROR
-    outcomes = [evaluate_host(host, skill, ledger=ledger) for host in results.HOSTS]
+    outcomes = [evaluate_host(host, skill, ledger=ledger) for host in agents]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:
-        settings_lib.annotate(outcome, settings)
+        settings_lib.annotate(outcome, settings).update(agents_lib.scope(agents))
         (REPORTS_DIR / f"{outcome['host']}-{skill}.result.json").write_text(json.dumps(outcome, indent=2) + "\n")
         print(summarize(outcome))
-    combined = results.combine_hosts(outcomes)
+    combined = results.combine_hosts(outcomes, required=agents)
     (REPORTS_DIR / f"{skill}.summary.json").write_text(json.dumps(combined, indent=2) + "\n")
-    print(f"overall: {combined['state']}")
+    print(f"overall: {agents_lib.label(combined['state'], agents)}")
     return EXIT_CODES[combined["state"]]
 
 

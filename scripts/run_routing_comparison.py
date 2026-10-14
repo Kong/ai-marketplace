@@ -1,6 +1,7 @@
 """Compare a skill's routing in the PR (candidate) with its merge-base (control), per host.
 
-    python scripts/run_routing_comparison.py <skill> [--base REF]    (REF defaults to origin/main)
+    python scripts/run_routing_comparison.py <skill> [--base REF] [--agent claude|codex ...]
+    (REF defaults to origin/main; --agent defaults to both and a subset run is marked partial)
 
 Two isolated workspaces are materialized under `.tmp/routing/{candidate,control}/<host>`:
 candidate skills come from the working tree, control skills from `git merge-base REF HEAD`.
@@ -26,6 +27,7 @@ from pathlib import Path
 from typing import Any
 
 import check_repo
+import routing_agents as agents_lib
 import prepare_routing_workspace as workspaces
 import routing_ceilings as ceilings
 import routing_compare as compare
@@ -118,8 +120,16 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("skill")
     parser.add_argument("--base", default="origin/main")
+    parser.add_argument("--agent", action="append", help="claude or codex; repeat or comma-separate (default: both)")
     args = parser.parse_args(argv[1:])
     skill = args.skill
+    try:
+        agents = agents_lib.parse_agents(args.agent)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return runner.HARNESS_ERROR
+    if agents_lib.is_partial(agents):
+        print(f"WARNING: partial run, {', '.join(agents)} only; not a both-agent result", file=sys.stderr)
     try:
         # Candidate and control inherit the same environment, so both use these effective settings.
         settings = settings_lib.load()
@@ -155,7 +165,7 @@ def main(argv: list[str]) -> int:
     tags = {s["id"]: s.get("tags") or [] for s in scenarios.target_scenarios(scenarios.SCENARIOS_DIR, skill)}
     print(f"{skill}: {'new skill (no control)' if is_new else 'modified'}; merge base {base[:12]}")
     docs = []
-    for host in results.HOSTS:
+    for host in agents:
         candidate = evaluate_variant("candidate", host, skill, None, validation_errors, ledger=ledger)
         if is_new:
             doc = compare.evaluate_new_skill(candidate, tags)
@@ -163,14 +173,15 @@ def main(argv: list[str]) -> int:
             control = evaluate_variant("control", host, skill, base, validation_errors, ledger=ledger)
             doc = compare.compare_host(candidate, control)
         docs.append(settings_lib.annotate(doc, settings))
+        doc.update(agents_lib.scope(agents))
 
     runner.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for doc in docs:
         (runner.REPORTS_DIR / f"{doc['host']}-{skill}.comparison.json").write_text(json.dumps(doc, indent=2) + "\n")
         print(describe(doc))
-    combined = results.combine_hosts(docs)
+    combined = results.combine_hosts(docs, required=agents)
     (runner.REPORTS_DIR / f"{skill}.comparison-summary.json").write_text(json.dumps(combined, indent=2) + "\n")
-    print(f"overall: {combined['state']}")
+    print(f"overall: {agents_lib.label(combined['state'], agents)}")
     return runner.EXIT_CODES[combined["state"]]
 
 

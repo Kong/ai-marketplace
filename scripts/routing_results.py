@@ -30,6 +30,7 @@ Host result document (`reduce_host` / `host_failure`)
       "breaches": [{"ceiling", "limit", "observed", "host"}],    # non-empty => infra_error
       "settings": {"model": {"value", "source"}, "effort": {"value"|null, "source"}},
                                      # effective host settings; source is "default" or "override"
+      "agents_run": [...], "partial": bool,   # run scripts add these; partial = fewer than all agents ran
       "overridden": bool,            # any ROUTING_*_MODEL / _EFFORT override was active
                                      # (settings/overridden are added by the run scripts, not reduce_host)
       "counts": {"pass": n, "routing_fail": n, "infra_error": n},   # final trials
@@ -248,7 +249,12 @@ def host_failure(
 
 
 def combine_hosts(results: list[dict[str, Any]], required: tuple[str, ...] = HOSTS) -> dict[str, Any]:
-    """Combine independent host results; a passing host never offsets another."""
+    """Combine independent host results; a passing host never offsets another.
+
+    `required` defaults to every host, so a missing host is infra_error. A subset run passes only
+    the hosts it ran; the document then says `partial: true` and lists `agents_run`, so it can
+    never be mistaken for a complete result (the state covers only those hosts).
+    """
     # An incomplete host (e.g. an infra_error control behind a passing candidate) is never a pass.
     by_host = {r["host"]: (r["state"] if r.get("complete", True) or r["state"] != PASS else INFRA_ERROR) for r in results}
     hosts = {host: by_host.get(host, INFRA_ERROR) for host in required}
@@ -257,6 +263,8 @@ def combine_hosts(results: list[dict[str, Any]], required: tuple[str, ...] = HOS
     return {
         "state": state,
         "complete": INFRA_ERROR not in states,
+        "agents_run": list(required),
+        "partial": set(required) != set(HOSTS),
         "hosts": hosts,
         "usage": {r["host"]: r["usage"] for r in results if "usage" in r},
         "breaches": [b for r in results for b in r.get("breaches") or []],

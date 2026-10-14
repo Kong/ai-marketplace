@@ -129,6 +129,8 @@ jobs:
         run: |
           # CI always uses the pinned model and effort: never let a variable or secret leak in.
           unset ROUTING_CODEX_MODEL ROUTING_CODEX_EFFORT ROUTING_CLAUDE_MODEL ROUTING_CLAUDE_EFFORT
+          # CI always runs both agents: never pass --agent, which would make a partial result.
+          # (Partial runs are local-only; the guard below fails the job if a summary is partial.)
           set +e
           if [ "$MODE" = "adjacent" ]; then
             summary=".tmp/routing/reports/$SKILL.summary.json"
@@ -148,6 +150,10 @@ jobs:
           breaches="$(jq -r '.breaches // [] | map("\(.host) \(.ceiling) limit \(.limit) observed \(.observed)") | join("; ")' "$summary" 2>/dev/null || true)"
           if [ -n "$breaches" ]; then
             echo "::warning title=ceiling::$SKILL: ceiling breached, run stopped as infra_error: $breaches"
+          fi
+          if [ "$(jq -r '.partial // false' "$summary" 2>/dev/null)" = "true" ]; then
+            echo "::error title=partial::$SKILL ($MODE): CI must run both agents, summary is partial"
+            exit 2
           fi
           # Only 0, 1 (routing_fail) and 3 (infra_error) are advisory results (docs/testing.md);
           # 2 and anything else is a harness or validation error and fails the job.

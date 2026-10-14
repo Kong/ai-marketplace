@@ -46,6 +46,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ceilings.py",
   "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js evals/promptfoo/settings.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_settings.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_agents.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "gh skill publish --dry-run",
@@ -59,16 +60,17 @@ arg "<mode>" help="changed: skills changed since --base; skill: one named skill;
 }
 arg "[name]" help="Target skill name (skill mode only)"
 flag "--base <ref>" help="Git base for changed mode (default: origin/main, else main)"
+flag "--agent <agent>" var=#true help="Run only this agent (claude or codex; repeatable or comma-separated). Default: both. A subset run is marked partial."
 '''
 env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
 run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
-  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/claude --host claude",
-  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/codex --host codex",
+  # Workspaces only for the selected agents; an unknown agent exits 2 here, before any run.
+  "agents=$(uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_agents.py $usage_agent) || exit 2; for agent in $agents; do uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/prepare_routing_workspace.py .tmp/routing/$agent --host $agent || exit $?; done",
   # Resolves the mode to skills, then per skill: validates scenarios, runs each host independently,
   # retries infrastructure errors once, and reduces each host to pass, routing_fail, or infra_error.
   # Every skill runs; worst exit wins: harness error (2 or other) > 1 routing_fail > 3 infra_error (see docs/testing.md).
-  "targets=$(uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_targets.py {{usage.mode}} '{{usage.name}}' ${usage_base:+--base \"$usage_base\"}) || exit 2; rc=0; for skill in $targets; do uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_eval.py $skill; r=$?; case $r in 0) ;; 1) [ $rc -eq 2 ] || rc=1 ;; 3) [ $rc -eq 0 ] && rc=3 ;; *) rc=2 ;; esac; done; exit $rc",
+  "targets=$(uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_targets.py {{usage.mode}} '{{usage.name}}' ${usage_base:+--base \"$usage_base\"}) || exit 2; agents=$(uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_agents.py $usage_agent) || exit 2; agent_args=; for agent in $agents; do agent_args=\"$agent_args --agent $agent\"; done; rc=0; for skill in $targets; do uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_eval.py $skill $agent_args; r=$?; case $r in 0) ;; 1) [ $rc -eq 2 ] || rc=1 ;; 3) [ $rc -eq 0 ] && rc=3 ;; *) rc=2 ;; esac; done; exit $rc",
 ]
 
 [tasks."eval:routing:compare"]
@@ -76,12 +78,13 @@ description = "Compare one skill's routing with its merge base, per host: mise r
 usage = '''
 arg "<name>" help="Skill name; a skill absent at the merge base is judged on absolute thresholds"
 flag "--base <ref>" default="origin/main" help="Ref whose merge base with HEAD is the control"
+flag "--agent <agent>" var=#true help="Run only this agent (claude or codex; repeatable or comma-separated). Default: both. A subset run is marked partial."
 '''
 env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
 run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
   # Materializes isolated candidate and control workspaces itself. Exit codes: see docs/testing.md.
-  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_comparison.py {{usage.name}} --base {{usage.base}}",
+  "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_comparison.py {{usage.name}} --base {{usage.base}} $agent_args",
 ]
 
 [tasks."eval:routing:config"]

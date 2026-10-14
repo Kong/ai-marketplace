@@ -14,6 +14,7 @@ import json
 import sys
 from typing import Any
 
+import routing_agents as agents_lib
 import routing_ceilings as ceilings
 import routing_settings as settings_lib
 import validate_routing_scenarios as scenarios
@@ -40,6 +41,7 @@ def collect() -> dict[str, Any]:
         "fixed": loaded["fixed"],
         "trials": trial_policy(),
         "ceilings": {"defaults": ceiling_defaults(), "effective": vars(ceilings.Ceilings.from_env())},
+        "agents": list(agents_lib.AGENTS),
         "override_variables": list(settings_lib.OVERRIDE_VARIABLES),
     }
 
@@ -50,6 +52,7 @@ def render(config: dict[str, Any]) -> str:
         lines.append(f"{host}: {settings_lib.describe(doc)}")
     if config["overridden"]:
         lines.append(f"  overridden: true ({', '.join(config['override_variables'])} are set)")
+    lines += ["", f"Selectable agents (--agent, repeatable or comma-separated; default all): {', '.join(config['agents'])}"]
     lines += ["", "Fixed discovery settings (not configurable):"]
     for host, fixed in config["fixed"].items():
         lines.append(f"  {host}: " + ", ".join(f"{k}={json.dumps(v)}" for k, v in fixed.items()))

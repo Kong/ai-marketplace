@@ -82,6 +82,29 @@ class EntryPointTests(unittest.TestCase):
             self.assertEqual((env["ROUTING_CODEX_MODEL"], env["ROUTING_CODEX_EFFORT"]), ("gpt-x", "high"))
         self.assertNotEqual(envs[0]["ROUTING_WORKSPACE_ROOT"], envs[1]["ROUTING_WORKSPACE_ROOT"])
 
+    def test_eval_runner_subset_runs_only_selected_agents_and_marks_summary_partial(self) -> None:
+        ran = []
+        reports = Path(__file__).resolve().parents[1] / ".tmp" / "test-agent-subset"
+
+        def fake(host, skill, **kwargs):
+            ran.append(host)
+            return r.host_failure(host, skill, r.PROVIDER, "down")
+
+        with mock.patch.dict("os.environ", CLEAN), mock.patch.object(runner, "evaluate_host", fake), \
+             mock.patch.object(runner, "REPORTS_DIR", reports), mock.patch.object(runner.scenarios, "validate_scenarios", return_value=[]), \
+             mock.patch.object(runner.scenarios, "known_skill_names", return_value={"alpha"}), \
+             redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()):
+            code = runner.main(["x", "alpha", "--agent", "claude"])
+        self.assertEqual((ran, code), (["claude"], 3))
+        summary = json.loads((reports / "alpha.summary.json").read_text())
+        self.assertEqual((summary["agents_run"], summary["partial"]), (["claude"], True))
+        self.assertIn("overall: infra_error (partial: claude only)", out.getvalue())
+        self.assertFalse((reports / "codex-alpha.result.json").exists())
+
+    def test_eval_runner_rejects_unknown_agent(self) -> None:
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(runner.main(["x", "alpha", "--agent", "gemini"]), 2)
+
     def test_summary_lines_show_effective_settings(self) -> None:
         s = settings_lib.load(CLEAN)
         doc = settings_lib.annotate(r.host_failure("codex", "alpha", r.PROVIDER, "down"), s)

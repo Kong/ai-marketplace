@@ -4,6 +4,7 @@ Synthetic results and throwaway git repositories; no model calls.
 """
 from __future__ import annotations
 
+import json
 import subprocess
 import tempfile
 import textwrap
@@ -347,7 +348,7 @@ class NewSkillMinimumTests(unittest.TestCase):
 class DriverPolicyTests(ThrowawayRepo):
     """main() end to end with the Promptfoo runner stubbed."""
 
-    def run_main(self, skill: str, scenario_dir: Path, fake, adjacent=("beta", "gamma")) -> tuple[int, list[str]]:
+    def run_main(self, skill: str, scenario_dir: Path, fake, adjacent=("beta", "gamma"), extra=()) -> tuple[int, list[str]]:
         calls: list[str] = []
 
         def stub(host, name, report, pattern, env=None, ledger=None):
@@ -370,7 +371,7 @@ class DriverPolicyTests(ThrowawayRepo):
         self.write_skill("gamma", "new skill")
         self.git("add", "-A")
         self.git("commit", "-q", "-m", "gamma")
-        return driver.main(["run", skill, "--base", "main"]), calls
+        return driver.main(["run", skill, "--base", "main", *extra]), calls
 
     def scenario_dir(self, content: str) -> Path:
         directory = self.repo / "scenarios"
@@ -449,6 +450,38 @@ class ExitCodeTests(unittest.TestCase):
     def test_workspace_errors_exit_2(self) -> None:
         with mock.patch("sys.stderr"):
             self.assertEqual(prep.main(["p", "/tmp/not-under-the-repo-tmp"]), 2)
+
+
+class AgentSubsetDriverTests(DriverPolicyTests):
+    def modified(self, extra):
+        directory = self.scenario_dir(scenario_yaml(skill="alpha"))
+        (directory / "gamma.yaml").rename(directory / "alpha.yaml")
+        return self.run_main("alpha", directory, lambda: ("", [fixtures.row()]), extra=extra)
+
+    def test_subset_runs_only_that_agent_and_is_marked_partial(self) -> None:
+        code, calls = self.modified(["--agent", "codex"])
+        self.assertEqual((code, calls), (0, ["codex:candidate", "codex:control"]))
+        reports = self.repo / ".tmp/routing/reports"
+        summary = json.loads((reports / "alpha.comparison-summary.json").read_text())
+        self.assertEqual((summary["agents_run"], summary["partial"]), (["codex"], True))
+        self.assertEqual(list(summary["hosts"]), ["codex"])
+        doc = json.loads((reports / "codex-alpha.comparison.json").read_text())
+        self.assertEqual((doc["agents_run"], doc["partial"]), (["codex"], True))
+        self.assertFalse((reports / "claude-alpha.comparison.json").exists())
+        self.assertFalse((self.repo / ".tmp/routing/candidate/claude").exists())
+
+    def test_comma_separated_and_default_cover_both_agents_and_are_not_partial(self) -> None:
+        for extra in ([], ["--agent", "claude,codex"]):
+            self.setUp()
+            code, calls = self.modified(extra)
+            self.assertEqual(len(calls), 4)
+            summary = json.loads((self.repo / ".tmp/routing/reports/alpha.comparison-summary.json").read_text())
+            self.assertEqual((summary["agents_run"], summary["partial"]), (["claude", "codex"], False))
+
+    def test_unknown_agent_exits_2_before_any_run(self) -> None:
+        with mock.patch("sys.stderr"):
+            code, calls = self.modified(["--agent", "gemini"])
+        self.assertEqual((code, calls), (2, []))
 
 
 class DescribeTests(unittest.TestCase):

@@ -97,6 +97,15 @@ task exits non-zero if either failed.
   skill's own expected/forbidden routes still hold; changed skills keep their scenario trials.
   Adjacent skills without scenarios are skipped with a note, and adjacent skills never run
   without a changed skill that has scenarios. `routing_targets.py adjacent` lists them.
+- Agents: an *agent* is the agent runtime (Claude Code or Codex) that the spec and the result
+  documents call a *host*; document keys and code identifiers keep the name `host`. Add
+  `--agent claude|codex` (repeatable or comma-separated; default both) to `eval:routing` or
+  `eval:routing:compare` to run a subset. Only the selected agents get workspaces, runs,
+  retries, ceilings, and reports; an unknown name exits 2. A subset run is never a complete
+  result: summaries and comparisons record `agents_run` and `partial: true`, the overall
+  state covers only the agents run, and the console says `pass (partial: claude only)`.
+  Without the flag a missing agent is still `infra_error`. CI never passes `--agent` and
+  fails if a summary is partial. `mise run eval:routing:config` lists the selectable agents.
 - Claude (`ANTHROPIC_API_KEY`): the agent only has the `Skill` tool. Evidence is
   a successful native skill call. Positives stop once it succeeds.
 - Codex (local Codex login or `OPENAI_API_KEY`): read-only sandbox, no network,
