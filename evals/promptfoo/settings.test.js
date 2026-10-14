@@ -10,7 +10,7 @@ test('defaults are the pins and marked default', () => {
   assert.strictEqual(DEFAULTS.claude.effort, null);
 });
 
-test('overrides apply per host and are marked', () => {
+test('overrides apply per agent and are marked', () => {
   const env = { ROUTING_CODEX_MODEL: 'gpt-x', ROUTING_CLAUDE_EFFORT: 'max' };
   assert.deepStrictEqual(resolve('codex', env).model, { value: 'gpt-x', source: 'override' });
   assert.strictEqual(resolve('codex', env).effort.source, 'default');
@@ -25,7 +25,7 @@ test('invalid values throw', () => {
   assert.ok(!EFFORTS.claude.includes('minimal'));
 });
 
-test('host configs read the shared settings and keep fixed restrictions', () => {
+test('agent configs read the shared settings and keep fixed restrictions', () => {
   process.env.ROUTING_SKILL = 'konnect-gateway-triage';
   Object.assign(process.env, { ROUTING_CODEX_MODEL: 'gpt-x', ROUTING_CODEX_EFFORT: 'high', ROUTING_CLAUDE_MODEL: 'claude-x', ROUTING_CLAUDE_EFFORT: 'high' });
   try {

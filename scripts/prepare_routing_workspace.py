@@ -1,11 +1,11 @@
-"""Materialize a per-host project workspace exposing every repo skill for routing evals.
+"""Materialize a per-agent project workspace exposing every repo skill for routing evals.
 
 Claude discovers project skills under <workspace>/.claude/skills/<name>/ and Codex
 under <workspace>/.agents/skills/<name>/. Copies (not symlinks) keep the eval run
 isolated from the checkout.
 
     python scripts/prepare_routing_workspace.py .tmp/routing/claude
-    python scripts/prepare_routing_workspace.py .tmp/routing/codex --host codex
+    python scripts/prepare_routing_workspace.py .tmp/routing/codex --agent codex
     python scripts/prepare_routing_workspace.py .tmp/routing/control/claude --ref <merge-base>
 
 With --ref, skills come from that git revision instead of the working tree (the control).
@@ -22,7 +22,7 @@ import check_repo
 import select_changed
 
 TMP_ROOT = check_repo.REPO_ROOT / ".tmp"
-HOST_SKILLS_DIRS = {"claude": Path(".claude/skills"), "codex": Path(".agents/skills")}
+AGENT_SKILLS_DIRS = {"claude": Path(".claude/skills"), "codex": Path(".agents/skills")}
 
 
 def copy_skill_at_ref(plugin: str, dir_name: str, ref: str, dest: Path) -> None:
@@ -41,8 +41,8 @@ def copy_skill_at_ref(plugin: str, dir_name: str, ref: str, dest: Path) -> None:
         target.write_bytes(blob)
 
 
-def prepare_workspace(out: Path, host: str = "claude", ref: str | None = None) -> list[str]:
-    """Rebuild `out` with all skills for `host`; refuse destinations outside .tmp/.
+def prepare_workspace(out: Path, agent: str = "claude", ref: str | None = None) -> list[str]:
+    """Rebuild `out` with all skills for `agent`; refuse destinations outside .tmp/.
 
     Skills come from the working tree, or from git revision `ref` when given.
     """
@@ -51,7 +51,7 @@ def prepare_workspace(out: Path, host: str = "claude", ref: str | None = None) -
         raise ValueError(f"workspace must be a subdirectory of {TMP_ROOT}: {out}")
     if out.exists():
         shutil.rmtree(out)
-    skills_root = out / HOST_SKILLS_DIRS[host]
+    skills_root = out / AGENT_SKILLS_DIRS[agent]
     skills_root.mkdir(parents=True)
     names: list[str] = []
     if ref is not None:
@@ -74,15 +74,15 @@ def prepare_workspace(out: Path, host: str = "claude", ref: str | None = None) -
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("workspace", help="workspace directory under .tmp/")
-    parser.add_argument("--host", choices=sorted(HOST_SKILLS_DIRS), default="claude")
+    parser.add_argument("--agent", choices=sorted(AGENT_SKILLS_DIRS), default="claude")
     parser.add_argument("--ref", help="git revision to read skills from instead of the working tree")
     args = parser.parse_args(argv[1:])
     try:
-        names = prepare_workspace(Path(args.workspace), args.host, args.ref)
+        names = prepare_workspace(Path(args.workspace), args.agent, args.ref)
     except (ValueError, subprocess.CalledProcessError, select_changed.SelectionError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 2
-    print(f"prepared {len(names)} {args.host} skills in {args.workspace}")
+    print(f"prepared {len(names)} {args.agent} skills in {args.workspace}")
     return 0
 
 

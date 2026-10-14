@@ -1,13 +1,13 @@
-"""Compare a skill's routing in the PR (candidate) with its merge-base (control), per host.
+"""Compare a skill's routing in the PR (candidate) with its merge-base (control), per agent.
 
     python scripts/run_routing_comparison.py <skill> [--base REF] [--agent claude|codex ...]
     (REF defaults to origin/main; --agent defaults to both and a subset run is marked partial)
 
-Two isolated workspaces are materialized under `.tmp/routing/{candidate,control}/<host>`:
+Two isolated workspaces are materialized under `.tmp/routing/{candidate,control}/<agent>`:
 candidate skills come from the working tree, control skills from `git merge-base REF HEAD`.
-Both runs use the same scenarios, host configs, models, tools, and trial counts; only the
+Both runs use the same scenarios, agent configs, models, tools, and trial counts; only the
 workspace differs. Reports land in `.tmp/routing/reports/{candidate,control}/`, and the
-comparison in `.tmp/routing/reports/<host>-<skill>.comparison.json` (shape documented in
+comparison in `.tmp/routing/reports/<agent>-<skill>.comparison.json` (shape documented in
 routing_compare.py). No score baseline is stored anywhere.
 
 A skill absent at the merge base is new: control is skipped, the scenario minimums are
@@ -57,7 +57,7 @@ def skills_at(ref: str) -> set[str]:
 
 def evaluate_variant(
     variant: str,
-    host: str,
+    agent: str,
     skill: str,
     ref: str | None,
     validation_errors: list[str],
@@ -65,7 +65,7 @@ def evaluate_variant(
     routing_dir: Path | None = None,
     ledger: ceilings.Ledger | None = None,
 ) -> dict[str, Any]:
-    """Materialize one variant's workspace for `host` and reduce its routing run.
+    """Materialize one variant's workspace for `agent` and reduce its routing run.
 
     The workspace root is handed to the Promptfoo configs through ROUTING_WORKSPACE_ROOT;
     nothing else differs between variants. `ref` None means the working tree.
@@ -73,13 +73,13 @@ def evaluate_variant(
     routing_dir = routing_dir or ROUTING_DIR
     root = routing_dir / variant
     if not validation_errors:
-        workspaces.prepare_workspace(root / host, host, ref)
+        workspaces.prepare_workspace(root / agent, agent, ref)
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     run = run or (lambda h, s, report, pattern: runner.run_promptfoo(
         h, s, report, pattern, env={"ROUTING_WORKSPACE_ROOT": str(root)}, ledger=ledger
     ))
-    return runner.evaluate_host(
-        host, skill, run, reports_dir=routing_dir / "reports" / variant, validation_errors=validation_errors, ledger=ledger
+    return runner.evaluate_agent(
+        agent, skill, run, reports_dir=routing_dir / "reports" / variant, validation_errors=validation_errors, ledger=ledger
     )
 
 
@@ -105,12 +105,12 @@ def _describe_state(doc: dict[str, Any]) -> str:
             f"{name}={c['passes']}/{c['trials']} (need {c['required']:.0%}, {'met' if c['met'] else 'NOT met'})"
             for name, c in doc["expectations"].items()
         ]
-        return f"{doc['host']}: {doc['state']}{'' if doc['complete'] else ' [incomplete]'} new skill, control skipped: " + ", ".join(parts)
+        return f"{doc['agent']}: {doc['state']}{'' if doc['complete'] else ' [incomplete]'} new skill, control skipped: " + ", ".join(parts)
     agg = doc["aggregate"]
     fmt = lambda s: "n/a" if s["rate"] is None else f"{s['passes']}/{s['trials']}"  # noqa: E731
     delta = "n/a" if agg["delta"] is None else f"{agg['delta']:+.2f}"
     return (
-        f"{doc['host']}: {doc['state']}{'' if doc['complete'] else ' [incomplete]'} "
+        f"{doc['agent']}: {doc['state']}{'' if doc['complete'] else ' [incomplete]'} "
         f"candidate {fmt(agg['candidate'])} control {fmt(agg['control'])} delta {delta}"
     )
 
@@ -165,21 +165,21 @@ def main(argv: list[str]) -> int:
     tags = {s["id"]: s.get("tags") or [] for s in scenarios.target_scenarios(scenarios.SCENARIOS_DIR, skill)}
     print(f"{skill}: {'new skill (no control)' if is_new else 'modified'}; merge base {base[:12]}")
     docs = []
-    for host in agents:
-        candidate = evaluate_variant("candidate", host, skill, None, validation_errors, ledger=ledger)
+    for agent in agents:
+        candidate = evaluate_variant("candidate", agent, skill, None, validation_errors, ledger=ledger)
         if is_new:
             doc = compare.evaluate_new_skill(candidate, tags)
         else:
-            control = evaluate_variant("control", host, skill, base, validation_errors, ledger=ledger)
-            doc = compare.compare_host(candidate, control)
+            control = evaluate_variant("control", agent, skill, base, validation_errors, ledger=ledger)
+            doc = compare.compare_agent(candidate, control)
         docs.append(settings_lib.annotate(doc, settings))
         doc.update(agents_lib.scope(agents))
 
     runner.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for doc in docs:
-        (runner.REPORTS_DIR / f"{doc['host']}-{skill}.comparison.json").write_text(json.dumps(doc, indent=2) + "\n")
+        (runner.REPORTS_DIR / f"{doc['agent']}-{skill}.comparison.json").write_text(json.dumps(doc, indent=2) + "\n")
         print(describe(doc))
-    combined = results.combine_hosts(docs, required=agents)
+    combined = results.combine_agents(docs, required=agents)
     (runner.REPORTS_DIR / f"{skill}.comparison-summary.json").write_text(json.dumps(combined, indent=2) + "\n")
     print(f"overall: {agents_lib.label(combined['state'], agents)}")
     return runner.EXIT_CODES[combined["state"]]

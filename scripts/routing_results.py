@@ -1,4 +1,4 @@
-"""Reduce Promptfoo routing results into per-host states: pass, routing_fail, infra_error.
+"""Reduce Promptfoo routing results into per-agent states: pass, routing_fail, infra_error.
 
 Pure functions, no I/O and no model calls. `run_routing_eval.py` feeds this module
 Promptfoo JSON rows; later consumers (candidate/control comparison) read the
@@ -6,11 +6,11 @@ documents it returns.
 
 States
     pass           every scenario met its route.
-    routing_fail   the host answered and telemetry was valid, but a route was wrong.
+    routing_fail   the agent answered and telemetry was valid, but a route was wrong.
     infra_error    the run could not be judged; never attributed to skill quality.
-                   A persistent one leaves the host *incomplete* (`complete: false`).
+                   A persistent one leaves the agent *incomplete* (`complete: false`).
 
-Failure kinds (why a trial or host is not `pass`)
+Failure kinds (why a trial or agent is not `pass`)
     invocation           routing_fail: expected skill not invoked, or forbidden one was.
     provider             infra_error: provider error, missing credentials, or no usable
                          report from Promptfoo.
@@ -19,25 +19,25 @@ Failure kinds (why a trial or host is not `pass`)
     telemetry            infra_error: response arrived but skill-call telemetry is malformed.
     scenario_validation  infra_error: scenarios failed offline validation; nothing was run.
 
-Host result document (`reduce_host` / `host_failure`)
+Agent result document (`reduce_agent` / `agent_failure`)
     {
-      "host": "codex", "skill": "<target>",
+      "agent": "codex", "skill": "<target>",
       "state": "pass|routing_fail|infra_error",
       "complete": bool,              # false only for infra_error
-      "retries": int,                # retry attempts run for this host (0 or 1)
+      "retries": int,                # retry attempts run for this agent (0 or 1)
       "failure_kinds": ["invocation"|"provider"|"telemetry"|"ceiling"|"scenario_validation"],
       "usage": {"trials", "tokens", "cost_usd", "latency_ms"},   # all attempts, incl. retries
-      "breaches": [{"ceiling", "limit", "observed", "host"}],    # non-empty => infra_error
+      "breaches": [{"ceiling", "limit", "observed", "agent"}],    # non-empty => infra_error
       "settings": {"model": {"value", "source"}, "effort": {"value"|null, "source"}},
-                                     # effective host settings; source is "default" or "override"
+                                     # effective agent settings; source is "default" or "override"
       "agents_run": [...], "partial": bool,   # run scripts add these; partial = fewer than all agents ran
       "overridden": bool,            # any ROUTING_*_MODEL / _EFFORT override was active
-                                     # (settings/overridden are added by the run scripts, not reduce_host)
+                                     # (settings/overridden are added by the run scripts, not reduce_agent)
       "counts": {"pass": n, "routing_fail": n, "infra_error": n},   # final trials
       "scenarios": [{
         "id", "state", "passes", "required_passes", "trials": [trial, ...]
       }],
-      "reason": str | None           # host-level failures only (no scenarios ran)
+      "reason": str | None           # agent-level failures only (no scenarios ran)
     }
     trial = {
       "scenario", "trial", "trials", "state", "kind", "reason",
@@ -48,17 +48,17 @@ Host result document (`reduce_host` / `host_failure`)
     }
 Rules
     * A scenario passes when passing trials >= ceil(2/3 * trials) (3 -> 2, 1 -> 1).
-    * Any trial still infra_error after retry makes its scenario, and the host,
+    * Any trial still infra_error after retry makes its scenario, and the agent,
       infra_error (incomplete). Scenario-level states stay visible so real routing
       failures in the same run are not hidden.
-    * Any ceiling breach makes the host infra_error (incomplete) even if trials were
+    * Any ceiling breach makes the agent infra_error (incomplete) even if trials were
       judged; the judged scenarios stay visible but are not trusted as a full result.
-    * Otherwise any failed scenario makes the host routing_fail.
+    * Otherwise any failed scenario makes the agent routing_fail.
 
-Cross-host document (`combine_hosts`):
-`{"state", "complete", "hosts": {host: state}, "usage": {host: usage}, "breaches": [...]}`.
-Hosts never offset each other: routing_fail on any host wins, then infra_error
-(including a host with no result), and only all-pass is pass.
+Cross-agent document (`combine_agents`):
+`{"state", "complete", "agents": {agent: state}, "usage": {agent: usage}, "breaches": [...]}`.
+Agents never offset each other: routing_fail on any agent wins, then infra_error
+(including an agent with no result), and only all-pass is pass.
 """
 from __future__ import annotations
 
@@ -77,7 +77,7 @@ TELEMETRY = "telemetry"
 CEILING = "ceiling"
 SCENARIO_VALIDATION = "scenario_validation"
 
-HOSTS = ("claude", "codex")
+AGENTS = ("claude", "codex")
 # Promptfoo ResultFailureReason: 0 none, 1 assertion, 2 error.
 FAILURE_REASON_ERROR = 2
 MAX_TEXT = 300
@@ -90,7 +90,7 @@ def _clip(text: Any) -> str | None:
     return first[:MAX_TEXT] or None
 
 
-def telemetry_problem(response: Any, host: str) -> str | None:
+def telemetry_problem(response: Any, agent: str) -> str | None:
     """Return why a provider response cannot be trusted as routing telemetry, else None.
 
     Promptfoo's skill assertions silently treat missing or malformed `skillCalls` as
@@ -101,14 +101,14 @@ def telemetry_problem(response: Any, host: str) -> str | None:
     """
     if not isinstance(response, dict):
         return "provider returned no response object"
-    if host == "codex" and not isinstance(response.get("output"), str):
+    if agent == "codex" and not isinstance(response.get("output"), str):
         return "response output is missing or not a string"
     metadata = response.get("metadata")
     if metadata is not None and not isinstance(metadata, dict):
         return "response metadata is not an object"
     calls = (metadata or {}).get("skillCalls")
     if calls is None:
-        return "response has no skillCalls telemetry" if host == "claude" else None
+        return "response has no skillCalls telemetry" if agent == "claude" else None
     if not isinstance(calls, list):
         return "skillCalls is not a list"
     for call in calls:
@@ -124,7 +124,7 @@ def _identity(row: dict[str, Any]) -> tuple[str, int, int, dict[str, Any]]:
     return scenario, int(meta.get("trial") or 1), int(meta.get("trials") or 1), meta
 
 
-def reduce_trial(row: dict[str, Any], host: str) -> dict[str, Any]:
+def reduce_trial(row: dict[str, Any], agent: str) -> dict[str, Any]:
     """Classify one Promptfoo result row."""
     scenario, trial, trials, meta = _identity(row)
     response = row.get("response")
@@ -136,7 +136,7 @@ def reduce_trial(row: dict[str, Any], host: str) -> dict[str, Any]:
 
     if error or row.get("failureReason") == FAILURE_REASON_ERROR:
         state, kind, reason = INFRA_ERROR, PROVIDER, _clip(error) or "provider error"
-    elif (problem := telemetry_problem(response, host)) is not None:
+    elif (problem := telemetry_problem(response, agent)) is not None:
         state, kind, reason = INFRA_ERROR, TELEMETRY, problem
     elif row.get("success"):
         state, kind, reason = PASS, None, _clip(grading.get("reason"))
@@ -174,21 +174,21 @@ def _scenario_state(passes: int, required: int, trials: list[dict[str, Any]]) ->
     return PASS if passes >= required else ROUTING_FAIL
 
 
-def reduce_host(
-    host: str, skill: str, attempts: list[list[dict[str, Any]]], breaches: list[dict[str, Any]] | None = None
+def reduce_agent(
+    agent: str, skill: str, attempts: list[list[dict[str, Any]]], breaches: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
-    """Reduce Promptfoo rows to a host result.
+    """Reduce Promptfoo rows to an agent result.
 
     `attempts[0]` is the full run; each later entry holds only the retried trials.
     The latest row for a (scenario, trial) wins, so a transient failure that passes
     on retry reports `pass` with `attempts: 2`. `breaches` are ceilings reached during
-    the run; any of them makes the host infra_error.
+    the run; any of them makes the agent infra_error.
     """
     breaches = breaches or []
     merged: dict[tuple[str, int], dict[str, Any]] = {}
     for number, rows in enumerate(attempts, start=1):
         for row in rows:
-            trial = reduce_trial(row, host)
+            trial = reduce_trial(row, agent)
             trial["attempts"] = number
             merged[(trial["scenario"], trial["trial"])] = trial
 
@@ -213,7 +213,7 @@ def reduce_host(
     all_trials = [t for s in scenarios for t in s["trials"]]
     kinds = sorted({t["kind"] for t in all_trials if t["kind"]} | ({CEILING} if breaches else set()))
     return {
-        "host": host,
+        "agent": agent,
         "skill": skill,
         "state": state,
         "complete": state != INFRA_ERROR,
@@ -227,14 +227,14 @@ def reduce_host(
     }
 
 
-def host_failure(
-    host: str, skill: str, kind: str, reason: str, retries: int = 0, breaches: list[dict[str, Any]] | None = None
+def agent_failure(
+    agent: str, skill: str, kind: str, reason: str, retries: int = 0, breaches: list[dict[str, Any]] | None = None
 ) -> dict[str, Any]:
-    """Host result for a failure outside any trial: no report, crash, invalid scenarios, or a ceiling."""
+    """Agent result for a failure outside any trial: no report, crash, invalid scenarios, or a ceiling."""
     if kind not in (PROVIDER, TELEMETRY, SCENARIO_VALIDATION, CEILING):
-        raise ValueError(f"host-level failure kind must be infrastructure, got {kind!r}")
+        raise ValueError(f"agent-level failure kind must be infrastructure, got {kind!r}")
     return {
-        "host": host,
+        "agent": agent,
         "skill": skill,
         "state": INFRA_ERROR,
         "complete": False,
@@ -248,26 +248,26 @@ def host_failure(
     }
 
 
-def combine_hosts(results: list[dict[str, Any]], required: tuple[str, ...] = HOSTS) -> dict[str, Any]:
-    """Combine independent host results; a passing host never offsets another.
+def combine_agents(results: list[dict[str, Any]], required: tuple[str, ...] = AGENTS) -> dict[str, Any]:
+    """Combine independent agent results; a passing agent never offsets another.
 
-    `required` defaults to every host, so a missing host is infra_error. A subset run passes only
-    the hosts it ran; the document then says `partial: true` and lists `agents_run`, so it can
-    never be mistaken for a complete result (the state covers only those hosts).
+    `required` defaults to every agent, so a missing agent is infra_error. A subset run passes only
+    the agents it ran; the document then says `partial: true` and lists `agents_run`, so it can
+    never be mistaken for a complete result (the state covers only those agents).
     """
-    # An incomplete host (e.g. an infra_error control behind a passing candidate) is never a pass.
-    by_host = {r["host"]: (r["state"] if r.get("complete", True) or r["state"] != PASS else INFRA_ERROR) for r in results}
-    hosts = {host: by_host.get(host, INFRA_ERROR) for host in required}
-    states = set(hosts.values())
+    # An incomplete agent (e.g. an infra_error control behind a passing candidate) is never a pass.
+    by_agent = {r["agent"]: (r["state"] if r.get("complete", True) or r["state"] != PASS else INFRA_ERROR) for r in results}
+    agents = {agent: by_agent.get(agent, INFRA_ERROR) for agent in required}
+    states = set(agents.values())
     state = ROUTING_FAIL if ROUTING_FAIL in states else (INFRA_ERROR if INFRA_ERROR in states else PASS)
     return {
         "state": state,
         "complete": INFRA_ERROR not in states,
         "agents_run": list(required),
-        "partial": set(required) != set(HOSTS),
-        "hosts": hosts,
-        "usage": {r["host"]: r["usage"] for r in results if "usage" in r},
+        "partial": set(required) != set(AGENTS),
+        "agents": agents,
+        "usage": {r["agent"]: r["usage"] for r in results if "usage" in r},
         "breaches": [b for r in results for b in r.get("breaches") or []],
-        "settings": {r["host"]: r["settings"] for r in results if "settings" in r},
+        "settings": {r["agent"]: r["settings"] for r in results if "settings" in r},
         "overridden": any(r.get("overridden") for r in results),
     }

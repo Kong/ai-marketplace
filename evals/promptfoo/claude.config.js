@@ -49,5 +49,5 @@ module.exports = {
     { id: 'anthropic:claude-agent-sdk', label: LABELS.positive, config: { ...base, hooks: stopAfterSkill } },
     { id: 'anthropic:claude-agent-sdk', label: LABELS.negative, config: base },
   ],
-  tests: buildTests({ skill, host: 'claude', providerLabels: LABELS, dir: process.env.ROUTING_SCENARIOS_DIR || SCENARIOS_DIR }),
+  tests: buildTests({ skill, agent: 'claude', providerLabels: LABELS, dir: process.env.ROUTING_SCENARIOS_DIR || SCENARIOS_DIR }),
 };

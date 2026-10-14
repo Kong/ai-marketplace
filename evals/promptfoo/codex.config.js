@@ -44,7 +44,7 @@ module.exports = {
   providers: [{ id: 'openai:codex-sdk', label: LABEL, config: base }],
   tests: buildTests({
     skill,
-    host: 'codex',
+    agent: 'codex',
     providerLabels: { positive: LABEL, negative: LABEL },
     dir: process.env.ROUTING_SCENARIOS_DIR || SCENARIOS_DIR,
   }),

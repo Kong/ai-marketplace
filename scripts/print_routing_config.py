@@ -2,7 +2,7 @@
 
     python scripts/print_routing_config.py [--json]
 
-Per host: effective model and effort, marked default or override (ROUTING_CODEX_MODEL,
+Per agent: effective model and effort, marked default or override (ROUTING_CODEX_MODEL,
 ROUTING_CODEX_EFFORT, ROUTING_CLAUDE_MODEL, ROUTING_CLAUDE_EFFORT), plus the fixed discovery
 settings, trial policy, and ceilings (defaults and variable names) read from their owning
 modules. Invalid override values exit 2, as they do for the eval scripts.
@@ -36,26 +36,26 @@ def ceiling_defaults() -> dict[str, str]:
 def collect() -> dict[str, Any]:
     loaded = settings_lib.load_all()
     return {
-        "hosts": loaded["settings"],
+        "agents": loaded["settings"],
         "overridden": any(doc["overridden"] for doc in loaded["settings"].values()),
         "fixed": loaded["fixed"],
         "trials": trial_policy(),
         "ceilings": {"defaults": ceiling_defaults(), "effective": vars(ceilings.Ceilings.from_env())},
-        "agents": list(agents_lib.AGENTS),
+        "selectable_agents": list(agents_lib.AGENTS),
         "override_variables": list(settings_lib.OVERRIDE_VARIABLES),
     }
 
 
 def render(config: dict[str, Any]) -> str:
     lines = ["Routing eval configuration (CI always uses the pinned defaults)", ""]
-    for host, doc in config["hosts"].items():
-        lines.append(f"{host}: {settings_lib.describe(doc)}")
+    for agent, doc in config["agents"].items():
+        lines.append(f"{agent}: {settings_lib.describe(doc)}")
     if config["overridden"]:
         lines.append(f"  overridden: true ({', '.join(config['override_variables'])} are set)")
-    lines += ["", f"Selectable agents (--agent, repeatable or comma-separated; default all): {', '.join(config['agents'])}"]
+    lines += ["", f"Selectable agents (--agent, repeatable or comma-separated; default all): {', '.join(config['selectable_agents'])}"]
     lines += ["", "Fixed discovery settings (not configurable):"]
-    for host, fixed in config["fixed"].items():
-        lines.append(f"  {host}: " + ", ".join(f"{k}={json.dumps(v)}" for k, v in fixed.items()))
+    for agent, fixed in config["fixed"].items():
+        lines.append(f"  {agent}: " + ", ".join(f"{k}={json.dumps(v)}" for k, v in fixed.items()))
     trials = config["trials"]
     lines += [
         "",

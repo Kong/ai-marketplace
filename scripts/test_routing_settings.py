@@ -41,14 +41,14 @@ class ResolutionTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, name):
                 settings_lib.load({**CLEAN, name: value})
 
-    def test_documents_record_settings_per_host_and_summary_aggregates(self) -> None:
+    def test_documents_record_settings_per_agent_and_summary_aggregates(self) -> None:
         s = settings_lib.load({**CLEAN, "ROUTING_CODEX_EFFORT": "high"})
-        docs = [settings_lib.annotate({"host": h, "state": r.PASS, "complete": True}, s) for h in r.HOSTS]
-        self.assertEqual({d["host"]: d["overridden"] for d in docs}, {"claude": False, "codex": True})
-        combined = r.combine_hosts(docs)
+        docs = [settings_lib.annotate({"agent": h, "state": r.PASS, "complete": True}, s) for h in r.AGENTS]
+        self.assertEqual({d["agent"]: d["overridden"] for d in docs}, {"claude": False, "codex": True})
+        combined = r.combine_agents(docs)
         self.assertTrue(combined["overridden"])
         self.assertEqual(combined["settings"]["codex"]["effort"], {"value": "high", "source": "override"})
-        self.assertFalse(r.combine_hosts([{"host": h, "state": r.PASS} for h in r.HOSTS])["overridden"])
+        self.assertFalse(r.combine_agents([{"agent": h, "state": r.PASS} for h in r.AGENTS])["overridden"])
 
 
 class EntryPointTests(unittest.TestCase):
@@ -86,11 +86,11 @@ class EntryPointTests(unittest.TestCase):
         ran = []
         reports = Path(__file__).resolve().parents[1] / ".tmp" / "test-agent-subset"
 
-        def fake(host, skill, **kwargs):
-            ran.append(host)
-            return r.host_failure(host, skill, r.PROVIDER, "down")
+        def fake(agent, skill, **kwargs):
+            ran.append(agent)
+            return r.agent_failure(agent, skill, r.PROVIDER, "down")
 
-        with mock.patch.dict("os.environ", CLEAN), mock.patch.object(runner, "evaluate_host", fake), \
+        with mock.patch.dict("os.environ", CLEAN), mock.patch.object(runner, "evaluate_agent", fake), \
              mock.patch.object(runner, "REPORTS_DIR", reports), mock.patch.object(runner.scenarios, "validate_scenarios", return_value=[]), \
              mock.patch.object(runner.scenarios, "known_skill_names", return_value={"alpha"}), \
              redirect_stdout(io.StringIO()) as out, redirect_stderr(io.StringIO()):
@@ -107,7 +107,7 @@ class EntryPointTests(unittest.TestCase):
 
     def test_summary_lines_show_effective_settings(self) -> None:
         s = settings_lib.load(CLEAN)
-        doc = settings_lib.annotate(r.host_failure("codex", "alpha", r.PROVIDER, "down"), s)
+        doc = settings_lib.annotate(r.agent_failure("codex", "alpha", r.PROVIDER, "down"), s)
         self.assertIn("model=gpt-5.5 (default) effort=low (default)", runner.summarize(doc))
 
 
@@ -117,7 +117,7 @@ class PrinterTests(unittest.TestCase):
         with mock.patch.dict("os.environ", {**CLEAN, "ROUTING_CLAUDE_MODEL": "claude-x"}), redirect_stdout(out):
             self.assertEqual(printer.main(["x", "--json"]), 0)
         data = json.loads(out.getvalue())
-        self.assertEqual(data["hosts"]["claude"]["model"], {"value": "claude-x", "source": "override"})
+        self.assertEqual(data["agents"]["claude"]["model"], {"value": "claude-x", "source": "override"})
         self.assertTrue(data["overridden"])
         self.assertEqual(data["trials"]["new_skill_trials"], 3)
         self.assertEqual(set(data["ceilings"]["defaults"]), set(printer.ceilings.DEFAULTS))

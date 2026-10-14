@@ -3,20 +3,20 @@
 No model calls. Ceilings come from defaults overridden by environment variables, so CI
 (`vars`) and contributors can tune them without editing code. Nothing is stored as a baseline.
 
-    ROUTING_MAX_TOKENS          total tokens per host across candidate, control, and retries
-    ROUTING_MAX_COST_USD        estimated spend per host, same scope
+    ROUTING_MAX_TOKENS          total tokens per agent across candidate, control, and retries
+    ROUTING_MAX_COST_USD        estimated spend per agent, same scope
     ROUTING_MAX_CONCURRENCY     Promptfoo `--max-concurrency` for each run
     ROUTING_RUN_TIMEOUT_SECONDS wall clock for one Promptfoo run; the run is killed on breach
     ROUTING_JOB_TIMEOUT_SECONDS wall clock for the whole eval; keep it below the CI job timeout
                                 so a breach is reported instead of the job being cancelled
 
 Promptfoo reports usage only when a run ends, so token and cost ceilings are checked after
-each run and before launching the next one (retry, control, next host). A breach therefore
+each run and before launching the next one (retry, control, next agent). A breach therefore
 stops further spend and can overshoot by at most one in-flight run. A breach is an
 `infra_error` of kind `ceiling` (the run could not be judged), never `routing_fail`.
 Timeouts kill the run itself.
 
-A breach document is `{"ceiling": name, "limit": number, "observed": number, "host": str}`.
+A breach document is `{"ceiling": name, "limit": number, "observed": number, "agent": str}`.
 """
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ DEFAULTS = {
 
 
 class CeilingBreach(Exception):
-    """A ceiling was reached; the host run stops as infra_error."""
+    """A ceiling was reached; the agent run stops as infra_error."""
 
     def __init__(self, breach: dict[str, Any]):
         super().__init__(describe(breach))
@@ -79,7 +79,7 @@ class Ceilings:
 
 
 def describe(breach: dict[str, Any]) -> str:
-    return f"{breach['host']}: {breach['ceiling']} ceiling {breach['limit']:g} reached (observed {breach['observed']:g})"
+    return f"{breach['agent']}: {breach['ceiling']} ceiling {breach['limit']:g} reached (observed {breach['observed']:g})"
 
 
 def usage(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -99,7 +99,7 @@ def usage(rows: list[dict[str, Any]]) -> dict[str, Any]:
 
 @dataclass
 class Ledger:
-    """Spend per host and elapsed time for one eval, shared by every run of that eval."""
+    """Spend per agent and elapsed time for one eval, shared by every run of that eval."""
 
     ceilings: Ceilings
     clock: Callable[[], float] = time.monotonic
@@ -109,15 +109,15 @@ class Ledger:
     def __post_init__(self) -> None:
         self.started = self.clock()
 
-    def record(self, host: str, rows: list[dict[str, Any]]) -> None:
-        total = self.spent.setdefault(host, {"tokens": 0, "cost_usd": 0.0})
+    def record(self, agent: str, rows: list[dict[str, Any]]) -> None:
+        total = self.spent.setdefault(agent, {"tokens": 0, "cost_usd": 0.0})
         used = usage(rows)
         total["tokens"] += used["tokens"]
         total["cost_usd"] += used["cost_usd"]
 
-    def breaches(self, host: str) -> list[dict[str, Any]]:
-        """Every ceiling currently reached or exceeded for `host`."""
-        spent = self.spent.get(host, {"tokens": 0, "cost_usd": 0.0})
+    def breaches(self, agent: str) -> list[dict[str, Any]]:
+        """Every ceiling currently reached or exceeded for `agent`."""
+        spent = self.spent.get(agent, {"tokens": 0, "cost_usd": 0.0})
         elapsed = self.clock() - self.started
         found = []
         for name, limit, observed in (
@@ -127,11 +127,11 @@ class Ledger:
         ):
             # A zero or tiny ceiling is reached by the first call; spend equal to the limit is a breach.
             if observed >= limit and (observed > 0 or limit == 0):
-                found.append({"ceiling": name, "limit": limit, "observed": round(observed, 6), "host": host})
+                found.append({"ceiling": name, "limit": limit, "observed": round(observed, 6), "agent": agent})
         return found
 
-    def check(self, host: str) -> None:
-        found = self.breaches(host)
+    def check(self, agent: str) -> None:
+        found = self.breaches(agent)
         if found:
             raise CeilingBreach(found[0])
 
@@ -140,9 +140,9 @@ class Ledger:
         remaining = self.ceilings.job_timeout_seconds - (self.clock() - self.started)
         return max(min(self.ceilings.run_timeout_seconds, remaining), 1.0)
 
-    def timeout_breach(self, host: str) -> dict[str, Any]:
+    def timeout_breach(self, agent: str) -> dict[str, Any]:
         """Breach to report when a run was killed: whichever of run/job timeout was the binding one."""
         remaining = self.ceilings.job_timeout_seconds - (self.clock() - self.started)
         if remaining < self.ceilings.run_timeout_seconds:
-            return {"ceiling": JOB_TIMEOUT, "limit": self.ceilings.job_timeout_seconds, "observed": round(self.clock() - self.started, 3), "host": host}
-        return {"ceiling": RUN_TIMEOUT, "limit": self.ceilings.run_timeout_seconds, "observed": self.ceilings.run_timeout_seconds, "host": host}
+            return {"ceiling": JOB_TIMEOUT, "limit": self.ceilings.job_timeout_seconds, "observed": round(self.clock() - self.started, 3), "agent": agent}
+        return {"ceiling": RUN_TIMEOUT, "limit": self.ceilings.run_timeout_seconds, "observed": self.ceilings.run_timeout_seconds, "agent": agent}

@@ -73,17 +73,17 @@ class WorkspaceIsolationTests(ThrowawayRepo):
         self.write_skill("alpha", "candidate alpha")  # uncommitted edit to a modified skill
         self.write_skill("gamma", "candidate-only gamma")  # new skill
         root = self.repo / ".tmp" / "routing"
-        for host, skills_dir in (("claude", ".claude/skills"), ("codex", ".agents/skills")):
-            with self.subTest(host=host):
-                cand = prep.prepare_workspace(root / "candidate" / host, host)
-                ctrl = prep.prepare_workspace(root / "control" / host, host, self.base)
+        for agent, skills_dir in (("claude", ".claude/skills"), ("codex", ".agents/skills")):
+            with self.subTest(agent=agent):
+                cand = prep.prepare_workspace(root / "candidate" / agent, agent)
+                ctrl = prep.prepare_workspace(root / "control" / agent, agent, self.base)
                 self.assertEqual(sorted(cand), ["alpha", "beta", "gamma"])
                 self.assertEqual(sorted(ctrl), ["alpha", "beta"])
-                read = lambda variant, name: (root / variant / host / skills_dir / name / "SKILL.md").read_text()  # noqa: E731
+                read = lambda variant, name: (root / variant / agent / skills_dir / name / "SKILL.md").read_text()  # noqa: E731
                 self.assertIn("candidate alpha", read("candidate", "alpha"))
                 self.assertIn("control alpha", read("control", "alpha"))
                 self.assertIn("control beta", read("candidate", "beta"))
-                self.assertFalse((root / "control" / host / skills_dir / "gamma").exists())
+                self.assertFalse((root / "control" / agent / skills_dir / "gamma").exists())
 
     def test_control_is_a_copy_not_the_checkout_and_edits_do_not_cross_over(self) -> None:
         root = self.repo / ".tmp" / "routing"
@@ -115,8 +115,8 @@ class VariantWiringTests(ThrowawayRepo):
     def test_variants_differ_only_in_workspace_root_and_report_dir(self) -> None:
         calls: list[tuple[str, str, Path, str | None]] = []
 
-        def fake(host: str, skill: str, report: Path, pattern: str | None):
-            calls.append((host, skill, report, pattern))
+        def fake(agent: str, skill: str, report: Path, pattern: str | None):
+            calls.append((agent, skill, report, pattern))
             return "", [fixtures.row(scenario="s1", trials=1)]
 
         routing = self.repo / ".tmp" / "routing"
@@ -134,7 +134,7 @@ class VariantWiringTests(ThrowawayRepo):
     def test_default_runner_passes_workspace_root_env(self) -> None:
         seen: dict[str, str] = {}
 
-        def fake_promptfoo(host, skill, report, pattern, env=None, ledger=None):
+        def fake_promptfoo(agent, skill, report, pattern, env=None, ledger=None):
             seen.update(env or {})
             return "", [fixtures.row()]
 
@@ -159,66 +159,66 @@ class VariantWiringTests(ThrowawayRepo):
         self.assertIn("gamma", driver.skills_at("HEAD"))
 
 
-def host_doc(host="codex", skill="alpha", **scenario_trials):
-    """Reduce rows given {scenario: [passed, ...]} into a host result."""
+def agent_doc(agent="codex", skill="alpha", **scenario_trials):
+    """Reduce rows given {scenario: [passed, ...]} into an agent result."""
     rows = []
     for scenario, outcomes in scenario_trials.items():
         for index, ok in enumerate(outcomes, start=1):
             rows.append(fixtures.row(scenario=scenario, trial=index, trials=len(outcomes), calls=None if ok else [], success=ok))
-    return r.reduce_host(host, skill, [rows])
+    return r.reduce_agent(agent, skill, [rows])
 
 
 class DeltaTests(unittest.TestCase):
     def test_seeded_regression_shows_negative_delta_per_scenario_and_aggregate(self) -> None:
-        control = host_doc(pos=[True, True, True], near=[True, True, True])
-        candidate = host_doc(pos=[True, False, False], near=[True, True, True])
-        doc = compare.compare_host(candidate, control)
+        control = agent_doc(pos=[True, True, True], near=[True, True, True])
+        candidate = agent_doc(pos=[True, False, False], near=[True, True, True])
+        doc = compare.compare_agent(candidate, control)
         by_id = {s["id"]: s for s in doc["scenarios"]}
         self.assertAlmostEqual(by_id["pos"]["delta"], round(1 / 3 - 1, 4))
         self.assertEqual(by_id["near"]["delta"], 0.0)
         self.assertEqual(doc["aggregate"]["candidate"]["passes"], 4)
         self.assertEqual(doc["aggregate"]["control"]["passes"], 6)
         self.assertAlmostEqual(doc["aggregate"]["delta"], round(4 / 6 - 1, 4))
-        self.assertEqual((doc["host"], doc["mode"], doc["complete"]), ("codex", "comparison", True))
+        self.assertEqual((doc["agent"], doc["mode"], doc["complete"]), ("codex", "comparison", True))
 
     def test_improvement_is_positive_and_state_is_candidates_own(self) -> None:
-        control = host_doc(pos=[False, False, True])
-        candidate = host_doc(pos=[True, True, True])
-        doc = compare.compare_host(candidate, control)
+        control = agent_doc(pos=[False, False, True])
+        candidate = agent_doc(pos=[True, True, True])
+        doc = compare.compare_agent(candidate, control)
         self.assertGreater(doc["aggregate"]["delta"], 0)
         self.assertEqual((doc["state"], doc["control_state"]), (r.PASS, r.ROUTING_FAIL))
 
     def test_infra_error_side_is_incomplete_and_has_no_delta(self) -> None:
-        control = r.host_failure("codex", "alpha", r.PROVIDER, "down")
-        doc = compare.compare_host(host_doc(pos=[True]), control)
+        control = r.agent_failure("codex", "alpha", r.PROVIDER, "down")
+        doc = compare.compare_agent(agent_doc(pos=[True]), control)
         self.assertFalse(doc["complete"])
         self.assertIsNone(doc["aggregate"]["delta"])
         self.assertEqual(doc["scenarios"][0]["control"], None)
 
-    def test_hosts_are_compared_independently(self) -> None:
-        claude = compare.compare_host(host_doc("claude", pos=[True]), host_doc("claude", pos=[True]))
-        codex = compare.compare_host(host_doc("codex", pos=[False]), host_doc("codex", pos=[True]))
-        self.assertEqual((claude["host"], claude["aggregate"]["delta"]), ("claude", 0.0))
-        self.assertEqual((codex["host"], codex["aggregate"]["delta"]), ("codex", -1.0))
-        self.assertEqual(r.combine_hosts([claude, codex])["state"], r.ROUTING_FAIL)
+    def test_agents_are_compared_independently(self) -> None:
+        claude = compare.compare_agent(agent_doc("claude", pos=[True]), agent_doc("claude", pos=[True]))
+        codex = compare.compare_agent(agent_doc("codex", pos=[False]), agent_doc("codex", pos=[True]))
+        self.assertEqual((claude["agent"], claude["aggregate"]["delta"]), ("claude", 0.0))
+        self.assertEqual((codex["agent"], codex["aggregate"]["delta"]), ("codex", -1.0))
+        self.assertEqual(r.combine_agents([claude, codex])["state"], r.ROUTING_FAIL)
 
     def test_passing_candidate_with_failed_control_combines_to_incomplete_infra_error(self) -> None:
-        claude = compare.compare_host(host_doc("claude", pos=[True]), host_doc("claude", pos=[True]))
-        codex = compare.compare_host(host_doc("codex", pos=[True]), r.host_failure("codex", "alpha", r.PROVIDER, "down"))
+        claude = compare.compare_agent(agent_doc("claude", pos=[True]), agent_doc("claude", pos=[True]))
+        codex = compare.compare_agent(agent_doc("codex", pos=[True]), r.agent_failure("codex", "alpha", r.PROVIDER, "down"))
         self.assertEqual((codex["state"], codex["complete"]), (r.PASS, False))
-        combined = r.combine_hosts([claude, codex])
+        combined = r.combine_agents([claude, codex])
         self.assertEqual((combined["state"], combined["complete"]), (r.INFRA_ERROR, False))
         self.assertEqual(driver.runner.EXIT_CODES[combined["state"]], 3)
 
     def test_no_stored_baseline_input(self) -> None:
-        self.assertEqual(compare.compare_host.__code__.co_argcount, 2)
+        self.assertEqual(compare.compare_agent.__code__.co_argcount, 2)
 
 
 class NewSkillPolicyTests(unittest.TestCase):
     TAGS = {"pos": ["positive"], "near": ["near-miss"], "sib": ["sibling"]}
 
     def doc(self, pos, near, sib=(True,)):
-        return host_doc(pos=pos, near=near, sib=list(sib))
+        return agent_doc(pos=pos, near=near, sib=list(sib))
 
     def test_thresholds_met_at_the_boundary(self) -> None:
         # 15 positive trials: 14/15 = 93% >= 90%. 20 near-miss trials: 19/20 = 95%.
@@ -242,18 +242,18 @@ class NewSkillPolicyTests(unittest.TestCase):
         self.assertFalse(doc["expectations"]["near_miss_specificity"]["met"])
 
     def test_absolute_thresholds_replace_the_two_of_three_rule(self) -> None:
-        # Each scenario passes 2/3 (host passes), yet recall 67% misses 90%.
-        host = host_doc(pos=[True, True, False], near=[True, True, True])
-        self.assertEqual(host["state"], r.PASS)
-        self.assertEqual(compare.evaluate_new_skill(host, self.TAGS)["state"], r.ROUTING_FAIL)
+        # Each scenario passes 2/3 (agent passes), yet recall 67% misses 90%.
+        agent = agent_doc(pos=[True, True, False], near=[True, True, True])
+        self.assertEqual(agent["state"], r.PASS)
+        self.assertEqual(compare.evaluate_new_skill(agent, self.TAGS)["state"], r.ROUTING_FAIL)
 
-    def test_incomplete_host_is_infra_error_not_routing_fail(self) -> None:
-        failed = r.host_failure("codex", "alpha", r.PROVIDER, "no key")
+    def test_incomplete_agent_is_infra_error_not_routing_fail(self) -> None:
+        failed = r.agent_failure("codex", "alpha", r.PROVIDER, "no key")
         doc = compare.evaluate_new_skill(failed, self.TAGS)
         self.assertEqual((doc["state"], doc["complete"]), (r.INFRA_ERROR, False))
 
     def test_missing_category_is_not_met(self) -> None:
-        doc = compare.evaluate_new_skill(host_doc(pos=[True]), self.TAGS)
+        doc = compare.evaluate_new_skill(agent_doc(pos=[True]), self.TAGS)
         self.assertFalse(doc["expectations"]["near_miss_specificity"]["met"])
         self.assertEqual(doc["state"], r.ROUTING_FAIL)
 
@@ -351,8 +351,8 @@ class DriverPolicyTests(ThrowawayRepo):
     def run_main(self, skill: str, scenario_dir: Path, fake, adjacent=("beta", "gamma"), extra=()) -> tuple[int, list[str]]:
         calls: list[str] = []
 
-        def stub(host, name, report, pattern, env=None, ledger=None):
-            calls.append(f"{host}:{Path(env['ROUTING_WORKSPACE_ROOT']).name}")
+        def stub(agent, name, report, pattern, env=None, ledger=None):
+            calls.append(f"{agent}:{Path(env['ROUTING_WORKSPACE_ROOT']).name}")
             return fake()
 
         patches = [
@@ -438,12 +438,12 @@ class ExitCodeTests(unittest.TestCase):
              mock.patch("sys.stderr"), mock.patch("traceback.print_exc"):
             self.assertEqual(runner.main(["run", "alpha"]), 2)
 
-    def test_invalid_scenarios_exit_2_before_any_host_runs(self) -> None:
+    def test_invalid_scenarios_exit_2_before_any_agent_runs(self) -> None:
         import run_routing_eval as runner
 
         with mock.patch.object(runner.scenarios, "known_skill_names", return_value={"alpha"}), \
              mock.patch.object(runner.scenarios, "validate_scenarios", return_value=["bad"]), \
-             mock.patch.object(runner, "evaluate_host", side_effect=AssertionError("ran")), \
+             mock.patch.object(runner, "evaluate_agent", side_effect=AssertionError("ran")), \
              mock.patch("sys.stderr"):
             self.assertEqual(runner.main(["run", "alpha"]), 2)
 
@@ -464,7 +464,7 @@ class AgentSubsetDriverTests(DriverPolicyTests):
         reports = self.repo / ".tmp/routing/reports"
         summary = json.loads((reports / "alpha.comparison-summary.json").read_text())
         self.assertEqual((summary["agents_run"], summary["partial"]), (["codex"], True))
-        self.assertEqual(list(summary["hosts"]), ["codex"])
+        self.assertEqual(list(summary["agents"]), ["codex"])
         doc = json.loads((reports / "codex-alpha.comparison.json").read_text())
         self.assertEqual((doc["agents_run"], doc["partial"]), (["codex"], True))
         self.assertFalse((reports / "claude-alpha.comparison.json").exists())
@@ -485,10 +485,10 @@ class AgentSubsetDriverTests(DriverPolicyTests):
 
 
 class DescribeTests(unittest.TestCase):
-    def test_summary_lines_are_per_host(self) -> None:
-        mod = compare.compare_host(host_doc(pos=[True]), host_doc(pos=[True]))
+    def test_summary_lines_are_per_agent(self) -> None:
+        mod = compare.compare_agent(agent_doc(pos=[True]), agent_doc(pos=[True]))
         self.assertIn("delta +0.00", driver.describe(mod))
-        new = compare.evaluate_new_skill(host_doc(pos=[True]), {"pos": ["positive"]})
+        new = compare.evaluate_new_skill(agent_doc(pos=[True]), {"pos": ["positive"]})
         self.assertIn("control skipped", driver.describe(new))
 
 

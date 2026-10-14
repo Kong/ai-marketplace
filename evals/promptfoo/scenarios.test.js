@@ -41,16 +41,16 @@ function withFixture(fn) {
 
 test('expands trials and routes positives vs negatives to different providers', () =>
   withFixture((dir) => {
-    const tests = buildTests({ skill: 'alpha', host: 'claude', providerLabels: labels, dir });
+    const tests = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir });
     assert.strictEqual(tests.length, 5);
     assert.deepStrictEqual(tests.slice(0, 3).map((t) => t.metadata.trial), [1, 2, 3]);
     assert.deepStrictEqual(tests.map((t) => t.providers[0]), ['pos', 'pos', 'pos', 'neg', 'pos']);
-    assert.strictEqual(tests[0].metadata.host, 'claude');
+    assert.strictEqual(tests[0].metadata.agent, 'claude');
   }));
 
 test('maps expect and forbid to skill assertions', () =>
   withFixture((dir) => {
-    const tests = buildTests({ skill: 'alpha', host: 'claude', providerLabels: labels, dir });
+    const tests = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir });
     assert.deepStrictEqual(tests[0].assert, [{ type: 'skill-used', value: 'alpha' }]);
     assert.deepStrictEqual(tests[3].assert, [{ type: 'not-skill-used', value: 'alpha' }]);
     assert.deepStrictEqual(tests[4].assert, [
@@ -61,12 +61,12 @@ test('maps expect and forbid to skill assertions', () =>
 
 test('fails when the skill has no scenarios', () =>
   withFixture((dir) => {
-    assert.throws(() => buildTests({ skill: 'gamma', host: 'claude', providerLabels: labels, dir }), /no routing scenarios/);
+    assert.throws(() => buildTests({ skill: 'gamma', agent: 'claude', providerLabels: labels, dir }), /no routing scenarios/);
   }));
 
 test('maxTrials caps trials per scenario and keeps metadata consistent', () =>
   withFixture((dir) => {
-    const tests = buildTests({ skill: 'alpha', host: 'claude', providerLabels: labels, dir, maxTrials: 1 });
+    const tests = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, maxTrials: 1 });
     assert.strictEqual(tests.length, 3);
     assert.deepStrictEqual(tests.map((t) => t.metadata.trials), [1, 1, 1]);
     assert.match(tests[0].description, /trial 1\/1/);

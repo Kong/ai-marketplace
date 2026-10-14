@@ -1,15 +1,15 @@
-"""Compare candidate and control host results, or judge a new skill on absolute thresholds.
+"""Compare candidate and control agent results, or judge a new skill on absolute thresholds.
 
-Pure functions over the host result documents from `routing_results.py`; no I/O and
+Pure functions over the agent result documents from `routing_results.py`; no I/O and
 no model calls. Nothing here is a stored baseline: both sides come from the same run.
 
 Rates count judged trials only (`pass` + `routing_fail`); `infra_error` trials are
 excluded and make the document `complete: false`.
 
-Comparison document (`compare_host`, modified skill)
+Comparison document (`compare_agent`, modified skill)
     {
-      "host", "skill", "mode": "comparison",
-      "state": <candidate host state>,      # the delta is reported, not gated; infra_error on a ceiling breach
+      "agent", "skill", "mode": "comparison",
+      "state": <candidate agent state>,      # the delta is reported, not gated; infra_error on a ceiling breach
       "complete": bool,                     # both sides complete
       "candidate_state", "control_state",
       "failure_kinds": [...], "reason": str|None,   # union / first of both sides' infra failures
@@ -25,10 +25,10 @@ Comparison document (`compare_host`, modified skill)
 
 New-skill document (`evaluate_new_skill`, no control exists)
     {
-      "host", "skill", "mode": "new_skill", "control": "skipped",
+      "agent", "skill", "mode": "new_skill", "control": "skipped",
       "state": pass|routing_fail|infra_error, "complete": bool,
-      "failure_kinds": [...], "reason": str|None,   # from the host result, e.g. scenario_validation
-      "usage": usage, "breaches": [...],            # from the host result
+      "failure_kinds": [...], "reason": str|None,   # from the agent result, e.g. scenario_validation
+      "usage": usage, "breaches": [...],            # from the agent result
       "settings", "overridden",                     # effective model/effort, as above
       "expectations": {
         "positive_recall": check, "near_miss_specificity": check
@@ -59,12 +59,12 @@ def _delta(candidate: dict[str, Any] | None, control: dict[str, Any] | None) -> 
     return round(candidate["rate"] - control["rate"], 4)
 
 
-def _by_scenario(host_result: dict[str, Any]) -> dict[str, dict[str, Any]]:
-    return {s["id"]: _side(s["trials"], s["state"]) for s in host_result["scenarios"]}
+def _by_scenario(agent_result: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {s["id"]: _side(s["trials"], s["state"]) for s in agent_result["scenarios"]}
 
 
-def _all_trials(host_result: dict[str, Any]) -> list[dict[str, Any]]:
-    return [t for s in host_result["scenarios"] for t in s["trials"]]
+def _all_trials(agent_result: dict[str, Any]) -> list[dict[str, Any]]:
+    return [t for s in agent_result["scenarios"] for t in s["trials"]]
 
 
 def _total(*usages: dict[str, Any]) -> dict[str, Any]:
@@ -72,8 +72,8 @@ def _total(*usages: dict[str, Any]) -> dict[str, Any]:
     return {k: round(sum(u[k] for u in usages), 6) if k == "cost_usd" else sum(u[k] for u in usages) for k in keys}
 
 
-def compare_host(candidate: dict[str, Any], control: dict[str, Any]) -> dict[str, Any]:
-    """Per-scenario and aggregate candidate/control deltas for one host."""
+def compare_agent(candidate: dict[str, Any], control: dict[str, Any]) -> dict[str, Any]:
+    """Per-scenario and aggregate candidate/control deltas for one agent."""
     cand, ctrl = _by_scenario(candidate), _by_scenario(control)
     aggregate = {
         "candidate": _side(_all_trials(candidate), candidate["state"]),
@@ -82,7 +82,7 @@ def compare_host(candidate: dict[str, Any], control: dict[str, Any]) -> dict[str
     aggregate["delta"] = _delta(aggregate["candidate"], aggregate["control"])
     breaches = candidate["breaches"] + [b for b in control["breaches"] if b not in candidate["breaches"]]
     return {
-        "host": candidate["host"],
+        "agent": candidate["agent"],
         "skill": candidate["skill"],
         "mode": "comparison",
         "state": results.INFRA_ERROR if breaches else candidate["state"],
@@ -114,34 +114,34 @@ def _check(trials: list[dict[str, Any]], required: float) -> dict[str, Any]:
     }
 
 
-def evaluate_new_skill(host_result: dict[str, Any], tags: dict[str, list[str]]) -> dict[str, Any]:
-    """Judge one host of a new skill: >=90% positive recall and >=95% near-miss specificity.
+def evaluate_new_skill(agent_result: dict[str, Any], tags: dict[str, list[str]]) -> dict[str, Any]:
+    """Judge one agent of a new skill: >=90% positive recall and >=95% near-miss specificity.
 
-    `tags` maps scenario id to its tags (the host result does not carry them). A scenario
+    `tags` maps scenario id to its tags (the agent result does not carry them). A scenario
     tagged both positive and near-miss counts toward both; sibling trials are reported only.
     """
     def trials_tagged(tag: str) -> list[dict[str, Any]]:
-        return [t for s in host_result["scenarios"] if tag in tags.get(s["id"], []) for t in s["trials"]]
+        return [t for s in agent_result["scenarios"] if tag in tags.get(s["id"], []) for t in s["trials"]]
 
     checks = {
         "positive_recall": _check(trials_tagged("positive"), POSITIVE_RECALL),
         "near_miss_specificity": _check(trials_tagged("near-miss"), NEAR_MISS_SPECIFICITY),
     }
-    if not host_result["complete"]:
+    if not agent_result["complete"]:
         state = results.INFRA_ERROR
     else:
         state = results.PASS if all(c["met"] for c in checks.values()) else results.ROUTING_FAIL
     return {
-        "host": host_result["host"],
-        "skill": host_result["skill"],
+        "agent": agent_result["agent"],
+        "skill": agent_result["skill"],
         "mode": "new_skill",
         "control": "skipped",
         "state": state,
-        "complete": host_result["complete"],
-        "failure_kinds": host_result["failure_kinds"],
-        "reason": host_result["reason"],
-        "usage": host_result["usage"],
-        "breaches": host_result["breaches"],
+        "complete": agent_result["complete"],
+        "failure_kinds": agent_result["failure_kinds"],
+        "reason": agent_result["reason"],
+        "usage": agent_result["usage"],
+        "breaches": agent_result["breaches"],
         "expectations": checks,
         "siblings": _side(trials_tagged("sibling"), results.PASS),
     }

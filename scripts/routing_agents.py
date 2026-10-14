@@ -1,7 +1,7 @@
 """Select which agent runtimes (Claude Code, Codex) a routing eval run covers.
 
-The spec and result documents call an agent a "host"; identifiers keep that name. A run with
-fewer than all agents is partial and must never read as a complete result (routing_results.combine_hosts).
+A run with
+fewer than all agents is partial and must never read as a complete result (routing_results.combine_agents).
 
     python scripts/routing_agents.py [claude|codex|claude,codex ...]
 
@@ -15,7 +15,7 @@ from typing import Iterable
 
 import routing_results as results
 
-AGENTS = results.HOSTS
+AGENTS = results.AGENTS
 
 
 def parse_agents(values: Iterable[str] | None) -> tuple[str, ...]:

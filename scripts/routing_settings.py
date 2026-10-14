@@ -1,10 +1,10 @@
-"""Effective per-host model and effort for routing evals, resolved by evals/promptfoo/settings.js.
+"""Effective per-agent model and effort for routing evals, resolved by evals/promptfoo/settings.js.
 
 The Node module is the single source of the pinned defaults and of the validation rules;
 this module only runs it (`node evals/promptfoo/settings.js`) so the harness records exactly
-what the host configs will use. Offline; no credentials or model calls.
+what the agent configs will use. Offline; no credentials or model calls.
 
-Settings document, per host
+Settings document, per agent
     {"model": {"value", "source": "default|override"},
      "effort": {"value": str|null, "source": "default|override"},
      "overridden": bool}
@@ -25,7 +25,7 @@ OVERRIDE_VARIABLES = (
 
 
 def load_all(env: Mapping[str, str] | None = None) -> dict[str, Any]:
-    """Return {"settings": {host: settings doc}, "fixed": {host: ...}}; ValueError when a variable is invalid."""
+    """Return {"settings": {agent: settings doc}, "fixed": {agent: ...}}; ValueError when a variable is invalid."""
     merged = {**os.environ, **(env or {})} if env is not None else dict(os.environ)
     out = subprocess.run(["node", str(SETTINGS_JS)], capture_output=True, text=True, env=merged, check=False)
     if out.returncode != 0:
@@ -46,8 +46,8 @@ def describe(settings: dict[str, Any]) -> str:
 
 
 def warning(settings: dict[str, dict[str, Any]]) -> str | None:
-    """Console warning when any override is active; None when every host uses the pins."""
-    active = [f"{host}: {describe(doc)}" for host, doc in settings.items() if doc["overridden"]]
+    """Console warning when any override is active; None when every agent uses the pins."""
+    active = [f"{agent}: {describe(doc)}" for agent, doc in settings.items() if doc["overridden"]]
     if not active:
         return None
     return (
@@ -57,8 +57,8 @@ def warning(settings: dict[str, dict[str, Any]]) -> str | None:
 
 
 def annotate(doc: dict[str, Any], settings: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    """Record the host's effective settings in a result or comparison document."""
-    host_settings = settings[doc["host"]]
-    doc["settings"] = {"model": host_settings["model"], "effort": host_settings["effort"]}
-    doc["overridden"] = host_settings["overridden"]
+    """Record the agent's effective settings in a result or comparison document."""
+    agent_settings = settings[doc["agent"]]
+    doc["settings"] = {"model": agent_settings["model"], "effort": agent_settings["effort"]}
+    doc["overridden"] = agent_settings["overridden"]
     return doc

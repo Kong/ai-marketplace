@@ -76,10 +76,10 @@ back to user-profile locations.
 ## Routing Evals
 
 `mise run eval:routing -- changed | skill <name> | all` runs the scenarios in
-`evals/routing/` on each host through Promptfoo's native providers (Promptfoo,
+`evals/routing/` on each agent through Promptfoo's native providers (Promptfoo,
 SDKs, Node, and models are pinned in `package.json`, `package-lock.json`, and
 `mise.toml`). It makes paid model calls. Claude and Codex are separate runs with
-separate reports; one host failing never affects the other's result, and the
+separate reports; one agent failing never affects the other's result, and the
 task exits non-zero if either failed.
 
 - Modes: `skill <name>` runs one skill; `all` runs every skill that has
@@ -97,8 +97,7 @@ task exits non-zero if either failed.
   skill's own expected/forbidden routes still hold; changed skills keep their scenario trials.
   Adjacent skills without scenarios are skipped with a note, and adjacent skills never run
   without a changed skill that has scenarios. `routing_targets.py adjacent` lists them.
-- Agents: an *agent* is the agent runtime (Claude Code or Codex) that the spec and the result
-  documents call a *host*; document keys and code identifiers keep the name `host`. Add
+- Agents: an *agent* is an agent runtime, Claude Code or Codex. Add
   `--agent claude|codex` (repeatable or comma-separated; default both) to `eval:routing` or
   `eval:routing:compare` to run a subset. Only the selected agents get workspaces, runs,
   retries, ceilings, and reports; an unknown name exits 2. A subset run is never a complete
@@ -113,27 +112,27 @@ task exits non-zero if either failed.
   `.agents/skills/<name>/SKILL.md` in the eval workspace (Promptfoo's
   `skillCalls`, source `heuristic`); final-answer mentions do not count. Codex
   cannot be limited to one tool, so the prompt confines it to that read.
-- Reports land in `.tmp/routing/reports/<host>-<skill>.{json,html,junit.xml}`: per-trial
-  scenario, host, expected/forbidden routes, observed skills (with path for
+- Reports land in `.tmp/routing/reports/<agent>-<skill>.{json,html,junit.xml}`: per-trial
+  scenario, agent, expected/forbidden routes, observed skills (with path for
   Codex), and pass/fail reason.
 
-### Host result states
+### Agent result states
 
-Each host reduces to one state (`scripts/routing_results.py` documents the
-output shape), written to `.tmp/routing/reports/<host>-<skill>.result.json`,
-with a cross-host `<skill>.summary.json`:
+Each agent reduces to one state (`scripts/routing_results.py` documents the
+output shape), written to `.tmp/routing/reports/<agent>-<skill>.result.json`,
+with a cross-agent `<skill>.summary.json`:
 
 - `pass`: every scenario met its route (at least 2/3 trials, rounded up).
-- `routing_fail`: the host answered with valid telemetry but routed wrongly.
+- `routing_fail`: the agent answered with valid telemetry but routed wrongly.
 - `infra_error`: missing credentials, provider failure, malformed telemetry,
   or a reached ceiling (invalid scenarios exit 2 before any run). Trials are retried once; a persistent failure leaves the
-  host incomplete, never `routing_fail`.
+  agent incomplete, never `routing_fail`.
 
 Results record the failure kind (`invocation`, `provider`, `telemetry`,
-`ceiling`; `scenario_validation` only from library callers), retries per host, and per-trial evidence. A passing
-host never offsets the other, and a host that is incomplete (for example a comparison
+`ceiling`; `scenario_validation` only from library callers), retries per agent, and per-trial evidence. A passing
+agent never offsets the other, and an agent that is incomplete (for example a comparison
 whose control run hit an `infra_error`) is `infra_error` even if its candidate passed;
-`routing_fail` on any host still takes precedence.
+`routing_fail` on any agent still takes precedence.
 
 ### Exit codes
 
@@ -154,15 +153,15 @@ outranks `infra_error` (3). `validate_routing_scenarios.py` and
 ### Candidate vs merge-base comparison
 
 `mise run eval:routing:compare -- <name> [--base <ref>]` (default `origin/main`)
-evaluates the same scenarios, host configs, models, tools, and trial counts
+evaluates the same scenarios, agent configs, models, tools, and trial counts
 against two isolated workspaces under `.tmp/routing/`: `candidate` (working-tree
 skills) and `control` (skills at `git merge-base <ref> HEAD`). Only the
-workspace differs. Each host gets `.tmp/routing/reports/<host>-<skill>.comparison.json`
+workspace differs. Each agent gets `.tmp/routing/reports/<agent>-<skill>.comparison.json`
 with per-scenario and aggregate pass-rate deltas (candidate minus control;
 shape in `scripts/routing_compare.py`). Deltas are reported, not gated, and no
-score baseline is stored; the exit code reflects the candidate's own host state.
+score baseline is stored; the exit code reflects the candidate's own agent state.
 
-A skill absent at the merge base is new: control is skipped and each host is
+A skill absent at the merge base is new: control is skipped and each agent is
 judged on absolute thresholds (at least 90% positive recall, 95% near-miss
 specificity) instead of a delta. New skills must also ship at least 5
 positive, 5 near-miss, and 2 sibling scenarios per adjacent skill (at most 5
@@ -188,7 +187,7 @@ skill with scenarios runs `mise run eval:routing -- skill <name>` with one trial
 candidate-only. A `routing_fail` or `infra_error` becomes a warning annotation, not a
 red job; exit 2 and any other code (harness or validation errors) fail the job. Provider keys come from the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY`
 secrets, only in that step. The artifact `routing-reports-<mode>-<skill>` holds the full Promptfoo JSON
-(`reports/{candidate,control}/<host>-<skill>.json` or `reports/<host>-<skill>.json`), whose
+(`reports/{candidate,control}/<agent>-<skill>.json` or `reports/<agent>-<skill>.json`), whose
 raw model responses and skill calls are the diagnostic transcript (no extra transcript
 capture is enabled), plus HTML, JUnit, result and comparison documents, and Promptfoo logs; none are
 committed. HTML and JUnit come from the first full run, while `*.result.json` and the
@@ -200,7 +199,7 @@ concurrency group and `max-parallel` bounds paid jobs. Ceilings are described un
 ### Model and effort settings
 
 The pinned defaults (Codex `gpt-5.5` at `low` effort, Claude `claude-sonnet-5-5` with the
-provider's default effort) live in one file, `evals/promptfoo/settings.js`, which both host
+provider's default effort) live in one file, `evals/promptfoo/settings.js`, which both agent
 configs, the harness, and the printer read. For local experiments only, override them:
 
 - `ROUTING_CODEX_MODEL`, `ROUTING_CODEX_EFFORT` (becomes `model_reasoning_effort`)
@@ -215,7 +214,7 @@ applies the same effective settings to both sides.
 Every result, summary, and comparison document records `settings` (effective model and effort,
 each marked `default` or `override`) and `overridden`, and the console summary shows them. Any
 active override prints a warning and sets `overridden: true`; such results are not comparable
-with CI. `mise run eval:routing:config -- [--json]` prints the effective settings per host, the
+with CI. `mise run eval:routing:config -- [--json]` prints the effective settings per agent, the
 fixed discovery settings, trial policy, and ceilings with their variable names, offline and
 without credentials.
 
@@ -228,18 +227,18 @@ the eval step. Changing a pin is a reviewed edit to `settings.js`, supported by
 `scripts/routing_ceilings.py` enforces limits for every routing run, local or CI.
 Defaults are in code; override with environment variables (in CI, repository
 variables of the same name): `ROUTING_MAX_TOKENS` and `ROUTING_MAX_COST_USD`
-(per host, across candidate, control, and retries), `ROUTING_MAX_CONCURRENCY`
+(per agent, across candidate, control, and retries), `ROUTING_MAX_CONCURRENCY`
 (Promptfoo `--max-concurrency`), `ROUTING_RUN_TIMEOUT_SECONDS` (one Promptfoo run;
 the run is killed), and `ROUTING_JOB_TIMEOUT_SECONDS` (whole eval; keep it below the
 CI job timeout). Promptfoo reports tokens and cost only when a run ends, so those
 ceilings are checked after each run and before every later launch: spend stops at
 the next boundary and can overshoot by at most one run.
 
-A breach makes the host `infra_error` (kind `ceiling`, incomplete, never
+A breach makes the agent `infra_error` (kind `ceiling`, incomplete, never
 `routing_fail`, never retried). It is recorded in `breaches` in the result,
 comparison, and summary documents, printed as `BREACH: ...` in the console, and
 raised as a warning annotation in CI. Judged trials stay in the report but the
-host result is not trusted. Each host reports `usage` (trials, tokens, estimated
+agent result is not trusted. Each agent reports `usage` (trials, tokens, estimated
 cost, latency) and retries.
 
 ## Shared Skill Installers

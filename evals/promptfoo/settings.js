@@ -1,9 +1,9 @@
-// Single source of truth for the per-host model and reasoning-effort pins used by the routing evals.
-// Both host configs, the Python harness and `mise run eval:routing:config` read this file.
+// Single source of truth for the per-agent model and reasoning-effort pins used by the routing evals.
+// Both agent configs, the Python harness and `mise run eval:routing:config` read this file.
 //
 // Defaults are the reviewed pins; CI always uses them. Contributors may override model and effort
 // locally through the ROUTING_* variables below. Tool restrictions, sandbox, permission and
-// budget settings are deliberately not configurable and live in the host configs.
+// budget settings are deliberately not configurable and live in the agent configs.
 //
 //   node evals/promptfoo/settings.js    prints the effective settings and fixed discovery settings as JSON; exit 2 if invalid
 const DEFAULTS = {
@@ -48,30 +48,30 @@ const FIXED = {
 
 const MODEL_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:/-]*$/;
 
-function pick(host, field, env) {
-  const name = ENV[host][field];
+function pick(agent, field, env) {
+  const name = ENV[agent][field];
   const raw = env[name];
   // Unset or empty (an unset CI variable expands to empty) means the pin.
-  if (raw === undefined || raw === '') return { value: DEFAULTS[host][field], source: 'default' };
+  if (raw === undefined || raw === '') return { value: DEFAULTS[agent][field], source: 'default' };
   const value = raw.trim();
   if (field === 'model' && !MODEL_PATTERN.test(value)) {
     throw new Error(`${name} must be a model id (letters, digits, . _ : / -), got ${JSON.stringify(raw)}`);
   }
-  if (field === 'effort' && !EFFORTS[host].includes(value)) {
-    throw new Error(`${name} must be one of ${EFFORTS[host].join(', ')}, got ${JSON.stringify(raw)}`);
+  if (field === 'effort' && !EFFORTS[agent].includes(value)) {
+    throw new Error(`${name} must be one of ${EFFORTS[agent].join(', ')}, got ${JSON.stringify(raw)}`);
   }
   return { value, source: 'override' };
 }
 
-// Effective { model: {value, source}, effort: {value, source}, overridden } for one host.
-function resolve(host, env = process.env) {
-  const model = pick(host, 'model', env);
-  const effort = pick(host, 'effort', env);
+// Effective { model: {value, source}, effort: {value, source}, overridden } for one agent.
+function resolve(agent, env = process.env) {
+  const model = pick(agent, 'model', env);
+  const effort = pick(agent, 'effort', env);
   return { model, effort, overridden: model.source === 'override' || effort.source === 'override' };
 }
 
 function resolveAll(env = process.env) {
-  return Object.fromEntries(Object.keys(DEFAULTS).map((host) => [host, resolve(host, env)]));
+  return Object.fromEntries(Object.keys(DEFAULTS).map((agent) => [agent, resolve(agent, env)]));
 }
 
 module.exports = { DEFAULTS, FIXED, EFFORTS, ENV, resolve, resolveAll };

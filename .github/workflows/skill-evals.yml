@@ -147,7 +147,7 @@ jobs:
             cat "$summary" 2>/dev/null || echo "no summary written"
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
-          breaches="$(jq -r '.breaches // [] | map("\(.host) \(.ceiling) limit \(.limit) observed \(.observed)") | join("; ")' "$summary" 2>/dev/null || true)"
+          breaches="$(jq -r '.breaches // [] | map("\(.agent) \(.ceiling) limit \(.limit) observed \(.observed)") | join("; ")' "$summary" 2>/dev/null || true)"
           if [ -n "$breaches" ]; then
             echo "::warning title=ceiling::$SKILL: ceiling breached, run stopped as infra_error: $breaches"
           fi
@@ -159,7 +159,7 @@ jobs:
           # 2 and anything else is a harness or validation error and fails the job.
           case "$rc" in
             0) ;;
-            1) echo "::warning title=routing_fail::$SKILL ($MODE): routing regressed on at least one host (advisory)" ;;
+            1) echo "::warning title=routing_fail::$SKILL ($MODE): routing regressed on at least one agent (advisory)" ;;
             3) echo "::warning title=infra_error::$SKILL ($MODE): provider or telemetry failure, result incomplete (advisory)" ;;
             *) echo "::error title=harness_error::$SKILL ($MODE): exit $rc is a harness or validation error, not a routing result"; exit "$rc" ;;
           esac

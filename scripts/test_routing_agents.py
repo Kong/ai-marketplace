@@ -31,22 +31,22 @@ class ParseTests(unittest.TestCase):
 
 
 class CombineScopeTests(unittest.TestCase):
-    def result(self, host, state=r.PASS):
-        return {"host": host, "state": state, "complete": True}
+    def result(self, agent, state=r.PASS):
+        return {"agent": agent, "state": state, "complete": True}
 
     def test_default_still_requires_every_agent(self) -> None:
-        combined = r.combine_hosts([self.result("claude")])
+        combined = r.combine_agents([self.result("claude")])
         self.assertEqual((combined["state"], combined["complete"], combined["partial"]), (r.INFRA_ERROR, False, False))
         self.assertEqual(combined["agents_run"], ["claude", "codex"])
 
     def test_subset_run_is_partial_and_covers_only_the_agents_run(self) -> None:
-        combined = r.combine_hosts([self.result("claude")], required=("claude",))
+        combined = r.combine_agents([self.result("claude")], required=("claude",))
         self.assertEqual((combined["state"], combined["partial"], combined["agents_run"]), (r.PASS, True, ["claude"]))
-        failing = r.combine_hosts([self.result("codex", r.ROUTING_FAIL)], required=("codex",))
+        failing = r.combine_agents([self.result("codex", r.ROUTING_FAIL)], required=("codex",))
         self.assertEqual((failing["state"], failing["partial"]), (r.ROUTING_FAIL, True))
 
     def test_both_agents_is_not_partial(self) -> None:
-        combined = r.combine_hosts([self.result("claude"), self.result("codex")])
+        combined = r.combine_agents([self.result("claude"), self.result("codex")])
         self.assertEqual((combined["partial"], combined["state"]), (False, r.PASS))
 
 

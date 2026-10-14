@@ -1,17 +1,17 @@
-"""Run the routing eval for one skill on each host and reduce each host to a state.
+"""Run the routing eval for one skill on each agent and reduce each agent to a state.
 
     python scripts/run_routing_eval.py <skill> [--agent claude|codex ...]
 
-Per host: validate scenarios offline, run Promptfoo, classify every trial (see
+Per agent: validate scenarios offline, run Promptfoo, classify every trial (see
 routing_results.py), retry infrastructure errors once, then write
-`.tmp/routing/reports/<host>-<skill>.result.json`. Only the infra-errored trials
-are retried; a missing or unreadable report retries the whole host run. Scenario
-validation failures are deterministic and never retried. Hosts run independently;
+`.tmp/routing/reports/<agent>-<skill>.result.json`. Only the infra-errored trials
+are retried; a missing or unreadable report retries the whole agent run. Scenario
+validation failures are deterministic and never retried. Agents run independently;
 a combined summary is written to `.tmp/routing/reports/<skill>.summary.json`.
 
 Ceilings (routing_ceilings.py; env-configurable) bound tokens, cost, concurrency, and
-wall clock. A breach stops the host as `infra_error` of kind `ceiling` with the breach
-recorded in the result; a breached host is never retried. Each result also reports
+wall clock. A breach stops the agent as `infra_error` of kind `ceiling` with the breach
+recorded in the result; a breached agent is never retried. Each result also reports
 tokens, estimated cost, latency, and retries.
 
 `--agent` limits the run to some agents (repeatable or comma-separated); the summary then records
@@ -44,12 +44,12 @@ REPORTS_DIR = check_repo.REPO_ROOT / ".tmp" / "routing" / "reports"
 PROMPTFOO = check_repo.REPO_ROOT / "node_modules" / ".bin" / "promptfoo"
 EXIT_CODES = {results.PASS: 0, results.ROUTING_FAIL: 1, results.INFRA_ERROR: 3}
 
-# (host, skill, report_path, description_pattern or None) -> (promptfoo output text, parsed rows or None)
+# (agent, skill, report_path, description_pattern or None) -> (promptfoo output text, parsed rows or None)
 PromptfooRunner = Callable[[str, str, Path, "str | None"], "tuple[str, list[dict[str, Any]] | None]"]
 
 
 def run_promptfoo(
-    host: str,
+    agent: str,
     skill: str,
     report: Path,
     pattern: str | None,
@@ -67,7 +67,7 @@ def run_promptfoo(
     report.parent.mkdir(parents=True, exist_ok=True)
     report.unlink(missing_ok=True)
     command = [
-        str(PROMPTFOO), "eval", "-c", f"evals/promptfoo/{host}.config.js",
+        str(PROMPTFOO), "eval", "-c", f"evals/promptfoo/{agent}.config.js",
         "--no-cache", "--no-table", "--max-concurrency", str(ledger.ceilings.max_concurrency),
         "--output", str(report),  # keep last: the variadic list takes the extra report paths below
     ]
@@ -75,7 +75,7 @@ def run_promptfoo(
         command += ["--filter-pattern", pattern]
     else:
         command += [str(report.with_suffix(".html")), str(report.with_suffix(".junit.xml"))]
-    # Own process group so a timeout also stops the host CLIs Promptfoo spawned.
+    # Own process group so a timeout also stops the agent CLIs Promptfoo spawned.
     proc = subprocess.Popen(
         command, cwd=check_repo.REPO_ROOT, env={**os.environ, **(env or {}), "ROUTING_SKILL": skill},
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
@@ -85,7 +85,7 @@ def run_promptfoo(
     except subprocess.TimeoutExpired:
         os.killpg(proc.pid, signal.SIGKILL)
         proc.communicate()
-        raise ceilings.CeilingBreach(ledger.timeout_breach(host)) from None
+        raise ceilings.CeilingBreach(ledger.timeout_breach(agent)) from None
     try:
         rows = json.loads(report.read_text())["results"]["results"]
     except (OSError, ValueError, KeyError, TypeError):
@@ -99,34 +99,34 @@ def retry_pattern(descriptions: list[str]) -> str:
     return "^(?:" + "|".join(escaped) + ")$"
 
 
-def evaluate_host(
-    host: str,
+def evaluate_agent(
+    agent: str,
     skill: str,
     runner: PromptfooRunner | None = None,
     reports_dir: Path = REPORTS_DIR,
     validation_errors: list[str] | None = None,
     ledger: ceilings.Ledger | None = None,
 ) -> dict[str, Any]:
-    """Run, retry once on infrastructure error, and reduce one host.
+    """Run, retry once on infrastructure error, and reduce one agent.
 
     Ceilings are checked before every Promptfoo launch and after the last run. A breach
-    stops the host (no retry) as infra_error; trials already judged stay in the result.
+    stops the agent (no retry) as infra_error; trials already judged stay in the result.
     """
     if validation_errors:
-        return results.host_failure(host, skill, results.SCENARIO_VALIDATION, "; ".join(validation_errors))
+        return results.agent_failure(agent, skill, results.SCENARIO_VALIDATION, "; ".join(validation_errors))
 
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     runner = runner or functools.partial(run_promptfoo, ledger=ledger)
-    base = reports_dir / f"{host}-{skill}.json"
+    base = reports_dir / f"{agent}-{skill}.json"
     retry_report = base.with_suffix(".retry.json")
     attempts: list[list[dict[str, Any]]] = []
     retries = 0
 
     def launch(report: Path, pattern: str | None) -> tuple[str, list[dict[str, Any]] | None]:
-        ledger.check(host)
-        output, rows = runner(host, skill, report, pattern)
+        ledger.check(agent)
+        output, rows = runner(agent, skill, report, pattern)
         if rows is not None:
-            ledger.record(host, rows)
+            ledger.record(agent, rows)
         return output, rows
 
     try:
@@ -137,24 +137,24 @@ def evaluate_host(
             output, rows = launch(retry_report, None)
             if rows is None:
                 print(output)
-                return results.host_failure(host, skill, results.PROVIDER, _last_line(output) or "no Promptfoo report", retries=1)
+                return results.agent_failure(agent, skill, results.PROVIDER, _last_line(output) or "no Promptfoo report", retries=1)
             attempts = [[], rows]
         else:
             attempts = [rows]
-            broken = [row for row in rows if results.reduce_trial(row, host)["state"] == results.INFRA_ERROR]
+            broken = [row for row in rows if results.reduce_trial(row, agent)["state"] == results.INFRA_ERROR]
             if broken:
                 descriptions = [(row.get("testCase") or {}).get("description") for row in broken]
                 _, retried = launch(retry_report, retry_pattern([d for d in descriptions if d]))
                 attempts.append(retried or [])
-        breaches = ledger.breaches(host)
+        breaches = ledger.breaches(agent)
     except ceilings.CeilingBreach as exc:
         breaches = [exc.breach]
 
     if not attempts:
-        return results.host_failure(
-            host, skill, results.CEILING, ceilings.describe(breaches[0]), retries=retries, breaches=breaches
+        return results.agent_failure(
+            agent, skill, results.CEILING, ceilings.describe(breaches[0]), retries=retries, breaches=breaches
         )
-    return results.reduce_host(host, skill, attempts, breaches)
+    return results.reduce_agent(agent, skill, attempts, breaches)
 
 
 def _last_line(text: str) -> str:
@@ -169,7 +169,7 @@ def summarize(result: dict[str, Any]) -> str:
     usage = f" tokens={use['tokens']} cost=${use['cost_usd']:.4f} latency={use['latency_ms'] / 1000:.1f}s retries={result['retries']}"
     note = f" ({result['reason']})" if result["reason"] else ""
     config = f" {settings_lib.describe(result['settings'])}" if "settings" in result else ""
-    return f"{result['host']}: {result['state']}{'' if result['complete'] else ' [incomplete]'}{config} trials[{detail}] kinds={kinds}{usage}{note}"
+    return f"{result['agent']}: {result['state']}{'' if result['complete'] else ' [incomplete]'}{config} trials[{detail}] kinds={kinds}{usage}{note}"
 
 
 HARNESS_ERROR = 2  # exit 1 is routing_fail, which is also Python's uncaught-traceback code
@@ -224,13 +224,13 @@ def main(argv: list[str]) -> int:
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return HARNESS_ERROR
-    outcomes = [evaluate_host(host, skill, ledger=ledger) for host in agents]
+    outcomes = [evaluate_agent(agent, skill, ledger=ledger) for agent in agents]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:
         settings_lib.annotate(outcome, settings).update(agents_lib.scope(agents))
-        (REPORTS_DIR / f"{outcome['host']}-{skill}.result.json").write_text(json.dumps(outcome, indent=2) + "\n")
+        (REPORTS_DIR / f"{outcome['agent']}-{skill}.result.json").write_text(json.dumps(outcome, indent=2) + "\n")
         print(summarize(outcome))
-    combined = results.combine_hosts(outcomes, required=agents)
+    combined = results.combine_agents(outcomes, required=agents)
     (REPORTS_DIR / f"{skill}.summary.json").write_text(json.dumps(combined, indent=2) + "\n")
     print(f"overall: {agents_lib.label(combined['state'], agents)}")
     return EXIT_CODES[combined["state"]]

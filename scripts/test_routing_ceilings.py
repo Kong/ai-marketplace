@@ -44,7 +44,7 @@ class LedgerTests(unittest.TestCase):
         u = c.usage([costly(tokens=10, cost=0.5), row()])
         self.assertEqual((u["trials"], u["tokens"], u["cost_usd"], u["latency_ms"]), (2, 10, 0.5, 10))
 
-    def test_token_and_cost_breach_names_the_ceiling_per_host(self) -> None:
+    def test_token_and_cost_breach_names_the_ceiling_per_agent(self) -> None:
         led = ledger(ROUTING_MAX_TOKENS=150, ROUTING_MAX_COST_USD=0.015)
         led.record("codex", [costly(), costly()])
         self.assertEqual({b["ceiling"] for b in led.breaches("codex")}, {c.TOKENS, c.COST})
@@ -64,7 +64,7 @@ class LedgerTests(unittest.TestCase):
             led.check("codex")
 
 
-class EvaluateHostTests(unittest.TestCase):
+class EvaluateAgentTests(unittest.TestCase):
     def setUp(self) -> None:
         scratch = Path(__file__).resolve().parents[1] / ".tmp"
         scratch.mkdir(exist_ok=True)
@@ -76,7 +76,7 @@ class EvaluateHostTests(unittest.TestCase):
     def runner(self, *outcomes):
         queue = list(outcomes)
 
-        def fake(host, skill, report, pattern):
+        def fake(agent, skill, report, pattern):
             self.calls += 1
             out = queue.pop(0)
             if isinstance(out, Exception):
@@ -87,7 +87,7 @@ class EvaluateHostTests(unittest.TestCase):
 
     def test_token_breach_after_run_is_infra_error_ceiling_not_routing_fail(self) -> None:
         # The trial is a routing failure, but the run overspent: the result is not trusted.
-        h = run.evaluate_host("codex", "alpha", self.runner([costly(calls=[], success=False)]), self.dir,
+        h = run.evaluate_agent("codex", "alpha", self.runner([costly(calls=[], success=False)]), self.dir,
                               ledger=ledger(ROUTING_MAX_TOKENS=50))
         self.assertEqual((h["state"], h["complete"], h["failure_kinds"]), (r.INFRA_ERROR, False, [r.CEILING, r.INVOCATION]))
         self.assertEqual([b["ceiling"] for b in h["breaches"]], [c.TOKENS])
@@ -96,40 +96,40 @@ class EvaluateHostTests(unittest.TestCase):
         self.assertEqual(h["scenarios"][0]["state"], r.ROUTING_FAIL)  # judged trials stay visible
 
     def test_breach_blocks_the_retry(self) -> None:
-        h = run.evaluate_host("codex", "alpha", self.runner([costly(error="503")]), self.dir,
+        h = run.evaluate_agent("codex", "alpha", self.runner([costly(error="503")]), self.dir,
                               ledger=ledger(ROUTING_MAX_COST_USD=0.005))
         self.assertEqual((h["state"], h["retries"]), (r.INFRA_ERROR, 0))
         self.assertEqual(self.calls, 1)
 
     def test_shared_ledger_stops_later_runs_before_launch(self) -> None:
         led = ledger(ROUTING_MAX_COST_USD=0.005)
-        run.evaluate_host("codex", "alpha", self.runner([costly()]), self.dir, ledger=led)
-        h = run.evaluate_host("codex", "alpha", self.runner(), self.dir, ledger=led)  # would pop an empty queue
+        run.evaluate_agent("codex", "alpha", self.runner([costly()]), self.dir, ledger=led)
+        h = run.evaluate_agent("codex", "alpha", self.runner(), self.dir, ledger=led)  # would pop an empty queue
         self.assertEqual((h["state"], h["failure_kinds"], h["scenarios"]), (r.INFRA_ERROR, [r.CEILING], []))
         self.assertEqual(self.calls, 1)
-        self.assertEqual(led.breaches("claude"), [])  # other host unaffected
+        self.assertEqual(led.breaches("claude"), [])  # other agent unaffected
 
     def test_timeout_raised_by_runner_is_infra_error_ceiling(self) -> None:
-        breach = {"ceiling": c.RUN_TIMEOUT, "limit": 240, "observed": 240, "host": "codex"}
-        h = run.evaluate_host("codex", "alpha", self.runner(c.CeilingBreach(breach)), self.dir, ledger=ledger())
+        breach = {"ceiling": c.RUN_TIMEOUT, "limit": 240, "observed": 240, "agent": "codex"}
+        h = run.evaluate_agent("codex", "alpha", self.runner(c.CeilingBreach(breach)), self.dir, ledger=ledger())
         self.assertEqual((h["state"], h["complete"], h["failure_kinds"], h["breaches"]), (r.INFRA_ERROR, False, [r.CEILING], [breach]))
         self.assertEqual(self.calls, 1)  # a timeout is not retried
 
     def test_within_ceilings_reports_usage_and_retries(self) -> None:
         full = [costly(tokens=40, cost=0.1, scenario="s1", trial=1, trials=2), costly(scenario="s1", trial=2, trials=2, error="503")]
-        h = run.evaluate_host("codex", "alpha", self.runner(full, [costly(tokens=60, cost=0.2, scenario="s1", trial=2, trials=2)]),
+        h = run.evaluate_agent("codex", "alpha", self.runner(full, [costly(tokens=60, cost=0.2, scenario="s1", trial=2, trials=2)]),
                               self.dir, ledger=ledger())
         self.assertEqual((h["state"], h["retries"], h["breaches"]), (r.PASS, 1, []))
         self.assertEqual((h["usage"]["tokens"], h["usage"]["cost_usd"]), (100, 0.31))
         self.assertIn("tokens=100", run.summarize(h))
 
     def test_comparison_and_summary_carry_breaches_and_usage(self) -> None:
-        ok = run.evaluate_host("codex", "alpha", self.runner([costly()]), self.dir, ledger=ledger())
-        over = run.evaluate_host("codex", "alpha", self.runner([costly()]), self.dir, ledger=ledger(ROUTING_MAX_TOKENS=50))
-        doc = compare.compare_host(ok, over)
+        ok = run.evaluate_agent("codex", "alpha", self.runner([costly()]), self.dir, ledger=ledger())
+        over = run.evaluate_agent("codex", "alpha", self.runner([costly()]), self.dir, ledger=ledger(ROUTING_MAX_TOKENS=50))
+        doc = compare.compare_agent(ok, over)
         self.assertEqual((doc["state"], doc["complete"], doc["usage"]["tokens"]), (r.INFRA_ERROR, False, 200))
         self.assertEqual(doc["usage_by_side"]["control"]["tokens"], 100)
-        combined = r.combine_hosts([doc])
+        combined = r.combine_agents([doc])
         self.assertEqual(len(combined["breaches"]), 1)
         self.assertEqual(combined["usage"]["codex"]["tokens"], 200)
 

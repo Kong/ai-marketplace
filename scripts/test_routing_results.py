@@ -65,76 +65,76 @@ class TrialTests(unittest.TestCase):
         self.assertEqual((t["state"], t["observed"]), (r.PASS, []))
 
 
-class HostTests(unittest.TestCase):
+class AgentTests(unittest.TestCase):
     def test_all_pass(self) -> None:
-        h = r.reduce_host("codex", "alpha", [[row(trial=i, trials=3) for i in (1, 2, 3)]])
+        h = r.reduce_agent("codex", "alpha", [[row(trial=i, trials=3) for i in (1, 2, 3)]])
         self.assertEqual((h["state"], h["complete"], h["retries"]), (r.PASS, True, 0))
         self.assertEqual(h["scenarios"][0]["required_passes"], 2)
 
     def test_two_of_three_passes_a_scenario(self) -> None:
         rows = [row(trial=1, trials=3), row(trial=2, trials=3, calls=[], success=False), row(trial=3, trials=3)]
-        self.assertEqual(r.reduce_host("codex", "a", [rows])["state"], r.PASS)
+        self.assertEqual(r.reduce_agent("codex", "a", [rows])["state"], r.PASS)
         rows[2] = row(trial=3, trials=3, calls=[], success=False)
-        h = r.reduce_host("codex", "a", [rows])
+        h = r.reduce_agent("codex", "a", [rows])
         self.assertEqual((h["state"], h["failure_kinds"], h["complete"]), (r.ROUTING_FAIL, [r.INVOCATION], True))
 
-    def test_infra_error_makes_host_incomplete_but_keeps_scenario_states(self) -> None:
+    def test_infra_error_makes_agent_incomplete_but_keeps_scenario_states(self) -> None:
         rows = [row("s1", error="boom"), row("s2", calls=[], success=False)]
-        h = r.reduce_host("claude", "alpha", [rows])
+        h = r.reduce_agent("claude", "alpha", [rows])
         self.assertEqual((h["state"], h["complete"]), (r.INFRA_ERROR, False))
         self.assertEqual([s["state"] for s in h["scenarios"]], [r.INFRA_ERROR, r.ROUTING_FAIL])
         self.assertEqual(h["counts"], {r.PASS: 0, r.ROUTING_FAIL: 1, r.INFRA_ERROR: 1})
 
     def test_retry_replaces_only_the_retried_trial(self) -> None:
         first = [row("s1", trial=1, trials=3), row("s1", trial=2, trials=3, error="timeout"), row("s1", trial=3, trials=3)]
-        h = r.reduce_host("codex", "alpha", [first, [row("s1", trial=2, trials=3)]])
+        h = r.reduce_agent("codex", "alpha", [first, [row("s1", trial=2, trials=3)]])
         self.assertEqual((h["state"], h["retries"]), (r.PASS, 1))
         self.assertEqual([t["attempts"] for t in h["scenarios"][0]["trials"]], [1, 2, 1])
 
     def test_persistent_failure_after_retry_stays_infra_error(self) -> None:
         first = [row(error="timeout")]
-        h = r.reduce_host("codex", "alpha", [first, [row(error="timeout")]])
+        h = r.reduce_agent("codex", "alpha", [first, [row(error="timeout")]])
         self.assertEqual((h["state"], h["complete"], h["retries"]), (r.INFRA_ERROR, False, 1))
 
     def test_empty_results_are_infra_error(self) -> None:
-        h = r.reduce_host("codex", "alpha", [[]])
+        h = r.reduce_agent("codex", "alpha", [[]])
         self.assertEqual((h["state"], h["failure_kinds"]), (r.INFRA_ERROR, [r.PROVIDER]))
 
-    def test_host_failure_kinds(self) -> None:
-        f = r.host_failure("codex", "alpha", r.SCENARIO_VALIDATION, "duplicate id")
+    def test_agent_failure_kinds(self) -> None:
+        f = r.agent_failure("codex", "alpha", r.SCENARIO_VALIDATION, "duplicate id")
         self.assertEqual((f["state"], f["failure_kinds"], f["complete"]), (r.INFRA_ERROR, [r.SCENARIO_VALIDATION], False))
         with self.assertRaises(ValueError):
-            r.host_failure("codex", "alpha", r.INVOCATION, "no")
+            r.agent_failure("codex", "alpha", r.INVOCATION, "no")
 
 
 class CombineTests(unittest.TestCase):
-    def result(self, host, state):
-        return {"host": host, "state": state}
+    def result(self, agent, state):
+        return {"agent": agent, "state": state}
 
-    def test_pass_on_one_host_cannot_offset_another(self) -> None:
+    def test_pass_on_one_agent_cannot_offset_another(self) -> None:
         for bad in (r.ROUTING_FAIL, r.INFRA_ERROR):
-            c = r.combine_hosts([self.result("claude", r.PASS), self.result("codex", bad)])
+            c = r.combine_agents([self.result("claude", r.PASS), self.result("codex", bad)])
             self.assertEqual(c["state"], bad)
-            self.assertEqual(c["hosts"], {"claude": r.PASS, "codex": bad})
+            self.assertEqual(c["agents"], {"claude": r.PASS, "codex": bad})
 
-    def test_routing_fail_outranks_infra_error_and_missing_host_is_incomplete(self) -> None:
-        both = r.combine_hosts([self.result("claude", r.INFRA_ERROR), self.result("codex", r.ROUTING_FAIL)])
+    def test_routing_fail_outranks_infra_error_and_missing_agent_is_incomplete(self) -> None:
+        both = r.combine_agents([self.result("claude", r.INFRA_ERROR), self.result("codex", r.ROUTING_FAIL)])
         self.assertEqual((both["state"], both["complete"]), (r.ROUTING_FAIL, False))
-        missing = r.combine_hosts([self.result("codex", r.PASS)])
-        self.assertEqual((missing["state"], missing["hosts"]["claude"]), (r.INFRA_ERROR, r.INFRA_ERROR))
+        missing = r.combine_agents([self.result("codex", r.PASS)])
+        self.assertEqual((missing["state"], missing["agents"]["claude"]), (r.INFRA_ERROR, r.INFRA_ERROR))
 
-    def test_incomplete_passing_host_is_infra_error(self) -> None:
-        c = r.combine_hosts([{"host": "claude", "state": r.PASS, "complete": False}, self.result("codex", r.PASS)])
+    def test_incomplete_passing_agent_is_infra_error(self) -> None:
+        c = r.combine_agents([{"agent": "claude", "state": r.PASS, "complete": False}, self.result("codex", r.PASS)])
         self.assertEqual((c["state"], c["complete"]), (r.INFRA_ERROR, False))
-        self.assertEqual(c["hosts"], {"claude": r.INFRA_ERROR, "codex": r.PASS})
+        self.assertEqual(c["agents"], {"claude": r.INFRA_ERROR, "codex": r.PASS})
 
     def test_routing_fail_still_outranks_an_incomplete_pass(self) -> None:
-        incomplete_pass = {"host": "claude", "state": r.PASS, "complete": False}
-        c = r.combine_hosts([incomplete_pass, self.result("codex", r.ROUTING_FAIL)])
+        incomplete_pass = {"agent": "claude", "state": r.PASS, "complete": False}
+        c = r.combine_agents([incomplete_pass, self.result("codex", r.ROUTING_FAIL)])
         self.assertEqual(c["state"], r.ROUTING_FAIL)
 
     def test_all_pass(self) -> None:
-        c = r.combine_hosts([self.result("claude", r.PASS), self.result("codex", r.PASS)])
+        c = r.combine_agents([self.result("claude", r.PASS), self.result("codex", r.PASS)])
         self.assertEqual((c["state"], c["complete"]), (r.PASS, True))
 
 
@@ -150,7 +150,7 @@ class RetryTests(unittest.TestCase):
     def runner(self, *outcomes):
         queue = list(outcomes)
 
-        def fake(host, skill, report, pattern):
+        def fake(agent, skill, report, pattern):
             self.calls.append(pattern)
             return "", queue.pop(0)
 
@@ -158,7 +158,7 @@ class RetryTests(unittest.TestCase):
 
     def test_transient_provider_error_is_retried_once_and_recovers(self) -> None:
         full = [row("s1", trial=1, trials=2), row("s1", trial=2, trials=2, error="503")]
-        h = run.evaluate_host("codex", "alpha", self.runner(full, [row("s1", trial=2, trials=2)]), self.dir)
+        h = run.evaluate_agent("codex", "alpha", self.runner(full, [row("s1", trial=2, trials=2)]), self.dir)
         self.assertEqual((h["state"], h["retries"]), (r.PASS, 1))
         self.assertEqual(len(self.calls), 2)
         pattern = re.compile(self.calls[1])
@@ -166,22 +166,22 @@ class RetryTests(unittest.TestCase):
         self.assertFalse(pattern.search(full[0]["testCase"]["description"]))
 
     def test_persistent_error_is_retried_once_then_incomplete(self) -> None:
-        h = run.evaluate_host("claude", "alpha", self.runner([row(error="no key")], [row(error="no key")]), self.dir)
+        h = run.evaluate_agent("claude", "alpha", self.runner([row(error="no key")], [row(error="no key")]), self.dir)
         self.assertEqual((h["state"], h["complete"], h["retries"]), (r.INFRA_ERROR, False, 1))
         self.assertEqual(len(self.calls), 2)
 
     def test_routing_fail_is_not_retried(self) -> None:
-        h = run.evaluate_host("codex", "alpha", self.runner([row(calls=[], success=False)]), self.dir)
+        h = run.evaluate_agent("codex", "alpha", self.runner([row(calls=[], success=False)]), self.dir)
         self.assertEqual((h["state"], h["retries"]), (r.ROUTING_FAIL, 0))
         self.assertEqual(len(self.calls), 1)
 
     def test_missing_report_retries_whole_run_then_reports_provider_failure(self) -> None:
-        h = run.evaluate_host("codex", "alpha", self.runner(None, None), self.dir)
+        h = run.evaluate_agent("codex", "alpha", self.runner(None, None), self.dir)
         self.assertEqual((h["state"], h["failure_kinds"], h["retries"]), (r.INFRA_ERROR, [r.PROVIDER], 1))
         self.assertEqual(self.calls, [None, None])
 
     def test_scenario_validation_failure_runs_nothing_and_is_not_retried(self) -> None:
-        h = run.evaluate_host("codex", "alpha", self.runner(), self.dir, validation_errors=["dup id"])
+        h = run.evaluate_agent("codex", "alpha", self.runner(), self.dir, validation_errors=["dup id"])
         self.assertEqual((h["state"], h["failure_kinds"], h["retries"]), (r.INFRA_ERROR, [r.SCENARIO_VALIDATION], 0))
         self.assertEqual(self.calls, [])
 

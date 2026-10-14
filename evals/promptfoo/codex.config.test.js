@@ -45,11 +45,11 @@ test('uses the native Codex SDK provider constrained to routing discovery', () =
   assert.match(provider.config.working_dir, /\.tmp[\\/]routing[\\/]codex$/);
 });
 
-test('tests are tagged host=codex and graded only by skill-used assertions', () => {
+test('tests are tagged agent=codex and graded only by skill-used assertions', () => {
   const { tests, providers } = loadConfig();
   assert.strictEqual(tests.length, 3);
   for (const t of tests) {
-    assert.strictEqual(t.metadata.host, 'codex');
+    assert.strictEqual(t.metadata.agent, 'codex');
     assert.deepStrictEqual(t.providers, [providers[0].label]);
     assert.ok(t.assert.every((a) => a.type === 'skill-used' || a.type === 'not-skill-used'));
   }
