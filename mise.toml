@@ -47,6 +47,7 @@ run = [
   "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js evals/promptfoo/settings.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_settings.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_agents.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_coverage.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "gh skill publish --dry-run",
@@ -90,6 +91,10 @@ run = [
 [tasks."eval:routing:config"]
 description = "Print effective routing eval model/effort, fixed settings, trial policy and ceilings (offline): mise run eval:routing:config -- [--json]"
 run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/print_routing_config.py"
+
+[tasks."eval:routing:coverage"]
+description = "List which skills have routing scenarios and their tag counts (offline, informational, never fails on gaps): mise run eval:routing:coverage -- [--json]"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_coverage.py"
 
 [tasks."release:prepare"]
 description = "Update manifest versions for a release commit"

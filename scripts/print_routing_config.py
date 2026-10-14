@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from typing import Any
 
@@ -51,7 +52,8 @@ def render(config: dict[str, Any]) -> str:
     for agent, doc in config["agents"].items():
         lines.append(f"{agent}: {settings_lib.describe(doc)}")
     if config["overridden"]:
-        lines.append(f"  overridden: true ({', '.join(config['override_variables'])} are set)")
+        active = [name for name in config["override_variables"] if os.environ.get(name)]
+        lines.append(f"  overridden: true ({', '.join(active)} set)")
     lines += ["", f"Selectable agents (--agent, repeatable or comma-separated; default all): {', '.join(config['selectable_agents'])}"]
     lines += ["", "Fixed discovery settings (not configurable):"]
     for agent, fixed in config["fixed"].items():
