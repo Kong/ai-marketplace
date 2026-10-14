@@ -30,6 +30,7 @@ import prepare_routing_workspace as workspaces
 import routing_ceilings as ceilings
 import routing_compare as compare
 import routing_results as results
+import routing_settings as settings_lib
 import run_routing_eval as runner
 import select_changed
 import validate_routing_scenarios as scenarios
@@ -92,6 +93,11 @@ def describe(doc: dict[str, Any]) -> str:
 
 
 def _describe(doc: dict[str, Any]) -> str:
+    config = f" [{settings_lib.describe(doc['settings'])}]" if "settings" in doc else ""
+    return _describe_state(doc).replace(":", f"{config}:", 1)
+
+
+def _describe_state(doc: dict[str, Any]) -> str:
     if doc["mode"] == "new_skill":
         parts = [
             f"{name}={c['passes']}/{c['trials']} (need {c['required']:.0%}, {'met' if c['met'] else 'NOT met'})"
@@ -114,6 +120,14 @@ def main(argv: list[str]) -> int:
     parser.add_argument("--base", default="origin/main")
     args = parser.parse_args(argv[1:])
     skill = args.skill
+    try:
+        # Candidate and control inherit the same environment, so both use these effective settings.
+        settings = settings_lib.load()
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return runner.HARNESS_ERROR
+    if warning := settings_lib.warning(settings):
+        print(warning, file=sys.stderr)
     try:
         base = merge_base(args.base)
         known = scenarios.known_skill_names()
@@ -148,7 +162,7 @@ def main(argv: list[str]) -> int:
         else:
             control = evaluate_variant("control", host, skill, base, validation_errors, ledger=ledger)
             doc = compare.compare_host(candidate, control)
-        docs.append(doc)
+        docs.append(settings_lib.annotate(doc, settings))
 
     runner.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for doc in docs:

@@ -127,6 +127,8 @@ jobs:
           ROUTING_RUN_TIMEOUT_SECONDS: ${{ vars.ROUTING_RUN_TIMEOUT_SECONDS }}
           ROUTING_JOB_TIMEOUT_SECONDS: ${{ vars.ROUTING_JOB_TIMEOUT_SECONDS }}
         run: |
+          # CI always uses the pinned model and effort: never let a variable or secret leak in.
+          unset ROUTING_CODEX_MODEL ROUTING_CODEX_EFFORT ROUTING_CLAUDE_MODEL ROUTING_CLAUDE_EFFORT
           set +e
           if [ "$MODE" = "adjacent" ]; then
             summary=".tmp/routing/reports/$SKILL.summary.json"

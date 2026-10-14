@@ -3,7 +3,9 @@
 const path = require('node:path');
 const { buildTests, SCENARIOS_DIR } = require('./scenarios');
 
-const MODEL = 'claude-sonnet-5-5';
+const { resolve, FIXED } = require('./settings');
+
+const settings = resolve('claude');
 const LABELS = { positive: 'claude-stop-on-activation', negative: 'claude-complete-turn' };
 // ROUTING_WORKSPACE_ROOT lets the candidate/control comparison point each run at its own workspace.
 const workspace = process.env.ROUTING_WORKSPACE_ROOT
@@ -13,16 +15,10 @@ const workspace = process.env.ROUTING_WORKSPACE_ROOT
 // Discovery only: the sole tool is the native Skill tool, so the agent cannot
 // perform the domain task, read files, run commands, or reach MCP servers.
 const base = {
-  model: MODEL,
+  model: settings.model.value,
+  ...(settings.effort.value ? { effort: settings.effort.value } : {}),
   working_dir: workspace,
-  setting_sources: ['project'],
-  skills: 'all',
-  custom_allowed_tools: [],
-  disallowed_tools: ['Bash', 'Edit', 'Write', 'Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'Task'],
-  permission_mode: 'dontAsk',
-  persist_session: false,
-  max_turns: 4,
-  max_budget_usd: 0.25,
+  ...FIXED.claude,
 };
 
 // Positive scenarios end the turn as soon as a Skill call succeeds.

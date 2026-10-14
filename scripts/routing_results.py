@@ -28,6 +28,10 @@ Host result document (`reduce_host` / `host_failure`)
       "failure_kinds": ["invocation"|"provider"|"telemetry"|"ceiling"|"scenario_validation"],
       "usage": {"trials", "tokens", "cost_usd", "latency_ms"},   # all attempts, incl. retries
       "breaches": [{"ceiling", "limit", "observed", "host"}],    # non-empty => infra_error
+      "settings": {"model": {"value", "source"}, "effort": {"value"|null, "source"}},
+                                     # effective host settings; source is "default" or "override"
+      "overridden": bool,            # any ROUTING_*_MODEL / _EFFORT override was active
+                                     # (settings/overridden are added by the run scripts, not reduce_host)
       "counts": {"pass": n, "routing_fail": n, "infra_error": n},   # final trials
       "scenarios": [{
         "id", "state", "passes", "required_passes", "trials": [trial, ...]
@@ -256,4 +260,6 @@ def combine_hosts(results: list[dict[str, Any]], required: tuple[str, ...] = HOS
         "hosts": hosts,
         "usage": {r["host"]: r["usage"] for r in results if "usage" in r},
         "breaches": [b for r in results for b in r.get("breaches") or []],
+        "settings": {r["host"]: r["settings"] for r in results if "settings" in r},
+        "overridden": any(r.get("overridden") for r in results),
     }

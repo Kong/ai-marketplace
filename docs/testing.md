@@ -188,6 +188,32 @@ The job targets ten minutes (`timeout-minutes: 10`); jobs for one PR share a
 concurrency group and `max-parallel` bounds paid jobs. Ceilings are described under
 [Ceilings](#ceilings). Actions are pinned by commit SHA.
 
+### Model and effort settings
+
+The pinned defaults (Codex `gpt-5.5` at `low` effort, Claude `claude-sonnet-5-5` with the
+provider's default effort) live in one file, `evals/promptfoo/settings.js`, which both host
+configs, the harness, and the printer read. For local experiments only, override them:
+
+- `ROUTING_CODEX_MODEL`, `ROUTING_CODEX_EFFORT` (becomes `model_reasoning_effort`)
+- `ROUTING_CLAUDE_MODEL`, `ROUTING_CLAUDE_EFFORT` (Promptfoo's `anthropic:claude-agent-sdk`
+  provider forwards `effort` to the Agent SDK; allowed: `low`, `medium`, `high`, `xhigh`, `max`)
+
+Unset or empty means the pin. A malformed model id or an effort outside the provider's set
+exits 2 before any run. Tool restrictions, sandbox, permissions, and budgets are fixed and not
+configurable. Candidate and control inherit the same environment, so a comparison always
+applies the same effective settings to both sides.
+
+Every result, summary, and comparison document records `settings` (effective model and effort,
+each marked `default` or `override`) and `overridden`, and the console summary shows them. Any
+active override prints a warning and sets `overridden: true`; such results are not comparable
+with CI. `mise run eval:routing:config -- [--json]` prints the effective settings per host, the
+fixed discovery settings, trial policy, and ceilings with their variable names, offline and
+without credentials.
+
+CI always uses the pins: `skill-evals.yml` passes none of these variables and unsets them in
+the eval step. Changing a pin is a reviewed edit to `settings.js`, supported by
+`eval:routing:compare` evidence for the old and new setting.
+
 ### Ceilings
 
 `scripts/routing_ceilings.py` enforces limits for every routing run, local or CI.

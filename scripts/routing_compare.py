@@ -14,6 +14,7 @@ Comparison document (`compare_host`, modified skill)
       "candidate_state", "control_state",
       "failure_kinds": [...], "reason": str|None,   # union / first of both sides' infra failures
       "usage": {"trials", "tokens", "cost_usd", "latency_ms"},   # candidate + control, incl. retries
+      "settings", "overridden",             # effective model/effort for both sides (same for candidate and control)
       "usage_by_side": {"candidate": usage, "control": usage},
       "breaches": [...],                    # ceilings reached on either side; non-empty => infra_error
       "aggregate": {"candidate": side, "control": side, "delta": float|None},
@@ -28,6 +29,7 @@ New-skill document (`evaluate_new_skill`, no control exists)
       "state": pass|routing_fail|infra_error, "complete": bool,
       "failure_kinds": [...], "reason": str|None,   # from the host result, e.g. scenario_validation
       "usage": usage, "breaches": [...],            # from the host result
+      "settings", "overridden",                     # effective model/effort, as above
       "expectations": {
         "positive_recall": check, "near_miss_specificity": check
       },

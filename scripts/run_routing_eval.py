@@ -34,6 +34,7 @@ from typing import Any, Callable
 import check_repo
 import routing_ceilings as ceilings
 import routing_results as results
+import routing_settings as settings_lib
 import validate_routing_scenarios as scenarios
 
 REPORTS_DIR = check_repo.REPO_ROOT / ".tmp" / "routing" / "reports"
@@ -164,7 +165,8 @@ def summarize(result: dict[str, Any]) -> str:
     use = result["usage"]
     usage = f" tokens={use['tokens']} cost=${use['cost_usd']:.4f} latency={use['latency_ms'] / 1000:.1f}s retries={result['retries']}"
     note = f" ({result['reason']})" if result["reason"] else ""
-    return f"{result['host']}: {result['state']}{'' if result['complete'] else ' [incomplete]'} trials[{detail}] kinds={kinds}{usage}{note}"
+    config = f" {settings_lib.describe(result['settings'])}" if "settings" in result else ""
+    return f"{result['host']}: {result['state']}{'' if result['complete'] else ' [incomplete]'}{config} trials[{detail}] kinds={kinds}{usage}{note}"
 
 
 HARNESS_ERROR = 2  # exit 1 is routing_fail, which is also Python's uncaught-traceback code
@@ -192,6 +194,13 @@ def main(argv: list[str]) -> int:
         return HARNESS_ERROR
     skill = argv[1]
     try:
+        settings = settings_lib.load()  # fail fast on invalid ROUTING_*_MODEL / _EFFORT
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return HARNESS_ERROR
+    if warning := settings_lib.warning(settings):
+        print(warning, file=sys.stderr)
+    try:
         validation_errors = scenarios.validate_scenarios(scenarios.SCENARIOS_DIR, scenarios.known_skill_names())
     except ValueError as exc:
         validation_errors = [str(exc)]
@@ -207,6 +216,7 @@ def main(argv: list[str]) -> int:
     outcomes = [evaluate_host(host, skill, ledger=ledger) for host in results.HOSTS]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:
+        settings_lib.annotate(outcome, settings)
         (REPORTS_DIR / f"{outcome['host']}-{skill}.result.json").write_text(json.dumps(outcome, indent=2) + "\n")
         print(summarize(outcome))
     combined = results.combine_hosts(outcomes)

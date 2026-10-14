@@ -8,7 +8,9 @@
 const path = require('node:path');
 const { buildTests, SCENARIOS_DIR } = require('./scenarios');
 
-const MODEL = 'gpt-5.5';
+const { resolve, FIXED } = require('./settings');
+
+const settings = resolve('codex');
 const LABEL = 'codex-discovery-turn';
 // ROUTING_WORKSPACE_ROOT lets the candidate/control comparison point each run at its own workspace.
 const workspace = process.env.ROUTING_WORKSPACE_ROOT
@@ -19,15 +21,10 @@ const workspace = process.env.ROUTING_WORKSPACE_ROOT
 // approval, and one short turn. Codex cannot be limited to a single tool, so the
 // prompt confines the shell to reading a SKILL.md.
 const base = {
-  model: MODEL,
+  model: settings.model.value,
   working_dir: workspace,
-  skip_git_repo_check: true,
-  sandbox_mode: 'read-only',
-  approval_policy: 'never',
-  network_access_enabled: false,
-  web_search_mode: 'disabled',
-  model_reasoning_effort: 'low',
-  persist_threads: false,
+  ...FIXED.codex,
+  model_reasoning_effort: settings.effort.value,
 };
 
 const skill = process.env.ROUTING_SKILL;

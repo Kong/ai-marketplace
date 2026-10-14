@@ -44,7 +44,8 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_results.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_compare.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ceilings.py",
-  "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js",
+  "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js evals/promptfoo/settings.test.js",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_settings.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "gh skill publish --dry-run",
@@ -82,6 +83,10 @@ run = [
   # Materializes isolated candidate and control workspaces itself. Exit codes: see docs/testing.md.
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_comparison.py {{usage.name}} --base {{usage.base}}",
 ]
+
+[tasks."eval:routing:config"]
+description = "Print effective routing eval model/effort, fixed settings, trial policy and ceilings (offline): mise run eval:routing:config -- [--json]"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/print_routing_config.py"
 
 [tasks."release:prepare"]
 description = "Update manifest versions for a release commit"
