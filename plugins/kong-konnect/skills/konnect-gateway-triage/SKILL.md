@@ -192,3 +192,5 @@ Before answering, verify that you can state:
 - If routing is correct and the remaining failure is upstream availability,
   origin TLS, or application behavior, state that Gateway attachment is healthy
   and hand off to the upstream owner instead of continuing Konnect triage.
+
+Smoke test: body-only edit (do not merge).
