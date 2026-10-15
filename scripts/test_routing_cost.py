@@ -30,30 +30,34 @@ class TrialPlanTests(unittest.TestCase):
     def test_snapshot_is_the_full_file_at_own_trials(self) -> None:
         self.assertEqual(cost.entry_trials(entry("snapshot"), TRIALS, TRIALS)["initial"], 7)
 
+    def test_canary_is_one_candidate_trial_per_positive_scenario(self) -> None:
+        self.assertEqual(cost.entry_trials(entry("canary", ids="a,b"), TRIALS, TRIALS), {"scenarios": 2, "initial": 2, "worst": 2})
+
     def test_full_compare_doubles_for_the_control(self) -> None:
         self.assertEqual(cost.entry_trials(entry("compare"), TRIALS, TRIALS), {"scenarios": 3, "initial": 14, "worst": 28})
 
 
 class EstimateTests(unittest.TestCase):
     def test_assumptions_are_constants_in_one_place(self) -> None:
-        self.assertEqual((cost.CLAUDE_USD_PER_TRIAL, cost.CODEX_USD_PER_TRIAL), (0.04, (0.05, 0.10)))
+        # Claude measured on CI ($0.058-0.065/trial); Codex is the old, unmeasured range.
+        self.assertEqual((cost.CLAUDE_USD_PER_TRIAL, cost.CODEX_USD_PER_TRIAL), (0.065, (0.05, 0.10)))
 
     def test_ranges_use_per_agent_prices(self) -> None:
         est = cost.estimate([{"scenarios": 20, "initial": 20, "worst": 100}], ["claude", "codex"])
-        self.assertEqual(est["agents"]["claude"]["expected_usd"], (0.8, 0.8))
+        self.assertEqual(est["agents"]["claude"]["expected_usd"], (1.3, 1.3))
         self.assertEqual(est["agents"]["codex"]["expected_usd"], (1.0, 2.0))
-        self.assertEqual(est["expected_usd"], (1.8, 2.8))
-        self.assertEqual(est["worst_usd"], (9.0, 14.0))
+        self.assertEqual(est["expected_usd"], (2.3, 3.3))
+        self.assertEqual(est["worst_usd"], (11.5, 16.5))
         self.assertEqual(est["scenarios"], 20)
 
     def test_single_agent_total_only_counts_that_agent(self) -> None:
         est = cost.estimate([{"scenarios": 10, "initial": 10, "worst": 10}], ["claude"])
-        self.assertEqual(est["expected_usd"], (0.4, 0.4))
+        self.assertEqual(est["expected_usd"], (0.65, 0.65))
 
     def test_summary_lines_state_scenarios_trials_cost_and_that_it_is_rough(self) -> None:
         text = "\n".join(cost.lines([{"scenarios": 20, "initial": 20, "worst": 100}], ["claude", "codex"]))
-        for expected in ("20 scenario(s)", "| claude | 20 | 100 | $0.80 | $4.00 |", "| codex | 20 | 100 | $1.00-$2.00 | $5.00-$10.00 |",
-                         "Total expected $1.80-$2.80", "rough assumptions, not measurements", "$0.04/trial Claude", "$0.05-$0.10/trial Codex"):
+        for expected in ("20 scenario(s)", "| claude | 20 | 100 | $1.30 | $6.50 |", "| codex | 20 | 100 | $1.00-$2.00 | $5.00-$10.00 |",
+                         "Total expected $2.30-$3.30", "rough assumptions", "$0.065/trial Claude (measured on CI)", "$0.05-$0.10/trial Codex (unmeasured)"):
             self.assertIn(expected, text)
 
 

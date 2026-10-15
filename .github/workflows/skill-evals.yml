@@ -13,7 +13,11 @@ name: Skill routing evals
 #                   scripts/routing_gate.py and fails per the policy.
 #   workflow_dispatch  manual: one skill, the changed skills, or the full suite (`all`, both agents,
 #                   every skill with scenarios, behind the `skill-evals-full` approval environment).
-#                   The full suite is manual only and never part of the gate.
+#                   The full suite is manual only and never part of the gate. `canary` is the eval of the
+#                   eval: one skill's description is replaced by off-domain text and its own positive
+#                   scenarios must stop routing (scripts/routing_canary.py). It uses the `skill-evals`
+#                   environment, fails the evaluate job when the harness does not notice, and never
+#                   affects the merge gate.
 #
 # The gate is not enabled by this file. Until an admin makes the check `routing-evals-gate` required
 # in the main ruleset, every outcome here is advisory. There is deliberately no `paths:` filter: the
@@ -32,7 +36,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "skill: one skill vs origin/main; changed: skills changed vs origin/main; all: full suite (manual only, needs approval)"
+        description: "skill: one skill vs origin/main; changed: skills changed vs origin/main; all: full suite (manual only, needs approval); canary: damage one skill's description and check the eval notices"
         required: true
         type: choice
         default: changed
@@ -40,14 +44,24 @@ on:
           - skill
           - changed
           - all
+          - canary
       skill:
-        description: Skill name (required when mode is skill; must have routing scenarios)
+        description: Skill name (required when mode is skill or canary; must have routing scenarios)
         required: false
         type: string
       agents:
         description: Optional comma-separated agents to run (claude, codex); default both
         required: false
         type: string
+      alias:
+        description: "Canary only: force opaque skill aliases on or off for this run (default: the repo default)"
+        required: false
+        type: choice
+        default: default
+        options:
+          - default
+          - "on"
+          - "off"
 
 permissions: {}
 
@@ -85,6 +99,7 @@ jobs:
           MODE_INPUT: ${{ inputs.mode }}
           SKILL_INPUT: ${{ inputs.skill }}
           AGENTS_INPUT: ${{ inputs.agents }}
+          ALIAS_INPUT: ${{ inputs.alias }}
           ROUTING_MAX_COST_USD: ${{ vars.ROUTING_MAX_COST_USD }}
         run: uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_ci.py select
 
@@ -119,6 +134,7 @@ jobs:
           SCENARIOS: ${{ matrix.scenarios }}
           BASE_REF: ${{ github.event.merge_group.base_sha || 'origin/main' }}
           REQUESTED_AGENTS: ${{ needs.select.outputs.agents }}
+          ALIAS_INPUT: ${{ inputs.alias }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # Empty values fall back to the defaults in scripts/routing_ceilings.py.
@@ -141,7 +157,8 @@ jobs:
             .tmp/promptfoo/logs/
           include-hidden-files: true
           if-no-files-found: warn
-          retention-days: 14
+          # 10 days is the repository maximum.
+          retention-days: 10
 
   routing-evals-gate:
     name: routing-evals-gate
@@ -159,8 +176,15 @@ jobs:
           SELECT_RESULT: ${{ needs.select.result }}
           HAS_SKILLS: ${{ needs.select.outputs.has_skills }}
           SKIPPED: ${{ needs.select.outputs.skipped }}
+          MODE_INPUT: ${{ inputs.mode }}
         run: |
           set -euo pipefail
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MODE_INPUT" = "canary" ]; then
+            echo "### routing-evals-gate: canary run, not a gate decision
+          The canary verdict is the result of the evaluate job; it never affects the merge gate." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "apply=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           if [ "$EVENT_NAME" = "pull_request" ]; then
             [ "$SELECT_RESULT" = "success" ] || echo "::warning title=select::the select job did not succeed; the merge queue run will fail if the problem persists"
             echo "### routing-evals-gate: pull request push, nothing paid runs

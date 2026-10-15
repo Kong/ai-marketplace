@@ -1,7 +1,7 @@
 // Routing eval for Claude through Promptfoo's native Claude Agent SDK provider.
 // Run via `mise run eval:routing -- skill <name>`; ROUTING_SKILL selects the target.
 const path = require('node:path');
-const { buildTests, SCENARIOS_DIR } = require('./scenarios');
+const { buildTests, loadAliases, SCENARIOS_DIR } = require('./scenarios');
 
 const { resolve, FIXED } = require('./settings');
 
@@ -49,5 +49,5 @@ module.exports = {
     { id: 'anthropic:claude-agent-sdk', label: LABELS.positive, config: { ...base, hooks: stopAfterSkill } },
     { id: 'anthropic:claude-agent-sdk', label: LABELS.negative, config: base },
   ],
-  tests: buildTests({ skill, agent: 'claude', providerLabels: LABELS, dir: process.env.ROUTING_SCENARIOS_DIR || SCENARIOS_DIR }),
+  tests: buildTests({ skill, agent: 'claude', providerLabels: LABELS, aliases: loadAliases(workspace), dir: process.env.ROUTING_SCENARIOS_DIR || SCENARIOS_DIR }),
 };

@@ -132,7 +132,10 @@ mise run eval:routing:compare -- konnect-gateway-triage --base origin/main
 mise run eval:routing:compare -- konnect-gateway-triage --agent codex # compare on Codex only
 mise run eval:routing:compare -- konnect-gateway-triage --confirm     # full compare, then re-run regressed scenarios at 3 trials
 mise run eval:routing:compare -- konnect-gateway-triage --gate        # lazy control, as the merge gate runs it (add --scenarios id,id to narrow)
-mise run eval:routing:config -- --json                               # effective settings, offline
+mise run eval:routing:canary -- konnect-gateway-triage --agent claude # eval of the eval: damage one description, see if the harness notices
+mise run eval:routing:canary -- konnect-gateway-triage --alias off    # same, with real skill names instead of aliases
+ROUTING_ALIAS_SKILLS=0 mise run eval:routing -- skill konnect-gateway-triage  # real skill names instead of opaque aliases
+mise run eval:routing:config -- --json                               # effective settings (including aliasing), offline
 mise run eval:routing:coverage                                        # which skills have scenarios, offline (--json too)
 ROUTING_CODEX_MODEL=gpt-5.5 ROUTING_CODEX_EFFORT=high mise run eval:routing -- skill konnect-gateway-triage --agent codex
 ```
@@ -237,12 +240,13 @@ lives in `scripts/routing_ci.py` (`select`, `evaluate`) and the verdict in `scri
 | --- | --- | --- | --- |
 | Pull request push | `validate.yml`, plus a no-spend preview in the Select job summary: the selected scenarios, initial and worst-case trials per agent, a rough cost range, and the skills skipped because their routing surface did not change. A new skill below the scenario minimums only warns. | none, no secrets | passes immediately |
 | Merge queue (`merge_group`) | Only skills whose routing surface changed, or whose scenarios were edited, once for the queued commit (diff `base_sha...head_sha`), at scenario level with lazy control (see [Cost and selection](#cost-and-selection)). A queue entry is never cancelled by a later one. | yes, environment `skill-evals` | applies the policy below; fails the queue entry on `fail`, `blocked_infra`, `fail_no_agents` |
-| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), or `all` (full suite); optional `agents` (`claude`, `codex`). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
+| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), or `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)); optional `agents` (`claude`, `codex`) and, for `canary` only, `alias` (`default`, `on`, `off`). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
 
 The full suite is manual only and never part of the gate. A manual `skill` run on a ref with
 nothing beyond `main` is a snapshot, not a comparison with itself. Environments restrict where
 secrets are used, so manual `skill`/`changed` runs work only from refs allowed by the
-`skill-evals` deployment branch rule (`main` and the queue refs).
+`skill-evals` deployment branch rule (`main` and `gh-readonly-queue/main/*`; see the
+[admin checklist](#admin-setup-checklist)).
 
 The gate is not enabled by the repo: until an admin makes `routing-evals-gate` a required check, all
 of this is advisory.
@@ -281,8 +285,10 @@ roughly $3-5, and the preview prints the estimate before anything is spent.
   the scenarios' own trials and have no control.
 - **Cost visibility.** The Select summary lists the evaluation set size, initial trials per agent,
   worst-case trials (every scenario fails and is confirmed on both sides) and a cost range from
-  `scripts/routing_cost.py`: about $0.04 per Claude trial and $0.05-$0.10 per Codex trial. These are
-  rough planning assumptions, not measurements; the hard bound is still the per-run cost ceiling.
+  `scripts/routing_cost.py`: $0.065 per Claude trial, measured on CI ($0.058-$0.065; 43 trials of a
+  manual run were 1.07M tokens and $2.49, and the 29-trial gate profile 682K tokens and $1.88), and
+  $0.05-$0.10 per Codex trial, which is **unmeasured** (the old planning range). The hard bound is
+  still the per-run cost ceiling, which this change does not touch.
 
 Differences from the full comparison: `eval:routing:compare` without `--gate` keeps its complete
 candidate-vs-control run and its per-scenario and aggregate deltas. The gate path has no aggregate
@@ -323,7 +329,7 @@ what the run exits with, and `routing_gate.py` renders the verdict.
 
 #### Artifacts and limits
 
-- Each evaluate job uploads `routing-reports-<mode>-<skill>-<attempt>` (`mode` is `gate`, `compare` or `snapshot`): full Promptfoo JSON (raw responses and
+- Each evaluate job uploads `routing-reports-<mode>-<skill>-<attempt>` (`mode` is `gate`, `compare`, `snapshot` or `canary`), kept 10 days (`retention-days: 10`, the repository maximum): full Promptfoo JSON (raw responses and
   skill calls are the diagnostic transcript), HTML, JUnit, result, comparison and run documents,
   and logs. HTML and JUnit come from the first full run; `*.result.json` and the comparison reflect
   the state after the single retry (`*.retry.json`) and any confirmation (`<variant>-confirm/`).
@@ -339,11 +345,14 @@ The repo cannot do these itself; until they are done the workflow is advisory an
 1. Create the team `skill-eval-maintainers`.
 2. Create environment `skill-evals` (Settings > Environments > New environment): required
    reviewers = `skill-eval-maintainers` (add the team under "Required reviewers"; consider
-   "Prevent self-review"); deployment branches limited to the merge queue refs
-   `gh-readonly-queue/*` and `main`. Every queue and manual changed/skill run then waits for an
-   approval before the job, and so the secrets, starts. A queued PR is blocked until a reviewer
-   approves, so keep the team responsive.
-3. Create environment `skill-evals-full`: the same required reviewers, with the same branch limits.
+   "Prevent self-review"); deployment branches limited to `main` and `gh-readonly-queue/main/*`.
+   Queue refs have two levels (`gh-readonly-queue/main/pr-N-sha`) and `*` does not cross `/`, so the
+   pattern `gh-readonly-queue/*` does **not** match them: a real queue run was rejected with "Branch ...
+   is not allowed to deploy to skill-evals". Every queue and manual changed/skill/canary run then
+   waits for an approval before the job, and so the secrets, starts. A queued PR is blocked until a
+   reviewer approves, so keep the team responsive.
+3. Create environment `skill-evals-full`: the same required reviewers (`skill-eval-maintainers`) and
+   the same two branch patterns, `main` and `gh-readonly-queue/main/*`.
    The full suite is manual only and expensive, so use the stricter reviewer list if the two differ.
 4. Store `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` as **environment secrets** in both environments
    (not repo secrets), using dedicated keys with provider spend caps.
@@ -355,6 +364,73 @@ The repo cannot do these itself; until they are done the workflow is advisory an
    immediately) versus in the queue (the evals run and the gate decides).
 8. `release.yml` does not push to `main` (it creates a tag and release with the GitHub App token), so
    the ruleset needs no bypass for it, unless tag rules are added.
+
+### Skill aliasing
+
+A descriptive skill name (`konnect-gateway-triage`) lets an agent route without reading the
+description. A live merge-queue run proved it: a PR that rewrote a skill's description into
+off-domain marketing copy passed the gate, because all five positive scenarios still activated
+the skill by its name. So the eval workspaces (both agents, candidate and control, built the same way)
+rename every skill to a deterministic opaque alias, `s-` plus the first six hex digits of
+`sha1(real name)`: the alias depends on the name alone, so it is stable across runs, between candidate
+and control, and independent of which skills exist (a collision is an error). The skill directory and
+the frontmatter `name` become the alias, the description is kept, and whole-word occurrences of real
+skill names inside every description are replaced by aliases (longest name first) so cross-references
+stay consistent. Bodies are not touched. The map (real to alias) is written to `aliases.json` in the
+workspace root.
+
+- Scenario expectations (`expect`/`forbid`) are mapped to aliases when Promptfoo loads them; Claude's
+  native Skill call name and Codex's `.agents/skills/<alias>/SKILL.md` read are compared with aliases.
+  Result, summary and comparison documents and reports show **real** skill names, mapped back from the
+  aliases; the raw Promptfoo JSON keeps what the agent saw. Every result, summary, comparison and
+  verdict document, and the job summary, records `aliased: true|false`.
+- `ROUTING_ALIAS_SKILLS` (`1`, `0`, `true`, `false`; invalid exits 2) turns it on or off. Unset or
+  empty means the repo default, `DEFAULT_ALIAS_SKILLS` in `scripts/routing_aliases.py` (currently
+  **on**), the only place to flip it. CI passes nothing and uses the default (the variable is scrubbed
+  from the evaluate job; only a canary dispatch input can force it). `mise run eval:routing:config`
+  shows the effective setting.
+- **Known limitation:** aliasing measures description-driven routing, which is stricter than real use,
+  where the name also helps an agent choose. A skill can pass in practice and fail here because its
+  description is weak, and that is the point: the gate is meant to notice a description regression.
+
+### Workspace integrity
+
+After building each workspace the harness asserts, for every skill, that the workspace SKILL.md
+frontmatter is derived exactly from the source revision (the working tree, or the merge base for the
+control): the description (with aliases substituted) and the name (the alias, or the real name when
+aliasing is off), the directory set, and `aliases.json`. Any mismatch exits 2 with the list, before any
+provider call, so a stale or wrong workspace can never silently feed an eval. Workspaces that were
+built earlier are re-checked before they are reused (the standalone eval, the gate's confirmation
+runs). The log and every result document carry a fingerprint, a hash of all descriptions in the
+workspace, so two runs can be shown to have measured the same descriptions.
+
+### Canary (eval of the eval)
+
+The canary asks whether the harness can notice a destroyed description at all.
+`mise run eval:routing:canary -- <skill> [--agent ...] [--alias default|on|off]` (or the manual
+workflow with `mode: canary`, `skill`, optional `agents` and `alias`; environment `skill-evals`) builds
+a candidate workspace in which only that skill's description is replaced by a fixed off-domain text
+(`CANARY_DESCRIPTION` in `scripts/routing_canary.py`, brand-voice marketing copy of about the same
+length as a real description), runs the skill's own positive scenarios at one trial each, candidate
+only, and decides per agent:
+
+| Verdict | Meaning | Exit |
+| --- | --- | --- |
+| `canary_detected` | at least 60% of the positive scenarios failed to route to the skill: the harness noticed | 0 |
+| `canary_missed` | fewer did: a blind spot, the eval cannot see description regressions | 1 |
+| `canary_incomplete` | infrastructure error or ceiling breach; unknown | 3 |
+| (harness error) | usage, unknown skill or no positive scenarios, workspace integrity | 2 |
+
+Overall, any missed agent makes it `canary_missed`, then any incomplete agent `canary_incomplete`.
+In CI `canary_missed` and `canary_incomplete` fail the evaluate job; the canary never affects
+`routing-evals-gate`. The result is `canary-<skill>.canary.json` (verdict per agent, `aliased`,
+the damaged workspace's fingerprint, usage) and the measured cost is printed. A canary costs one trial
+per positive scenario per agent (about $0.33 for five on Claude at the measured price).
+
+Run it after changing models, pins or the harness (including the alias default), and after enabling
+the gate. To compare real names with aliases, run it twice with `alias: off` and `alias: on`: if names
+carry routing, `off` is missed and `on` is detected. Offline tests drive the same code with fake
+results (`--fake-results`).
 
 ### Model and effort settings
 

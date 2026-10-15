@@ -35,7 +35,8 @@ The routing MVP (issues #11-#20, integration PR #21) is implemented:
   requires the check `routing-evals-gate`): skills with a changed routing surface or edited scenarios,
   selected at scenario level with lazy control; manual runs for one skill, changed skills, or the
   full suite.
-- Tasks: `eval:routing`, `eval:routing:compare`, `eval:routing:config`, `eval:routing:coverage`.
+- Tasks: `eval:routing`, `eval:routing:compare`, `eval:routing:canary`, `eval:routing:config`,
+  `eval:routing:coverage`.
 
 ### Decisions made during implementation
 
@@ -93,9 +94,24 @@ decisions behind them:
   blocks (`blocked_infra`); a re-run or admin override resolves it.
 - **Keys:** a missing key warns while any agent runs; no runnable agent fails the gate in the
   queue and manual runs.
+- **Description sensitivity (live finding):** a PR that rewrote `konnect-gateway-triage`'s
+  description into off-domain marketing copy passed the queue gate (29 trials, all passing),
+  probably because descriptive names let the agent route without the description. Three
+  consequences: (1) eval workspaces use deterministic opaque skill aliases (`ROUTING_ALIAS_SKILLS`,
+  default one constant in `scripts/routing_aliases.py`), with real names restored in every report;
+  (2) every built workspace is verified against its source revision and fingerprinted; (3) a canary
+  (`mode: canary`, `mise run eval:routing:canary`) damages one description and fails unless at
+  least 60% of that skill's positive scenarios stop routing, to be run after changing models, pins
+  or the harness and after enabling the gate. Aliasing measures description-driven routing, which is
+  stricter than real use. Details: docs/testing.md.
+- **Measured cost:** Claude about $0.058-0.065 per trial on CI (43 trials, 1.07M tokens, $2.49; the
+  29-trial gate profile, 682K tokens, $1.88), so `routing_cost.py` plans at $0.065; Codex remains
+  the unmeasured old range of $0.05-0.10. Artifacts are kept 10 days, the repository maximum.
 - **Approvals** on both environments (`skill-evals` for queue and manual changed/skill runs,
   `skill-evals-full` for the full suite), so no run starts, and no secret is exposed, without a
-  reviewer from `skill-eval-maintainers`.
+  reviewer from `skill-eval-maintainers`. Both environments allow deployments from `main` and
+  `gh-readonly-queue/main/*`: queue refs are `gh-readonly-queue/main/pr-N-sha` and the pattern
+  `gh-readonly-queue/*` does not match two levels (a real queue run was rejected for that).
 
 ## Why this fits this repository
 

@@ -3,8 +3,8 @@
     python scripts/print_routing_config.py [--json]
 
 Per agent: effective model and effort, marked default or override (ROUTING_CODEX_MODEL,
-ROUTING_CODEX_EFFORT, ROUTING_CLAUDE_MODEL, ROUTING_CLAUDE_EFFORT), plus the fixed discovery
-settings, trial policy, and ceilings (defaults and variable names) read from their owning
+ROUTING_CODEX_EFFORT, ROUTING_CLAUDE_MODEL, ROUTING_CLAUDE_EFFORT), the skill aliasing setting (ROUTING_ALIAS_SKILLS), plus the fixed
+discovery settings, trial policy, and ceilings (defaults and variable names) read from their owning
 modules. Invalid override values exit 2, as they do for the eval scripts.
 """
 from __future__ import annotations
@@ -16,6 +16,7 @@ import sys
 from typing import Any
 
 import routing_agents as agents_lib
+import routing_aliases as aliasing
 import routing_ceilings as ceilings
 import routing_selection as selection
 import routing_settings as settings_lib
@@ -43,6 +44,10 @@ def collect() -> dict[str, Any]:
         "overridden": any(doc["overridden"] for doc in loaded["settings"].values()),
         "fixed": loaded["fixed"],
         "trials": trial_policy(),
+        "aliasing": {
+            "enabled": aliasing.enabled(), "variable": aliasing.ENV_VAR, "default": aliasing.DEFAULT_ALIAS_SKILLS,
+            "source": "override" if os.environ.get(aliasing.ENV_VAR, "").strip() else "default",
+        },
         "ceilings": {"defaults": ceiling_defaults(), "effective": vars(ceilings.Ceilings.from_env())},
         "selectable_agents": list(agents_lib.AGENTS),
         "override_variables": list(settings_lib.OVERRIDE_VARIABLES),
@@ -56,6 +61,12 @@ def render(config: dict[str, Any]) -> str:
     if config["overridden"]:
         active = [name for name in config["override_variables"] if os.environ.get(name)]
         lines.append(f"  overridden: true ({', '.join(active)} set)")
+    alias = config["aliasing"]
+    lines += [
+        "",
+        f"Skill aliasing: {'on' if alias['enabled'] else 'off'} ({alias['source']}; {alias['variable']}=1|0|true|false, "
+        f"default {'on' if alias['default'] else 'off'}). On, the agent sees opaque skill names so routing comes from descriptions only.",
+    ]
     lines += ["", f"Selectable agents (--agent, repeatable or comma-separated; default all): {', '.join(config['selectable_agents'])}"]
     lines += ["", "Fixed discovery settings (not configurable):"]
     for agent, fixed in config["fixed"].items():

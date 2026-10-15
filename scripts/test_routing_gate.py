@@ -91,6 +91,19 @@ class GateTests(unittest.TestCase):
         self.assertEqual((verdict, doc["exit_code"], doc["reasons"]), ("pass", 0, []))
         self.assertEqual(doc["agents_run"], ["claude", "codex"])
 
+    def test_verdict_and_job_summary_record_whether_skill_names_were_aliased(self) -> None:
+        both = {"s1": (3, 3)}
+        self.reports.add(SKILL, "compare", {"claude": comparison("claude", both, both)})
+        for aliased in (True, False):
+            path = next(self.reports.root.rglob(f"{SKILL}.run.json"))
+            record = json.loads(path.read_text())
+            record["aliased"] = aliased
+            path.write_text(json.dumps(record))
+            _, doc = self.verdict()
+            self.assertIs(doc["aliased"], aliased)
+            self.assertIn(f"Skill names aliased: {'yes' if aliased else 'no'}", gate.markdown(doc))
+        self.assertIs(self.reports.judge([])["aliased"], False)  # nothing ran
+
     def test_confirmed_regression_fails(self) -> None:
         doc = comparison("claude", {"s1": (0, 3)}, {"s1": (3, 3)}, confirm=({"s1": (1, 3)}, {"s1": (3, 3)}))
         self.assertEqual([x["confirmed"] for x in doc["confirmation"]["scenarios"]], [True])
