@@ -8,8 +8,12 @@ Each *.yaml file declares one target skill and a list of scenarios:
         prompt: "..."
         expect: [konnect-gateway-triage]  # skills that must activate
         forbid: []                        # skills that must not activate
-        trials: 3                         # 1-5
+        trials: 3                         # 1-5: confirmation and new-skill trials (gate first pass is 1)
         tags: [positive]                  # positive | near-miss | sibling
+
+`trials` is how often a scenario is repeated when it is confirmed after failing a one-trial first
+pass, when a new skill is judged on absolute thresholds, and in the manual full suite; the merge
+gate's first pass runs each scenario once (docs/testing.md#merge-gate-workflow).
 
 No provider credentials or model calls are used. `--new-skill=NAME` additionally
 enforces the new-skill scenario minimums for NAME. Exit 0 ok, 2 on any error.

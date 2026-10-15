@@ -29,9 +29,9 @@ def ledger(clock=None, **env):
 class ConfigTests(unittest.TestCase):
     def test_defaults_and_env_override(self) -> None:
         d = c.Ceilings.from_env({})
-        self.assertEqual((d.max_concurrency, d.max_tokens), (4, 4000000))
+        self.assertEqual((d.max_concurrency, d.max_tokens, d.max_cost_usd), (4, 2500000, 3.0))
         o = c.Ceilings.from_env({"ROUTING_MAX_CONCURRENCY": "2", "ROUTING_MAX_COST_USD": "0.5", "ROUTING_MAX_TOKENS": ""})
-        self.assertEqual((o.max_concurrency, o.max_cost_usd, o.max_tokens), (2, 0.5, 4000000))
+        self.assertEqual((o.max_concurrency, o.max_cost_usd, o.max_tokens), (2, 0.5, 2500000))
 
     def test_invalid_values_are_rejected(self) -> None:
         for env in ({"ROUTING_MAX_TOKENS": "lots"}, {"ROUTING_MAX_CONCURRENCY": "0"}, {"ROUTING_MAX_COST_USD": "-1"}):

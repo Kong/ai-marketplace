@@ -32,8 +32,9 @@ The routing MVP (issues #11-#20, integration PR #21) is implemented:
   (at least 90% positive recall and 95% near-miss specificity per agent) with scenario minimums
   (5 positive, 5 near-miss, 2 sibling per adjacent skill, up to 5).
 - Gating workflow (`.github/workflows/skill-evals.yml`, merge queue only; advisory until an admin
-  requires the check `routing-evals-gate`): diff-selected changed skills plus bounded adjacent
-  skills; manual runs for one skill, changed skills, or the full suite.
+  requires the check `routing-evals-gate`): skills with a changed routing surface or edited scenarios,
+  selected at scenario level with lazy control; manual runs for one skill, changed skills, or the
+  full suite.
 - Tasks: `eval:routing`, `eval:routing:compare`, `eval:routing:config`, `eval:routing:coverage`.
 
 ### Decisions made during implementation
@@ -64,11 +65,30 @@ decisions behind them:
   (`merge_group`) runs the relevant evals once and `routing-evals-gate` blocks on failure. The full
   suite is manual only, behind an approval environment, and never part of the gate. The repo does
   not enable the gate; an admin makes `routing-evals-gate` required later.
-- **Pass criteria:** modified and adjacent skills are regression-only per agent (a scenario that
-  passes on control and fails on candidate); new skills use the absolute thresholds plus scenario
-  minimums. Absolute scores are not gated for existing skills because flake rates are unmeasured.
-- **Confirmation:** a regression fails only if a 3-trial re-run of just those scenarios, on both
-  candidate and control, reproduces it (cost-bounded by the same ceilings).
+- **Trigger:** a skill is evaluated only when its routing surface changed (SKILL.md frontmatter
+  `name`/`description`, plus any other non-bookkeeping frontmatter key; or the skill is new, renamed
+  or deleted), or when its scenarios were added or edited. Body-only and references-only changes
+  skip with a notice and the gate passes; harness and pin changes never trigger (a reviewed manual
+  run validates them). This replaces running every changed skill.
+- **Selection:** scenario level, not file level. For each affected skill: its own file plus every
+  scenario elsewhere whose `expect` or `forbid` names it, de-duplicated by id and capped at 60 per
+  skill. Adjacent skills no longer run wholesale (this replaces "up to five adjacent skills").
+- **Pass criteria:** modified skills are regression-only per agent (a scenario that fails on the
+  candidate and passes on control); new skills use the absolute thresholds plus scenario minimums.
+  Absolute scores are not gated for existing skills because flake rates are unmeasured.
+- **Adaptive trials and lazy control:** the candidate runs each scenario once; the control never
+  runs for a scenario that passed. Failures are confirmed on the candidate at `max(scenario trials, 3)`
+  (the baseline corpus declares all siblings `trials: 1`, which one flaky trial on each side must not
+  turn into a regression; `trials` still sets the new-skill trial
+  count, not "run 3 times everywhere"), and the control runs only for those still failing. Failing on both sides is a warning
+  (`preexisting_failure`). The full candidate-vs-control comparison with aggregate deltas stays
+  available manually (`eval:routing:compare` without `--gate`); the gate path deliberately has no
+  deltas or control data for scenarios that passed.
+- **Cost visibility:** the no-spend preview prints scenarios, initial and worst-case trials per
+  agent and a cost range from stated, rough per-trial assumptions (`scripts/routing_cost.py`).
+  Expected effect for one changed description: about $30 down to $3-5 per queue run; a body-only
+  change costs nothing. The full suite is unchanged: manual, at the scenarios' own trials,
+  informational.
 - **Fail closed on infrastructure:** a persistent `infra_error` for an agent that should have run
   blocks (`blocked_infra`); a re-run or admin override resolves it.
 - **Keys:** a missing key warns while any agent runs; no runnable agent fails the gate in the
@@ -127,8 +147,8 @@ agent's real skill-selection path. It does not claim routed skills improve task 
 1. **Enable and calibrate the gate.** The workflow is built; an admin enables it with the checklist
    in docs/testing.md, starting the merge queue in evaluate mode. Collect at least 20 queue runs
    and review flake rate, confirmation-rerun frequency, `blocked_infra` incidents, and spend
-   before treating the gate as final; adjust adjacent-skill trials and thresholds from observed
-   variance.
+   before treating the gate as final; adjust the first-pass and confirmation trial counts, the
+   scenario cap and thresholds from observed variance.
 2. **Corpus growth.** Cover more skills (see `mise run eval:routing:coverage`); every escaped
    skill failure becomes a minimal scenario before its fix lands. Add robustness variants
    (concise vs conversational wording, product term implied, explicit vs inferred toolchain,

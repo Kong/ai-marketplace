@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { buildTests, trialCap, forcedTrials } = require('./scenarios');
+const { buildTests, trialCap, forcedTrials, minTrials, scenarioIds } = require('./scenarios');
 
 const labels = { positive: 'pos', negative: 'neg' };
 const FIXTURE = `
@@ -88,4 +88,71 @@ test('forceTrials overrides scenario trials and the cap, and keeps metadata cons
 test('forcedTrials reads positive integers and otherwise means not forced', () => {
   assert.strictEqual(forcedTrials('3'), 3);
   for (const bad of [undefined, '', '0', '-2', 'x']) assert.strictEqual(forcedTrials(bad), null);
+});
+
+const OTHER = `
+skill: beta
+scenarios:
+  - id: beta-positive-1
+    prompt: Do the beta thing properly.
+    expect: [beta]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: beta-near-miss-1
+    prompt: Do the alpha thing, no wait, something else.
+    expect: []
+    forbid: [alpha]
+    trials: 3
+    tags: [near-miss]
+`;
+
+function withTwoFiles(fn) {
+  return withFixture((dir) => {
+    fs.writeFileSync(path.join(dir, 'beta.yaml'), OTHER);
+    return fn(dir);
+  });
+}
+
+test('scenario ids select across files regardless of the target skill', () =>
+  withTwoFiles((dir) => {
+    const ids = new Set(['alpha-positive-1', 'beta-near-miss-1']);
+    const tests = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, ids, forceTrials: 1 });
+    assert.deepStrictEqual(tests.map((t) => t.metadata.scenario), ['alpha-positive-1', 'beta-near-miss-1']);
+    assert.ok(tests.every((t) => t.metadata.trials === 1 && t.metadata.target === 'alpha'));
+  }));
+
+test('scenario ids keep each scenario at its own trials unless forced', () =>
+  withTwoFiles((dir) => {
+    const tests = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, ids: new Set(['beta-near-miss-1']) });
+    assert.strictEqual(tests.length, 3);
+  }));
+
+test('an unknown scenario id is an error, never a silent skip', () =>
+  withTwoFiles((dir) => {
+    assert.throws(
+      () => buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, ids: new Set(['alpha-positive-1', 'nope']) }),
+      /unknown routing scenario id\(s\).*nope/,
+    );
+  }));
+
+test('scenarioIds parses comma lists and treats empty as unset', () => {
+  assert.deepStrictEqual([...scenarioIds('a, b,,c')], ['a', 'b', 'c']);
+  for (const bad of [undefined, '', ' , ']) assert.strictEqual(scenarioIds(bad), null);
+});
+
+test('floorTrials raises one-trial scenarios but never lowers or exceeds a forced count', () =>
+  withFixture((dir) => {
+    const raised = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, floorTrials: 3 });
+    assert.strictEqual(raised.length, 9); // 3 + 3 + 3: the trials:1 scenarios now run three times
+    assert.ok(raised.every((t) => t.metadata.trials === 3));
+    const forced = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, floorTrials: 3, forceTrials: 1 });
+    assert.strictEqual(forced.length, 3);
+    const capped = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, floorTrials: 3, maxTrials: 1 });
+    assert.strictEqual(capped.length, 9); // the floor wins over the cap, the cap still lowers 5 to the floor
+  }));
+
+test('minTrials reads positive integers and otherwise means no floor', () => {
+  assert.strictEqual(minTrials('3'), 3);
+  for (const bad of [undefined, '', '0', '-2', 'x']) assert.strictEqual(minTrials(bad), 1);
 });

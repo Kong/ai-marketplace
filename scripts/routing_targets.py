@@ -9,7 +9,8 @@
 only skills that have scenarios under evals/routing/ and report the rest on stderr, so a
 skill without a corpus is never silently counted as passing. `changed` and `adjacent` use
 select_changed.py: `changed` lists changed skills, `adjacent` lists their (capped) adjacent
-skills, which the workflow runs with one trial each. A changed skill that is new at the
+skills, kept for the preview and local use (the workflow selects at scenario level through
+routing_selection.py and no longer runs adjacent skills wholesale). A changed skill that is new at the
 merge base must already meet the new-skill scenario minimums (exit 2 otherwise), so a new
 skill cannot pass by having no corpus. Modified skills without scenarios are only a NOTE.
 No model calls.

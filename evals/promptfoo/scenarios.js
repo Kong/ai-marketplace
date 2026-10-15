@@ -15,34 +15,53 @@ function scenarioFiles(dir) {
     .map((file) => path.join(dir, file));
 }
 
-// ROUTING_MAX_TRIALS (positive integer) caps trials per scenario; adjacent-skill runs use 1.
+// ROUTING_MAX_TRIALS (positive integer) caps trials per scenario.
 function trialCap(value = process.env.ROUTING_MAX_TRIALS) {
   const cap = Number.parseInt(value, 10);
   return Number.isInteger(cap) && cap > 0 ? cap : Infinity;
 }
 
 // ROUTING_FORCE_TRIALS (positive integer) sets trials for every scenario, overriding the scenario's
-// own count and ROUTING_MAX_TRIALS. Only the gate's confirmation re-run sets it (scripts/run_routing_comparison.py).
+// own count and ROUTING_MAX_TRIALS. Only the gate's one-trial first pass sets it (scripts/run_routing_comparison.py).
 function forcedTrials(value = process.env.ROUTING_FORCE_TRIALS) {
   const forced = Number.parseInt(value, 10);
   return Number.isInteger(forced) && forced > 0 ? forced : null;
 }
 
+// ROUTING_SCENARIO_IDS (comma-separated scenario ids) selects exactly those scenarios from every
+// file, whatever skill their file targets (the gate's reverse index, scripts/routing_selection.py).
+// An unknown id is an error. Unset, scenarios are those of the ROUTING_SKILL file.
+function scenarioIds(value = process.env.ROUTING_SCENARIO_IDS) {
+  const ids = (value || '').split(',').map((id) => id.trim()).filter(Boolean);
+  return ids.length > 0 ? new Set(ids) : null;
+}
+
+// ROUTING_MIN_TRIALS (positive integer) raises every scenario to at least this many trials (still
+// below ROUTING_FORCE_TRIALS). The gate's confirmation sets it, so a scenario declared with
+// `trials: 1` (the siblings) is not confirmed, or cleared, by a single flaky trial.
+function minTrials(value = process.env.ROUTING_MIN_TRIALS) {
+  const min = Number.parseInt(value, 10);
+  return Number.isInteger(min) && min > 0 ? min : 1;
+}
+
 // A scenario that expects a skill is "positive": the turn may stop once the
 // activation is observed. One that expects none is a "negative": the turn runs
 // to completion so that non-activation is observable.
-function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTrials = trialCap(), forceTrials = forcedTrials() }) {
+function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTrials = trialCap(), forceTrials = forcedTrials(), floorTrials = minTrials(), ids = scenarioIds() }) {
   const tests = [];
+  const unseen = new Set(ids || []);
   for (const file of scenarioFiles(dir)) {
     const data = yaml.load(fs.readFileSync(file, 'utf8'));
-    if (data.skill !== skill) continue;
+    if (!ids && data.skill !== skill) continue;
     for (const scenario of data.scenarios) {
+      if (ids && !ids.has(scenario.id)) continue;
+      unseen.delete(scenario.id);
       const mode = scenario.expect.length > 0 ? 'positive' : 'negative';
       const assert = [
         ...scenario.expect.map((name) => ({ type: 'skill-used', value: name })),
         ...scenario.forbid.map((name) => ({ type: 'not-skill-used', value: name })),
       ];
-      const trials = forceTrials ?? Math.min(scenario.trials, maxTrials);
+      const trials = forceTrials ?? Math.max(Math.min(scenario.trials, maxTrials), floorTrials);
       for (let trial = 1; trial <= trials; trial += 1) {
         tests.push({
           description: `${scenario.id} | ${agent} | trial ${trial}/${trials} | expect [${scenario.expect}] forbid [${scenario.forbid}]`,
@@ -64,10 +83,13 @@ function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTria
       }
     }
   }
+  if (unseen.size > 0) {
+    throw new Error(`unknown routing scenario id(s) in ROUTING_SCENARIO_IDS: ${[...unseen].join(', ')}`);
+  }
   if (tests.length === 0) {
     throw new Error(`no routing scenarios found for skill '${skill}' under ${dir}`);
   }
   return tests;
 }
 
-module.exports = { buildTests, trialCap, forcedTrials, SCENARIOS_DIR };
+module.exports = { buildTests, trialCap, forcedTrials, minTrials, scenarioIds, SCENARIOS_DIR };

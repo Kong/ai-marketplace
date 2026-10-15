@@ -93,7 +93,7 @@ scenarios:
     prompt: "Realistic user request in the user's own words."
     expect: [my-skill]           # skills that must activate
     forbid: []                   # skills that must not activate
-    trials: 3                    # 1-5 runs per agent; a scenario passes with >= 2/3 of them
+    trials: 3                    # 1-5; confirmation and new-skill trials per agent (the gate's first pass runs it once); passes with >= 2/3
     tags: [positive]             # positive | near-miss | sibling
 ```
 
@@ -114,6 +114,7 @@ scenarios:
 | --- | --- | --- |
 | `eval:routing` | Does the skill route correctly as it is now? Judged per agent against each scenario's pass rule. | Authoring, or a snapshot of the current checkout |
 | `eval:routing:compare` | Did my change move routing? Runs *candidate* (current checkout) and *control* (skills at the merge base) with identical scenarios, agents, models, tools, and trials, and reports per-scenario and aggregate pass-rate deltas per agent. | A modified skill, before a PR |
+| `eval:routing:compare --gate` | Would the merge gate pass? The candidate runs each selected scenario once; only scenarios that fail are confirmed, and only those that still fail run on the control. Cheap, no aggregate deltas (see [Cost and selection](#cost-and-selection)). | Previewing the queue's verdict on a modified skill |
 
 A skill that is new at the merge base has no control: `compare` skips it and judges each agent
 on absolute thresholds (at least 90% positive recall, 95% near-miss specificity) instead of a
@@ -129,7 +130,8 @@ mise run eval:routing -- changed --base origin/main                  # skills ch
 mise run eval:routing -- all                                          # every skill that has scenarios
 mise run eval:routing:compare -- konnect-gateway-triage --base origin/main
 mise run eval:routing:compare -- konnect-gateway-triage --agent codex # compare on Codex only
-mise run eval:routing:compare -- konnect-gateway-triage --confirm     # also re-run regressed scenarios at 3 trials, as the gate does
+mise run eval:routing:compare -- konnect-gateway-triage --confirm     # full compare, then re-run regressed scenarios at 3 trials
+mise run eval:routing:compare -- konnect-gateway-triage --gate        # lazy control, as the merge gate runs it (add --scenarios id,id to narrow)
 mise run eval:routing:config -- --json                               # effective settings, offline
 mise run eval:routing:coverage                                        # which skills have scenarios, offline (--json too)
 ROUTING_CODEX_MODEL=gpt-5.5 ROUTING_CODEX_EFFORT=high mise run eval:routing -- skill konnect-gateway-triage --agent codex
@@ -233,9 +235,9 @@ lives in `scripts/routing_ci.py` (`select`, `evaluate`) and the verdict in `scri
 
 | Event | What runs | Paid calls | `routing-evals-gate` |
 | --- | --- | --- | --- |
-| Pull request push | `validate.yml`, plus a no-spend preview in the Select job summary: changed and adjacent skills, planned trials, estimated cost. A new skill below the scenario minimums only warns. | none, no secrets | passes immediately |
-| Merge queue (`merge_group`) | The relevant evals once, for the queued commit (diff `base_sha...head_sha`): changed skills plus at most 5 adjacent skills, each compared with its merge base. A queue entry is never cancelled by a later one. | yes, environment `skill-evals` | applies the policy below; fails the queue entry on `fail`, `blocked_infra`, `fail_no_agents` |
-| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`), `changed` (vs `origin/main`, with adjacent skills), or `all` (full suite); optional `agents` (`claude`, `codex`). `all` runs both agents on every skill with scenarios as snapshots, prints an estimated cost (planned trials x assumed $/trial, plus the hard bound from the cost ceiling), and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
+| Pull request push | `validate.yml`, plus a no-spend preview in the Select job summary: the selected scenarios, initial and worst-case trials per agent, a rough cost range, and the skills skipped because their routing surface did not change. A new skill below the scenario minimums only warns. | none, no secrets | passes immediately |
+| Merge queue (`merge_group`) | Only skills whose routing surface changed, or whose scenarios were edited, once for the queued commit (diff `base_sha...head_sha`), at scenario level with lazy control (see [Cost and selection](#cost-and-selection)). A queue entry is never cancelled by a later one. | yes, environment `skill-evals` | applies the policy below; fails the queue entry on `fail`, `blocked_infra`, `fail_no_agents` |
+| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), or `all` (full suite); optional `agents` (`claude`, `codex`). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
 
 The full suite is manual only and never part of the gate. A manual `skill` run on a ref with
 nothing beyond `main` is a snapshot, not a comparison with itself. Environments restrict where
@@ -245,18 +247,65 @@ secrets are used, so manual `skill`/`changed` runs work only from refs allowed b
 The gate is not enabled by the repo: until an admin makes `routing-evals-gate` a required check, all
 of this is advisory.
 
+#### Cost and selection
+
+A queue run for one changed skill used to cost about $30 on both agents (every scenario three times
+on candidate and control, plus up to five adjacent skills' whole files). Four rules cut that to
+roughly $3-5, and the preview prints the estimate before anything is spent.
+
+- **Routing-surface trigger.** A skill is evaluated only when what an agent sees when choosing it
+  changed: the SKILL.md frontmatter `name` or `description`, or the skill is new, renamed (name or
+  directory) or deleted. Frontmatter is parsed at the merge base and at head and compared as data
+  (`scripts/routing_surface.py`), so quoting and key order do not count. Everything except `license`
+  and `metadata` is part of the surface, so a routing-relevant key such as `disable-model-invocation`
+  can never be assumed inert; `metadata.internal` and the other `metadata` keys are read by no agent
+  or script here and are inert. A body-only or references-only change prints
+  `SKILL.md body changed, routing surface unchanged: skipped` (or its references counterpart) in the
+  preview and summary, and the gate passes. Added or edited scenarios (compared by id with the merge
+  base) are always evaluated, so new scenarios are validated even when no description changed.
+  Harness and pin changes (`settings.js`, scripts) never trigger evals; validate them with a manual
+  run. A deleted skill has nothing left to run; scenarios that named it must be edited (the validator
+  insists), and those edits run.
+- **Scenario-level selection.** For each affected skill the set is every scenario in its own file
+  plus every scenario in any file whose `expect` or `forbid` names it, de-duplicated by id
+  (`scripts/routing_selection.py`). Adjacent skills no longer run wholesale; `select_changed.py` still
+  lists them as preview context. A scenario shared by two affected skills runs once, under the skill
+  whose file holds it. A new skill runs only its own file. At most 60 scenarios run per skill (the
+  own file always, then referencing scenarios in file order; the preview notes anything dropped, run
+  it manually).
+- **Adaptive trials and lazy control.** The candidate runs each selected scenario once. A scenario
+  that passes cannot be a regression, so it never runs on the control. A scenario that fails is
+  confirmed on the candidate at `max(its trials, 3)`, so a `trials: 1` sibling is never confirmed (or
+  cleared) by a single flaky trial; if it still fails (fewer than `ceil(2/3 x trials)` passes at
+  that count, 2 of 3) the control runs it at the same count. The first pass stays at one trial. New skills keep the full absolute-threshold run at
+  the scenarios' own trials and have no control.
+- **Cost visibility.** The Select summary lists the evaluation set size, initial trials per agent,
+  worst-case trials (every scenario fails and is confirmed on both sides) and a cost range from
+  `scripts/routing_cost.py`: about $0.04 per Claude trial and $0.05-$0.10 per Codex trial. These are
+  rough planning assumptions, not measurements; the hard bound is still the per-run cost ceiling.
+
+Differences from the full comparison: `eval:routing:compare` without `--gate` keeps its complete
+candidate-vs-control run and its per-scenario and aggregate deltas. The gate path has no aggregate
+delta and no control result for scenarios that passed first time (the deliberate cost saving);
+control sides appear only in the confirmation of failed scenarios. A candidate's first-pass state is
+what the run exits with, and `routing_gate.py` renders the verdict.
+
 #### Pass criteria
 
 - **Modified (existing) skills: regression-only, per agent.** A scenario passes by the usual rule
-  (at least `ceil(2/3 x trials)`). A *regression* is a scenario that passes on control (merge base)
-  and fails on candidate. A scenario that also fails on control is a warning, not a regression.
-- **Adjacent skills:** the same regression-only comparison, with one trial each at first.
+  (at least `ceil(2/3 x trials)`). A *regression* is a scenario that fails on the candidate and
+  passes on control (merge base). A scenario that also fails on control is a `preexisting_failure`
+  warning, not a regression.
+- **Lazy control (gate and manual CI runs):** the first pass is one candidate trial per scenario.
+  Only failed scenarios are re-run on the candidate at `max(their trials, 3)`, and only those still
+  failing run on the control. The gate fails only if the candidate still fails and the control
+  passes; a candidate that passes the re-run is a `regression_not_confirmed` warning. The full
+  `eval:routing:compare --confirm` keeps its older behaviour: the whole comparison first, then a
+  3-trial re-run of regressed scenarios on both sides.
 - **New skills (absent at the merge base):** absolute thresholds per agent (at least 90% positive
-  recall, 95% near-miss specificity) plus the scenario minimums, from the existing trial data.
-- **Confirmation re-run:** before failing on a regression, `eval:routing:compare --confirm` re-runs
-  just the regressed scenarios at 3 trials on both candidate and control (one shared ledger, so the
-  ceilings still bound the spend). The gate fails only if the candidate still fails and the
-  control still passes; otherwise it passes with a warning.
+  recall, 95% near-miss specificity) plus the scenario minimums, at the scenarios' own trials, with
+  no control.
+- All runs share one ledger, so the ceilings still bound spend.
 
 #### Missing keys and infrastructure errors
 
@@ -274,7 +323,7 @@ of this is advisory.
 
 #### Artifacts and limits
 
-- Each evaluate job uploads `routing-reports-<mode>-<skill>-<attempt>`: full Promptfoo JSON (raw responses and
+- Each evaluate job uploads `routing-reports-<mode>-<skill>-<attempt>` (`mode` is `gate`, `compare` or `snapshot`): full Promptfoo JSON (raw responses and
   skill calls are the diagnostic transcript), HTML, JUnit, result, comparison and run documents,
   and logs. HTML and JUnit come from the first full run; `*.result.json` and the comparison reflect
   the state after the single retry (`*.retry.json`) and any confirmation (`<variant>-confirm/`).
@@ -335,6 +384,13 @@ across candidate, control, and retries), `ROUTING_MAX_CONCURRENCY` (Promptfoo `-
 `ROUTING_JOB_TIMEOUT_SECONDS` (whole eval; keep it below the CI job timeout). Promptfoo reports
 tokens and cost only when a run ends, so those ceilings are checked after each run and before
 every later launch: spend stops at the next boundary and can overshoot by at most one run.
+
+The defaults are sized for the gate's profile (about 20-40 scenarios, one trial each, confirmation
+only for failures): a typical agent spends under $1, so `ROUTING_MAX_COST_USD` defaults to 3 and
+`ROUTING_MAX_TOKENS` to 2500000. That is about 3x the expected spend, and a confirmation storm
+(everything failing) stops sooner and fails closed. The full suite (`mode: all`) needs higher values:
+set the `ROUTING_*` repository variables (or the environment's variables) before running it. Leave
+concurrency and the timeouts alone until the queue has produced real timings.
 
 A breach makes the agent `infra_error` (kind `ceiling`, incomplete, never `routing_fail`, never
 retried). It is recorded in `breaches` in the result, comparison, and summary documents, printed

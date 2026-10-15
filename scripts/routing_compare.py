@@ -29,6 +29,27 @@ Comparison document (`compare_agent`, modified skill)
     A regression is a scenario that passes on control and fails on candidate (scenario pass rule);
     it is *confirmed* when it still does so in the 3-trial re-run. Only confirmed regressions gate.
 
+Lazy comparison document (`lazy_compare`, the merge gate's modified-skill path; control only where needed)
+    The candidate runs every selected scenario once. Only scenarios that failed are confirmed: the
+    candidate again at max(the scenario's trials, CONFIRM_TRIALS) and, for those still failing, the control at the
+    same trials. A scenario that passed the first pass cannot be a regression, so it never runs on
+    the control. Unlike `compare_agent` there are no aggregate deltas (AC-14 behaviour stays with
+    `eval:routing:compare` without `--gate`).
+    {
+      "agent", "skill", "mode": "lazy_comparison",
+      "state",                              # candidate's first-pass state; infra_error if incomplete or a ceiling breach
+      "complete": bool, "candidate_state", "failure_kinds": [...], "reason": str|None,
+      "usage", "usage_by_phase": {"initial": usage, "confirmation": usage}, "breaches": [...],
+      "settings", "overridden",
+      "failed": [ids],                      # failed the first pass
+      "scenarios": [{"id", "candidate": side|None}],        # first-pass sides
+      "confirmation": None | {"state": pass|routing_fail|infra_error, "complete": bool, "reason": str|None,
+          "scenarios": [{"id", "candidate": side|None, "control": side|None,
+                         "outcome": confirmed|preexisting|cleared|incomplete}]}
+    }
+    outcome: confirmed = candidate still fails and control passes (a regression); preexisting = both
+    fail (a warning); cleared = the candidate passed on re-run (flake); incomplete = no judged result.
+
 New-skill document (`evaluate_new_skill`, no control exists)
     {
       "agent", "skill", "mode": "new_skill", "control": "skipped",
@@ -50,6 +71,8 @@ from typing import Any
 import routing_results as results
 
 CONFIRM_TRIALS = 3
+LAZY = "lazy_comparison"
+CONFIRMED, PREEXISTING, CLEARED, INCOMPLETE = "confirmed", "preexisting", "cleared", "incomplete"
 POSITIVE_RECALL = 0.90
 NEAR_MISS_SPECIFICITY = 0.95
 
@@ -167,6 +190,79 @@ def with_confirmation(doc: dict[str, Any], candidate: dict[str, Any], control: d
         out["breaches"] = doc["breaches"] + [b for b in breaches if b not in doc["breaches"]]
         out["state"], out["complete"] = results.INFRA_ERROR, False
     return out
+
+
+def failed_scenarios(agent_result: dict[str, Any]) -> list[str]:
+    """Scenario ids judged routing_fail (infra_error scenarios are not failures)."""
+    return [s["id"] for s in agent_result["scenarios"] if s["state"] == results.ROUTING_FAIL]
+
+
+def _union(*breach_lists: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: list[dict[str, Any]] = []
+    for breaches in breach_lists:
+        merged += [b for b in breaches if b not in merged]
+    return merged
+
+
+def lazy_compare(
+    initial: dict[str, Any],
+    confirm_candidate: dict[str, Any] | None = None,
+    confirm_control: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Judge one agent from the first candidate pass and, when something failed, its confirmation runs.
+
+    `confirm_candidate` must cover every failed scenario and `confirm_control` every scenario that
+    still failed on the candidate; a missing or unjudged result makes the confirmation incomplete
+    so the gate can fail closed (`routing_gate.judge_agent`).
+    """
+    failed = failed_scenarios(initial) if initial["complete"] else []
+    rows: list[dict[str, Any]] = []
+    cand = _by_scenario(confirm_candidate) if confirm_candidate else {}
+    ctrl = _by_scenario(confirm_control) if confirm_control else {}
+    for sid in failed:
+        c, k = cand.get(sid), ctrl.get(sid)
+        if _state(c) == results.PASS:
+            outcome = CLEARED
+        elif _state(c) == results.ROUTING_FAIL and _state(k) == results.PASS:
+            outcome = CONFIRMED
+        elif _state(c) == results.ROUTING_FAIL and _state(k) == results.ROUTING_FAIL:
+            outcome = PREEXISTING
+        else:
+            outcome = INCOMPLETE
+        rows.append({"id": sid, "candidate": c, "control": k, "outcome": outcome})
+    phases = [r for r in (confirm_candidate, confirm_control) if r is not None]
+    confirmation_complete = (
+        bool(failed) and confirm_candidate is not None
+        and all(r["complete"] for r in phases) and all(r["outcome"] != INCOMPLETE for r in rows)
+    )
+    breaches = _union(initial["breaches"], *(r["breaches"] for r in phases))
+    complete = initial["complete"] and not breaches and (not failed or confirmation_complete)
+    confirmation = None
+    if failed:
+        confirmation = {
+            "state": results.INFRA_ERROR if not confirmation_complete else (results.ROUTING_FAIL if any(r["outcome"] == CONFIRMED for r in rows) else results.PASS),
+            "complete": confirmation_complete,
+            "reason": next((r["reason"] for r in phases if r["reason"]), None) or (None if confirmation_complete else "confirmation left a failed scenario without a judged result"),
+            "scenarios": rows,
+        }
+    usage = _total(initial["usage"], *(r["usage"] for r in phases))
+    confirm_usage = _total(*(r["usage"] for r in phases)) if phases else {"trials": 0, "tokens": 0, "cost_usd": 0.0, "latency_ms": 0}
+    return {
+        "agent": initial["agent"],
+        "skill": initial["skill"],
+        "mode": LAZY,
+        "state": results.INFRA_ERROR if not complete else initial["state"],
+        "complete": complete,
+        "candidate_state": initial["state"],
+        "failure_kinds": sorted(set(initial["failure_kinds"]) | {k for r in phases for k in r["failure_kinds"]}),
+        "reason": initial["reason"] or next((r["reason"] for r in phases if r["reason"]), None),
+        "usage": usage,
+        "usage_by_phase": {"initial": initial["usage"], "confirmation": confirm_usage},
+        "breaches": breaches,
+        "failed": failed,
+        "scenarios": [{"id": s["id"], "candidate": _side(s["trials"], s["state"])} for s in initial["scenarios"]],
+        "confirmation": confirmation,
+    }
 
 
 def _check(trials: list[dict[str, Any]], required: float) -> dict[str, Any]:
