@@ -288,10 +288,14 @@ of this is advisory.
 The repo cannot do these itself; until they are done the workflow is advisory and key-less.
 
 1. Create the team `skill-eval-maintainers`.
-2. Create environment `skill-evals`: no required reviewers; deployment branches limited to the
-   merge queue refs `gh-readonly-queue/*` and `main`.
-3. Create environment `skill-evals-full`: required reviewers = `skill-eval-maintainers`. This is
-   the only approval.
+2. Create environment `skill-evals` (Settings > Environments > New environment): required
+   reviewers = `skill-eval-maintainers` (add the team under "Required reviewers"; consider
+   "Prevent self-review"); deployment branches limited to the merge queue refs
+   `gh-readonly-queue/*` and `main`. Every queue and manual changed/skill run then waits for an
+   approval before the job, and so the secrets, starts. A queued PR is blocked until a reviewer
+   approves, so keep the team responsive.
+3. Create environment `skill-evals-full`: the same required reviewers, with the same branch limits.
+   The full suite is manual only and expensive, so use the stricter reviewer list if the two differ.
 4. Store `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` as **environment secrets** in both environments
    (not repo secrets), using dedicated keys with provider spend caps.
 5. Set the `ROUTING_*` repository variables if the defaults in `scripts/routing_ceilings.py`

@@ -89,7 +89,7 @@ jobs:
     needs: select
     # Nothing paid ever runs on a pull request push.
     if: ${{ github.event_name != 'pull_request' && needs.select.outputs.has_skills == 'true' }}
-    # Approval is required only for the manual full suite.
+    # Both environments require reviewer approval (docs/testing.md admin checklist); the full suite uses its own.
     environment: ${{ (github.event_name == 'workflow_dispatch' && inputs.mode == 'all') && 'skill-evals-full' || 'skill-evals' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10

@@ -73,7 +73,9 @@ decisions behind them:
   blocks (`blocked_infra`); a re-run or admin override resolves it.
 - **Keys:** a missing key warns while any agent runs; no runnable agent fails the gate in the
   queue and manual runs.
-- **Approvals** only on the full-suite environment.
+- **Approvals** on both environments (`skill-evals` for queue and manual changed/skill runs,
+  `skill-evals-full` for the full suite), so no run starts, and no secret is exposed, without a
+  reviewer from `skill-eval-maintainers`.
 
 ## Why this fits this repository
 
