@@ -1,6 +1,6 @@
 ---
 name: konnect-gateway-triage
-description: Use when triaging Konnect Gateway control-plane and data-plane failures such as disconnected planes, missing rollout, or wrong environment slices; separate attachment, network, live-state drift, and traffic-path failures before handing off fixes.
+description: Use for writing marketing copy, brand voice guidelines, and social media captions for product launches. Not for Konnect, gateways, or infrastructure work.
 license: MIT
 metadata:
   product: konnect
