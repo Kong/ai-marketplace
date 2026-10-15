@@ -1,0 +1,123 @@
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+skill: konnect-api-publish
+scenarios:
+  - id: konnect-api-publish-positive-1
+    prompt: "The Loyalty API is fully set up in Konnect with a spec and versions, but our external developer portal still doesn't list it. What's missing between the API and the portal?"
+    expect: [konnect-api-publish]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-api-publish-positive-2
+    prompt: "partners can't see the shipping api on the dev portal. internal folks can. same portal? not sure. help"
+    expect: [konnect-api-publish]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-api-publish-positive-3
+    prompt: "My manager says 'just publish the Claims API'. The gateway route works fine in prod. What actually has to happen in Konnect for developers to find it, and in what order should I check things?"
+    expect: [konnect-api-publish]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-api-publish-positive-4
+    prompt: "We have two Konnect portals, one for partners and one for the public. The Inventory API shows up on the public one, which it absolutely should not, and is missing from the partner one. How do I trace where it got attached?"
+    expect: [konnect-api-publish]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-api-publish-positive-5
+    prompt: "A teammate claims the Quotes API went live on the portal last week, but when I log in as a test developer I don't see it in the list at all. How do I prove whether it was ever pushed to that portal?"
+    expect: [konnect-api-publish]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-api-publish-near-miss-1
+    prompt: "Publish our TypeScript SDK to npm with provenance from a GitHub Actions release job."
+    expect: []
+    forbid: [konnect-api-publish]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-api-publish-near-miss-2
+    prompt: "Developers can find the Orders API on our Konnect portal, but when they create an application the key auth credential never gets issued. What's blocking credentials?"
+    expect: []
+    forbid: [konnect-api-publish]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-api-publish-near-miss-3
+    prompt: "Make our portal's API pages use the brand teal for headings and buttons, matching the style guide PDF from design."
+    expect: []
+    forbid: [konnect-api-publish]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-api-publish-near-miss-4
+    prompt: "Our SwaggerHub instance shows an old version of the docs after we pushed a new definition. How do I force it to refresh?"
+    expect: []
+    forbid: [konnect-api-publish]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-api-publish-near-miss-5
+    prompt: "Should the v2 of our tracking API be a new Konnect API object or a version of the existing one? We haven't exposed either to developers yet."
+    expect: []
+    forbid: [konnect-api-publish]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-api-publish-sibling-1
+    prompt: "our konnect stuff is broken since friday's release, portal and staging gateway both weird. help me triage"
+    expect: [konnect-platform-router]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-2
+    prompt: "Developer onboarding on Konnect is broken in some way: people either can't find APIs, can't sign in, or can't get keys, depending on who you ask. Help me figure out which part of the platform owns this before we chase it."
+    expect: [konnect-platform-router]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-3
+    prompt: "Give me the kongctl command that lists the portals in our org as JSON, read only. I just want to see their names and IDs."
+    expect: [kongctl-query]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-4
+    prompt: "What's the kongctl path to list the publications under one specific portal? I keep getting unknown command for the nested form."
+    expect: [kongctl-query]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-5
+    prompt: "Add a publication of the Payments API to the partner portal in our kongctl YAML and show the plan before applying."
+    expect: [kongctl-declarative]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-6
+    prompt: "Our kongctl portal manifests point at spec files with !file, and the plan fails with a path outside the base dir. Fix the layout so the plan resolves."
+    expect: [kongctl-declarative]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-7
+    prompt: "Our portals and API publications are defined in HCL with the kong/konnect provider. Add a publication of the Fleet API to the developer portal and run terraform plan."
+    expect: [terraform-konnect]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-8
+    prompt: "Terraform plan wants to destroy and recreate our portal resource after a provider upgrade. Help me read the plan and keep the existing portal."
+    expect: [terraform-konnect]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-9
+    prompt: "The API page on the portal is fine, but the route behind it was never added to our decK state file for that control plane. Add the route and validate the file."
+    expect: [deck-gateway]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-api-publish-sibling-10
+    prompt: "Dump the services and routes from the staging control plane with deck so I can compare them to what's committed, scoped to the tag team-catalog."
+    expect: [deck-gateway]
+    forbid: [konnect-api-publish]
+    trials: 1
+    tags: [sibling]

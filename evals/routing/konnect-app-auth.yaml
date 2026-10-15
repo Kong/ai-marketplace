@@ -1,0 +1,123 @@
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+skill: konnect-app-auth
+scenarios:
+  - id: konnect-app-auth-positive-1
+    prompt: "Our Payments API shows up on the Konnect portal and developers can create applications, but the registration just stays pending. Nobody on our side ever sees an approval request. What's going on?"
+    expect: [konnect-app-auth]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-app-auth-positive-2
+    prompt: "Partners already run their own Okta and want to bring their own OAuth clients to call our APIs from the portal. Key auth, self-managed OIDC, or DCR in Konnect? Which fits?"
+    expect: [konnect-app-auth]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-app-auth-positive-3
+    prompt: "devs got an api key from the portal for the inventory api but every call through the gateway still returns 401. publication looks fine"
+    expect: [konnect-app-auth]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-app-auth-positive-4
+    prompt: "We published the Claims API with a key-auth strategy selected, yet anonymous requests still go straight through to the backend. I suspect the strategy isn't being enforced on the actual service. How do I confirm?"
+    expect: [konnect-app-auth]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-app-auth-positive-5
+    prompt: "One developer wants the same application to call both the Rates API, which uses keys, and the Ledger API, which uses OIDC. The portal won't let them. Is that expected, and how should we set this up instead?"
+    expect: [konnect-app-auth]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-app-auth-near-miss-1
+    prompt: "Developers can't sign in to our Konnect developer portal through our corporate SSO; they get bounced back to the login page. Fix the login."
+    expect: []
+    forbid: [konnect-app-auth]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-app-auth-near-miss-2
+    prompt: "Implement the OAuth 2.0 authorization code flow with PKCE in our React single-page app against Auth0."
+    expect: []
+    forbid: [konnect-app-auth]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-app-auth-near-miss-3
+    prompt: "A platform engineer can't edit the auth strategies page in Konnect at all, though a colleague on another team can. What role are they missing?"
+    expect: []
+    forbid: [konnect-app-auth]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-app-auth-near-miss-4
+    prompt: "Configure the JWT plugin on a self-hosted Kong Gateway so mobile clients signed by our issuer get through."
+    expect: []
+    forbid: [konnect-app-auth]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-app-auth-near-miss-5
+    prompt: "Rotate the AWS IAM access keys our CI uses and store the new ones in Secrets Manager."
+    expect: []
+    forbid: [konnect-app-auth]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-app-auth-sibling-1
+    prompt: "Developers outside the company tell us the Konnect portal is not good: some APIs not there, login fails for some, keys not working for others. We need to know who in the team takes which problem."
+    expect: [konnect-platform-router]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-2
+    prompt: "After our Konnect reorg nobody knows who owns developer access, the portal, or the gateway config anymore, and partner onboarding is stalled. Which area is the first owner?"
+    expect: [konnect-platform-router]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-3
+    prompt: "We settled on DCR with our IdP. Our Konnect config is all Terraform; add the application auth strategy resource and attach it to the existing publication, then plan."
+    expect: [terraform-konnect]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-4
+    prompt: "terraform plan in our konnect repo wants to destroy and recreate the partner key-auth strategy because someone renamed it in the HCL. How do I rename it without a replacement?"
+    expect: [terraform-konnect]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-5
+    prompt: "In our kongctl-managed repo, add an OIDC application auth strategy and reference it from the Rates API publication with !ref. Show me the plan."
+    expect: [kongctl-declarative]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-6
+    prompt: "Our kongctl manifests reference the OIDC strategy by a hard-coded UUID. Switch it to a !ref and confirm the diff is empty afterwards."
+    expect: [kongctl-declarative]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-7
+    prompt: "We've confirmed portal auth is fine; the gap is that the Rates service in our kong.yaml needs a rate-limiting plugin per consumer. Edit the decK file and diff it."
+    expect: [deck-gateway]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-8
+    prompt: "Add a key-auth plugin to the internal-tools service in our decK state, keep the existing select tags, and preview the change against the control plane."
+    expect: [deck-gateway]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-9
+    prompt: "Developers say they can't register for the Freight API, but when I look at the portal it isn't listed at all. Did it ever get published there?"
+    expect: [konnect-api-publish]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-app-auth-sibling-10
+    prompt: "We renamed our partner portal last week and since then the Quotes API page is gone from it, though it's still on the public one. Registration questions can wait; where did the publication go?"
+    expect: [konnect-api-publish]
+    forbid: [konnect-app-auth]
+    trials: 1
+    tags: [sibling]
