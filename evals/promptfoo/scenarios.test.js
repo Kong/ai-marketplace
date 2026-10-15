@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { buildTests, trialCap } = require('./scenarios');
+const { buildTests, trialCap, forcedTrials } = require('./scenarios');
 
 const labels = { positive: 'pos', negative: 'neg' };
 const FIXTURE = `
@@ -75,4 +75,17 @@ test('maxTrials caps trials per scenario and keeps metadata consistent', () =>
 test('trialCap reads positive integers and ignores anything else', () => {
   assert.strictEqual(trialCap('1'), 1);
   for (const bad of [undefined, '', '0', '-2', 'x']) assert.strictEqual(trialCap(bad), Infinity);
+});
+
+test('forceTrials overrides scenario trials and the cap, and keeps metadata consistent', () =>
+  withFixture((dir) => {
+    const tests = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, maxTrials: 1, forceTrials: 3 });
+    assert.strictEqual(tests.length, 9);
+    assert.ok(tests.every((t) => t.metadata.trials === 3));
+    assert.match(tests[8].description, /^alpha-sibling-1 \| claude \| trial 3\/3 \|/);
+  }));
+
+test('forcedTrials reads positive integers and otherwise means not forced', () => {
+  assert.strictEqual(forcedTrials('3'), 3);
+  for (const bad of [undefined, '', '0', '-2', 'x']) assert.strictEqual(forcedTrials(bad), null);
 });

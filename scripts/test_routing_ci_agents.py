@@ -36,6 +36,29 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(ci.plan({})["summary"], "Agents run: none; skipped: claude, codex")
         self.assertEqual(ci.plan({C: "a", O: "b"})["messages"], [])
 
+    def test_requested_agents_restrict_the_plan(self) -> None:
+        plan = ci.plan({C: "x"}, ["claude"])
+        self.assertEqual((plan["requested"], plan["agents"], plan["skipped"], plan["none_runnable"]), (["claude"], ["claude"], [], False))
+        # an agent that was not requested is not "skipped for a missing key"
+        self.assertEqual(ci.plan({C: "x"}, ["codex"])["skipped"], [{"agent": "codex", "env": O}])
+        self.assertEqual(ci.plan({C: "x", O: "y"}, ["claude,codex"])["agents"], ["claude", "codex"])
+        with self.assertRaises(ValueError):
+            ci.plan({}, ["gemini"])
+
+    def test_none_runnable_only_when_no_requested_agent_has_a_key(self) -> None:
+        self.assertTrue(ci.plan({})["none_runnable"])
+        self.assertTrue(ci.plan({C: "x"}, ["codex"])["none_runnable"])
+        self.assertFalse(ci.plan({C: "x"})["none_runnable"])  # one key: warn about the other, do not fail
+        self.assertEqual(ci.plan({C: "x"})["messages"], ["codex skipped: OPENAI_API_KEY is not set"])
+
+    def test_cli_plan_agents_flag_and_bad_agent(self) -> None:
+        out = io.StringIO()
+        with mock.patch.dict("os.environ", {C: "x", O: "y"}), redirect_stdout(out):
+            self.assertEqual(ci.main(["x", "plan", "--agents", "codex"]), 0)
+        self.assertEqual(json.loads(out.getvalue())["agents"], ["codex"])
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(ci.main(["x", "plan", "--agents", "gemini"]), 2)
+
     def test_cli_plan_reads_the_process_environment(self) -> None:
         out = io.StringIO()
         with mock.patch.dict("os.environ", {C: "", O: "y"}), redirect_stdout(out):

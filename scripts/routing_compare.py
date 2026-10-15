@@ -22,6 +22,12 @@ Comparison document (`compare_agent`, modified skill)
     }
     side = {"state", "passes", "trials", "rate": float|None}
     delta = candidate rate - control rate; negative means candidate routes worse.
+    Optional "confirmation" (added by `with_confirmation` when the gate re-runs regressions):
+      {"trials": 3, "regressions": [ids], "state": pass|routing_fail|infra_error, "complete": bool,
+       "reason": str|None, "usage": usage, "breaches": [...],
+       "scenarios": [{"id", "candidate": side, "control": side, "confirmed": bool}]}
+    A regression is a scenario that passes on control and fails on candidate (scenario pass rule);
+    it is *confirmed* when it still does so in the 3-trial re-run. Only confirmed regressions gate.
 
 New-skill document (`evaluate_new_skill`, no control exists)
     {
@@ -43,6 +49,7 @@ from typing import Any
 
 import routing_results as results
 
+CONFIRM_TRIALS = 3
 POSITIVE_RECALL = 0.90
 NEAR_MISS_SPECIFICITY = 0.95
 
@@ -100,6 +107,66 @@ def compare_agent(candidate: dict[str, Any], control: dict[str, Any]) -> dict[st
             for sid in sorted(set(cand) | set(ctrl))
         ],
     }
+
+
+def _state(scenario: dict[str, Any] | None) -> str | None:
+    return scenario["state"] if scenario else None
+
+
+def regressions(doc: dict[str, Any]) -> list[str]:
+    """Scenario ids that pass on control and fail on candidate (judged, not infra_error)."""
+    return [
+        s["id"] for s in doc["scenarios"]
+        if _state(s["control"]) == results.PASS and _state(s["candidate"]) == results.ROUTING_FAIL
+    ]
+
+
+def preexisting_failures(doc: dict[str, Any]) -> list[str]:
+    """Scenario ids failing on both sides: not regressions, reported as warnings."""
+    return [
+        s["id"] for s in doc["scenarios"]
+        if _state(s["control"]) == results.ROUTING_FAIL and _state(s["candidate"]) == results.ROUTING_FAIL
+    ]
+
+
+def with_confirmation(doc: dict[str, Any], candidate: dict[str, Any], control: dict[str, Any]) -> dict[str, Any]:
+    """Attach the 3-trial re-run of this document's regressions (candidate and control results).
+
+    Confirmed = candidate still fails and control still passes. Anything that leaves a re-run
+    scenario without a judged result on either side makes the confirmation infra_error and the
+    document incomplete, so the gate can fail closed instead of guessing.
+    """
+    ids = regressions(doc)
+    cand, ctrl = _by_scenario(candidate), _by_scenario(control)
+    rows = []
+    for sid in ids:
+        c, k = cand.get(sid), ctrl.get(sid)
+        rows.append({
+            "id": sid, "candidate": c, "control": k,
+            "confirmed": _state(c) == results.ROUTING_FAIL and _state(k) == results.PASS,
+        })
+    complete = (
+        candidate["complete"] and control["complete"]
+        and all(_state(r["candidate"]) in (results.PASS, results.ROUTING_FAIL) and _state(r["control"]) in (results.PASS, results.ROUTING_FAIL) for r in rows)
+    )
+    state = results.INFRA_ERROR if not complete else (results.ROUTING_FAIL if any(r["confirmed"] for r in rows) else results.PASS)
+    breaches = candidate["breaches"] + [b for b in control["breaches"] if b not in candidate["breaches"]]
+    out = dict(doc)
+    out["confirmation"] = {
+        "trials": CONFIRM_TRIALS,
+        "regressions": ids,
+        "state": state,
+        "complete": complete,
+        "reason": candidate["reason"] or control["reason"] or (None if complete else "re-run left a regressed scenario without a judged result"),
+        "usage": _total(candidate["usage"], control["usage"]),
+        "breaches": breaches,
+        "scenarios": rows,
+    }
+    out["usage"] = _total(doc["usage"], out["confirmation"]["usage"])
+    if breaches:
+        out["breaches"] = doc["breaches"] + [b for b in breaches if b not in doc["breaches"]]
+        out["state"], out["complete"] = results.INFRA_ERROR, False
+    return out
 
 
 def _check(trials: list[dict[str, Any]], required: float) -> dict[str, Any]:

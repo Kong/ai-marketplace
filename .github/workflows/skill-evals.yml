@@ -1,47 +1,61 @@
 name: Skill routing evals
 
-# Advisory only: never configure these jobs as required checks. Model-backed routing
-# results are reported as warnings and artifacts; deterministic validation stays in
-# validate.yml (`mise run ci`).
+# Routing evals can gate merges to main, with cost control. Behaviour per event (details,
+# pass criteria and the admin setup checklist: docs/testing.md#routing-evals):
 #
-# Paid provider calls happen only in `evaluate`, which runs only when `select` finds at
-# least one changed skill that has routing scenarios. Changed skills run
-# the candidate/merge-base comparison (3 trials); adjacent skills (at most five, from
-# select_changed.py) run candidate-only with one trial each. Pull requests are triggered only by
-# paths beneath a skill directory, then the diff is re-checked by scripts/select_changed.py
-# (via routing_targets.py). Nothing here ever selects the full catalog.
+#   pull_request    `select` previews the relevant skills (no provider calls, no secrets);
+#                   `evaluate` is skipped; `routing-evals-gate` passes immediately.
+#   merge_group     the relevant evals run once for the queued commit (changed skills plus up to
+#                   five adjacent skills, each compared with its merge base), then
+#                   `routing-evals-gate` applies scripts/routing_gate.py and fails per the policy.
+#   workflow_dispatch  manual: one skill, the changed skills, or the full suite (`all`, both agents,
+#                   every skill with scenarios, behind the `skill-evals-full` approval environment).
+#                   The full suite is manual only and never part of the gate.
 #
-# An agent whose API key is missing (always the case for fork PRs, which get no secrets) is skipped
-# with a warning annotation instead of failing as infra_error; with no keys at all nothing runs.
-# The decision lives in scripts/routing_ci_agents.py.
+# The gate is not enabled by this file. Until an admin makes the check `routing-evals-gate` required
+# in the main ruleset, every outcome here is advisory. There is deliberately no `paths:` filter: the
+# check must report on every pull request and queue entry, and `select` decides relevance from the
+# base/head diff (no relevant skill, nothing paid runs, the gate passes).
 #
-# Ceilings: the changed-skill job targets ten minutes (`timeout-minutes`, plus an eval
-# deadline below it so a breach is reported rather than the job cancelled). Token, cost,
-# per-run timeout, and Promptfoo concurrency ceilings are enforced by scripts/routing_ceilings.py;
-# override defaults with repository variables named ROUTING_*. A breach is an advisory
-# infra_error shown in the summary and a warning annotation. Runs for one PR share a
-# concurrency group (newer pushes cancel older runs) and `max-parallel` bounds paid jobs.
+# Only `evaluate` receives secrets, as environment secrets (`skill-evals` for the queue and manual
+# changed/skill runs, `skill-evals-full` for the manual full suite). Workflow inputs reach scripts only
+# through environment variables. Ceilings (tokens, cost, per-run and job timeouts, concurrency) come
+# from scripts/routing_ceilings.py and the ROUTING_* repository variables. Model and effort overrides
+# are never read in CI.
 
 on:
   pull_request:
-    paths:
-      - "plugins/*/skills/**"
+  merge_group:
   workflow_dispatch:
     inputs:
-      skill:
-        description: Name of one skill with routing scenarios to evaluate against origin/main
+      mode:
+        description: "skill: one skill vs origin/main; changed: skills changed vs origin/main; all: full suite (manual only, needs approval)"
         required: true
+        type: choice
+        default: changed
+        options:
+          - skill
+          - changed
+          - all
+      skill:
+        description: Skill name (required when mode is skill; must have routing scenarios)
+        required: false
+        type: string
+      agents:
+        description: Optional comma-separated agents to run (claude, codex); default both
+        required: false
         type: string
 
 permissions: {}
 
 concurrency:
-  group: skill-evals-${{ github.event.pull_request.number || inputs.skill }}
-  cancel-in-progress: true
+  group: skill-evals-${{ github.event.pull_request.number || github.event.merge_group.head_ref || format('{0}-{1}', inputs.mode, inputs.skill) }}
+  # A queue entry is never cancelled by a later one: the queue needs every result.
+  cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
 jobs:
   select:
-    name: Select changed skills
+    name: Select relevant skills
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -49,57 +63,34 @@ jobs:
     outputs:
       skills: ${{ steps.select.outputs.skills }}
       has_skills: ${{ steps.select.outputs.has_skills }}
+      agents: ${{ steps.select.outputs.agents }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-      - name: Select skills from the base/head diff
+      - name: Select skills from the base/head diff and preview them (no provider calls)
         id: select
         env:
           EVENT_NAME: ${{ github.event_name }}
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha }}
+          MODE_INPUT: ${{ inputs.mode }}
           SKILL_INPUT: ${{ inputs.skill }}
-        run: |
-          set -euo pipefail
-          run_py() { uv run --python 3.12 --cache-dir .tmp/uv-cache python "$@"; }
-          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
-            targets="$(run_py scripts/routing_targets.py skill "$SKILL_INPUT")"
-            adjacent=""
-          else
-            # Show the confirmed diff-derived selection (changed, adjacent, removed, ignored).
-            {
-              echo '### Skills selected from the diff'
-              echo '```json'
-              run_py scripts/select_changed.py "$BASE_SHA" HEAD
-              echo '```'
-            } >> "$GITHUB_STEP_SUMMARY"
-            # Changed skills that have routing scenarios; fails rather than selecting the whole catalog.
-            # A new skill below the scenario minimums fails here (exit 2) before any provider call.
-            targets="$(run_py scripts/routing_targets.py changed --base "$BASE_SHA")"
-            # Adjacent skills that have scenarios; the rest are skipped with a note on stderr.
-            adjacent="$(run_py scripts/routing_targets.py adjacent --base "$BASE_SHA")"
-          fi
-          skills="$(printf '%s\n' "$targets" | jq -R 'select(length > 0)' | jq -sc .)"
-          # Adjacent skills are only context for a changed skill that is evaluated; never run alone.
-          [ "$skills" = "[]" ] && adjacent=""
-          adjacent_skills="$(printf '%s\n' "$adjacent" | jq -R 'select(length > 0)' | jq -sc .)"
-          # One matrix: changed skills compare with the merge base, adjacent ones run candidate-only.
-          matrix="$(jq -nc --argjson c "$skills" --argjson a "$adjacent_skills" '[($c[] | {skill: ., mode: "compare"}), ($a[] | {skill: ., mode: "adjacent"})]')"
-          has_skills="$(jq -r 'length > 0' <<<"$matrix")"
-          echo "skills=$matrix" >> "$GITHUB_OUTPUT"
-          echo "has_skills=$has_skills" >> "$GITHUB_OUTPUT"
-          if [ "$has_skills" != "true" ]; then
-            echo "No changed or adjacent skills with routing scenarios; no provider calls will be made." | tee -a "$GITHUB_STEP_SUMMARY"
-          fi
+          AGENTS_INPUT: ${{ inputs.agents }}
+          ROUTING_MAX_COST_USD: ${{ vars.ROUTING_MAX_COST_USD }}
+        run: uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_ci.py select
 
   evaluate:
     name: Routing evals (${{ matrix.skill }}, ${{ matrix.mode }})
     needs: select
-    if: ${{ needs.select.outputs.has_skills == 'true' }}
+    # Nothing paid ever runs on a pull request push.
+    if: ${{ github.event_name != 'pull_request' && needs.select.outputs.has_skills == 'true' }}
+    # Approval is required only for the manual full suite.
+    environment: ${{ (github.event_name == 'workflow_dispatch' && inputs.mode == 'all') && 'skill-evals-full' || 'skill-evals' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -112,16 +103,17 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          ref: ${{ github.event.merge_group.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - uses: jdx/mise-action@1648a7812b9aeae629881980618f079932869151 # v4.0.1
       - uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
-      - name: Evaluate on the agents that have API keys (compare with merge base; adjacent skills candidate-only, 1 trial)
+      - name: Evaluate on the requested agents that have API keys (regression-only vs merge base, with confirmation)
         env:
           SKILL: ${{ matrix.skill }}
           MODE: ${{ matrix.mode }}
-          BASE_REF: ${{ github.event.pull_request.base.sha || 'origin/main' }}
+          BASE_REF: ${{ github.event.merge_group.base_sha || 'origin/main' }}
+          REQUESTED_AGENTS: ${{ needs.select.outputs.agents }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # Empty values fall back to the defaults in scripts/routing_ceilings.py.
@@ -130,67 +122,84 @@ jobs:
           ROUTING_MAX_CONCURRENCY: ${{ vars.ROUTING_MAX_CONCURRENCY }}
           ROUTING_RUN_TIMEOUT_SECONDS: ${{ vars.ROUTING_RUN_TIMEOUT_SECONDS }}
           ROUTING_JOB_TIMEOUT_SECONDS: ${{ vars.ROUTING_JOB_TIMEOUT_SECONDS }}
-        run: |
-          # CI always uses the pinned model and effort: never let a variable or secret leak in.
-          unset ROUTING_CODEX_MODEL ROUTING_CODEX_EFFORT ROUTING_CLAUDE_MODEL ROUTING_CLAUDE_EFFORT
-          run_py() { uv run --python 3.12 --cache-dir .tmp/uv-cache python "$@"; }
-          # An agent without its API key is skipped, not run into an infra_error. Only key presence is
-          # read (never printed); fork PRs get no secrets and so skip cleanly. See scripts/routing_ci_agents.py.
-          plan="$(run_py scripts/routing_ci_agents.py plan)"
-          agents="$(jq -r '.agents | join(",")' <<<"$plan")"
-          while IFS= read -r message; do
-            echo "::warning title=agent_skipped::$message"
-          done < <(jq -r '.messages[]' <<<"$plan")
-          if [ -z "$agents" ]; then
-            echo "::warning title=agent_skipped::skipping routing evals: no API keys are configured"
-            {
-              echo "### Routing eval ($MODE): $SKILL"
-              echo "Skipped: no API keys are configured; no provider calls were made."
-            } >> "$GITHUB_STEP_SUMMARY"
-            exit 0
-          fi
-          set +e
-          if [ "$MODE" = "adjacent" ]; then
-            summary=".tmp/routing/reports/$SKILL.summary.json"
-            ROUTING_MAX_TRIALS=1 mise run eval:routing -- skill "$SKILL" --agent "$agents"
-          else
-            summary=".tmp/routing/reports/$SKILL.comparison-summary.json"
-            mise run eval:routing:compare -- "$SKILL" --base "$BASE_REF" --agent "$agents"
-          fi
-          rc=$?
-          set -e
-          {
-            echo "### Routing eval ($MODE): $SKILL"
-            jq -r '.summary' <<<"$plan"
-            echo '```json'
-            cat "$summary" 2>/dev/null || echo "no summary written"
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-          breaches="$(jq -r '.breaches // [] | map("\(.agent) \(.ceiling) limit \(.limit) observed \(.observed)") | join("; ")' "$summary" 2>/dev/null || true)"
-          if [ -n "$breaches" ]; then
-            echo "::warning title=ceiling::$SKILL: ceiling breached, run stopped as infra_error: $breaches"
-          fi
-          # A partial result is acceptable only when the agents run are exactly those with keys.
-          if [ -f "$summary" ] && ! run_py scripts/routing_ci_agents.py verify "$summary" "$agents"; then
-            echo "::error title=partial::$SKILL ($MODE): result scope is not explained by the missing API keys"
-            exit 2
-          fi
-          # Only 0, 1 (routing_fail) and 3 (infra_error) are advisory results (docs/testing.md);
-          # 2 and anything else is a harness or validation error and fails the job.
-          case "$rc" in
-            0) ;;
-            1) echo "::warning title=routing_fail::$SKILL ($MODE): routing regressed on at least one agent (advisory)" ;;
-            3) echo "::warning title=infra_error::$SKILL ($MODE): provider or telemetry failure, result incomplete (advisory)" ;;
-            *) echo "::error title=harness_error::$SKILL ($MODE): exit $rc is a harness or validation error, not a routing result"; exit "$rc" ;;
-          esac
-      - name: Upload Promptfoo JSON (raw responses), JUnit, HTML, and logs
+        # scripts/routing_ci.py drops ROUTING_*_MODEL/EFFORT (CI always uses the pins), reads only whether
+        # each key is set (never its value), and records the outcome for the gate job.
+        run: uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_ci.py evaluate
+      - name: Upload Promptfoo JSON (raw responses), JUnit, HTML, run record, and logs
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: routing-reports-${{ matrix.mode }}-${{ matrix.skill }}
+          # The attempt keeps a re-run of failed jobs from colliding with the first attempt's artifact.
+          name: routing-reports-${{ matrix.mode }}-${{ matrix.skill }}-${{ github.run_attempt }}
           path: |
             .tmp/routing/reports/
             .tmp/promptfoo/logs/
           include-hidden-files: true
           if-no-files-found: warn
           retention-days: 14
+
+  routing-evals-gate:
+    name: routing-evals-gate
+    needs: [select, evaluate]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Pass fast on pull requests and when nothing relevant was selected
+        id: pre
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          SELECT_RESULT: ${{ needs.select.result }}
+          HAS_SKILLS: ${{ needs.select.outputs.has_skills }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            [ "$SELECT_RESULT" = "success" ] || echo "::warning title=select::the select job did not succeed; the merge queue run will fail if the problem persists"
+            echo "### routing-evals-gate: pull request push, nothing paid runs
+          The relevant evals run once in the merge queue; see the Select job summary for the no-spend preview." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "apply=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$SELECT_RESULT" != "success" ]; then
+            echo "::error title=select::the select job did not succeed ($SELECT_RESULT); failing closed"
+            exit 1
+          fi
+          if [ "$HAS_SKILLS" != "true" ]; then
+            echo "### routing-evals-gate: pass
+          No changed or adjacent skills with routing scenarios; nothing was evaluated." | tee -a "$GITHUB_STEP_SUMMARY"
+            echo "apply=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "apply=true" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        if: ${{ steps.pre.outputs.apply == 'true' }}
+        with:
+          ref: ${{ github.event.merge_group.head_sha || github.sha }}
+          sparse-checkout: scripts
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        if: ${{ steps.pre.outputs.apply == 'true' }}
+        with:
+          pattern: routing-reports-*
+          path: .tmp/gate
+      - name: Apply the gate policy to the evaluate results
+        if: ${{ steps.pre.outputs.apply == 'true' }}
+        env:
+          MATRIX: ${{ needs.select.outputs.skills }}
+          # The full suite is informational: it reports its verdict but never fails on routing results.
+          INFORMATIONAL: ${{ github.event_name == 'workflow_dispatch' && inputs.mode == 'all' }}
+        run: |
+          set -euo pipefail
+          printf '%s' "$MATRIX" > .tmp/gate-matrix.json
+          flags=()
+          [ "$INFORMATIONAL" = "true" ] && flags+=(--informational)
+          set +e
+          python3 scripts/routing_gate.py .tmp/gate .tmp/gate-matrix.json "${flags[@]}" --summary "$GITHUB_STEP_SUMMARY" --json .tmp/gate-verdict.json
+          rc=$?
+          set -e
+          if [ -f .tmp/gate-verdict.json ]; then
+            jq -r '.reasons[] | "\(if (.code | IN("agent_skipped","regression_not_confirmed","preexisting_failure")) then "warning" else "error" end) title=\(.code)::\(.skill)\(if .agent then "/" + .agent else "" end): \(.detail)"' .tmp/gate-verdict.json | sed 's/^/::/'
+          fi
+          exit "$rc"

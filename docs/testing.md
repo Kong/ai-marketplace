@@ -78,8 +78,9 @@ back to user-profile locations.
 Routing evals check that the right skill activates for a request (and the wrong ones do not).
 Scenarios live in `evals/routing/`; Promptfoo's native providers run them on each *agent*
 (Claude Code and Codex, separate runs and reports; Promptfoo, SDKs, Node, and models are
-pinned in `package.json`, `package-lock.json`, and `mise.toml`). Runs make paid model calls and
-are advisory: they are not required for merge.
+pinned in `package.json`, `package-lock.json`, and `mise.toml`). Runs make paid model calls. In CI
+they can gate merges through the merge queue, but only once an admin makes the check required
+(see [Merge gate workflow](#merge-gate-workflow)); until then they are advisory.
 
 ### Add evals for a skill
 
@@ -116,7 +117,8 @@ scenarios:
 
 A skill that is new at the merge base has no control: `compare` skips it and judges each agent
 on absolute thresholds (at least 90% positive recall, 95% near-miss specificity) instead of a
-delta. Deltas are reported, not gated, and no baselines are committed.
+delta. `compare` itself reports deltas; the merge gate turns them into a regression-only verdict
+(see [Pass criteria](#pass-criteria)). No baselines are committed.
 
 ### Examples
 
@@ -127,6 +129,7 @@ mise run eval:routing -- changed --base origin/main                  # skills ch
 mise run eval:routing -- all                                          # every skill that has scenarios
 mise run eval:routing:compare -- konnect-gateway-triage --base origin/main
 mise run eval:routing:compare -- konnect-gateway-triage --agent codex # compare on Codex only
+mise run eval:routing:compare -- konnect-gateway-triage --confirm     # also re-run regressed scenarios at 3 trials, as the gate does
 mise run eval:routing:config -- --json                               # effective settings, offline
 mise run eval:routing:coverage                                        # which skills have scenarios, offline (--json too)
 ROUTING_CODEX_MODEL=gpt-5.5 ROUTING_CODEX_EFFORT=high mise run eval:routing -- skill konnect-gateway-triage --agent codex
@@ -147,19 +150,17 @@ The override variables are for local experiments only; CI always uses the pinned
 | Codex | local Codex login, or `OPENAI_API_KEY` | `OPENAI_API_KEY` secret |
 
 With `--agent` you only need the key for the selected agent. Locally, missing credentials give
-`infra_error`, never `routing_fail`. In CI an agent whose key is missing (fork PRs get no
-secrets, and CI has no Codex login) is skipped with an `agent_skipped` warning instead; with no
-keys at all the eval is skipped with a single warning and no provider call. Never commit keys; reports and transcripts stay under
-`.tmp/` and out of git.
+`infra_error`, never `routing_fail`. In CI the keys are environment secrets of the evaluate job only,
+and an agent whose key is missing is skipped (see [Missing keys and infrastructure errors](#missing-keys-and-infrastructure-errors)).
+Never commit keys; reports and transcripts stay under `.tmp/` and out of git.
 
 ### Is a skill covered?
 
 - `mise run lint` validates the scenario files that exist; it does not require any skill to have them.
 - `mise run eval:routing:coverage` lists covered and uncovered skills, tag counts, and whether a
   covered skill currently meets the new-skill minimums. It is informational and exits 0 on gaps.
-- The advisory PR workflow fails a **new** skill that lacks the minimums (before any model call).
-  A **modified** skill without scenarios is skipped with a note.
-- Evals are not required for merge.
+- The merge queue fails a **new** skill that lacks the minimums (before any model call; a pull
+  request only warns). A **modified** skill without scenarios is skipped with a note.
 
 ### How agents are judged
 
@@ -177,7 +178,8 @@ keys at all the eval is skipped with a single warning and no provider call. Neve
   agent, expected/forbidden routes, observed skills, pass/fail reason). Each agent also writes
   `<agent>-<skill>.result.json` (shape in `scripts/routing_results.py`), with a cross-agent
   `<skill>.summary.json`; comparisons write `<agent>-<skill>.comparison.json` (shape in
-  `scripts/routing_compare.py`). Candidate and control runs use isolated workspaces under `.tmp/routing/`.
+  `scripts/routing_compare.py`, including the optional `confirmation`); CI adds `<skill>.run.json`
+  for the gate (`scripts/routing_ci.py`). Candidate and control runs use isolated workspaces under `.tmp/routing/`.
 
 Each agent reduces to one state:
 
@@ -207,33 +209,99 @@ When one task runs several skills, harness error (2) outranks `routing_fail` (1)
 outranks `infra_error` (3). `validate_routing_scenarios.py` and `prepare_routing_workspace.py`
 also exit 2 on errors, so `mise run lint` still fails on invalid scenarios.
 
-### Advisory workflow
+`scripts/routing_gate.py` reduces CI results to a gate verdict with its own exit codes (the one
+place they are defined):
 
-`.github/workflows/skill-evals.yml` is separate from `validate.yml` and advisory: do not make it
-a required check. It runs on pull requests only when a path under `plugins/*/skills/**` changes;
-the `select` job re-checks the base/head diff with `scripts/routing_targets.py` (built on
-`select_changed.py`) and makes no provider call unless a changed skill has scenarios. It never
-selects the full catalog. `workflow_dispatch` takes one required `skill` and compares it with `origin/main`.
+| Verdict | Exit | Meaning |
+| --- | --- | --- |
+| `pass` | 0 | no confirmed regression, no new-skill threshold failure, nothing blocked |
+| `pass_with_warnings` | 0 | as `pass`, with warnings: an agent skipped for a missing key, a regression not reproduced on re-run, or a scenario that also fails on control |
+| `fail` | 1 | confirmed routing regression, or a new skill below its thresholds |
+| (input error) | 2 | unreadable or malformed gate input; a harness error, not a verdict |
+| `blocked_infra` | 3 | an agent that was supposed to run ended `infra_error`, or a result, confirmation, or job is missing or hit a harness error: fail closed |
+| `fail_no_agents` | 4 | no requested agent had an API key, so nothing was evaluated |
 
-- Each changed skill runs `mise run eval:routing:compare` in its own job (candidate vs merge base).
-- Adjacent skills (`select_changed.py`: routers, skills named in a changed `SKILL.md`, nearest
-  descriptions; at most 5) run candidate-only with `ROUTING_MAX_TRIALS=1`, only if they have
-  scenarios and only alongside a changed skill that has scenarios. Others are skipped with a note.
-- A `routing_fail` or `infra_error` is a warning annotation, not a red job; exit 2 and any other
-  code fail the job. A new skill below the minimums fails in `select`.
-- Keys come from the `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` secrets, only in the eval step.
-  `scripts/routing_ci_agents.py` reads only whether each is non-empty (never the value) and
-  runs just the agents that have one, passing `--agent <agents>`; each skipped agent gets a
-  warning annotation, and the job summary lists agents run and skipped. Results then carry
-  `partial: true` and `agents_run`. This is still safe because a partial result is accepted only
-  when `agents_run` is exactly the agents that had keys; any other partial result fails the job.
-- The artifact `routing-reports-<mode>-<skill>` holds the full Promptfoo JSON (raw model responses
-  and skill calls are the diagnostic transcript; no extra capture is enabled), HTML, JUnit, result
-  and comparison documents, and Promptfoo logs. HTML and JUnit come from the first full run;
-  `*.result.json` and the comparison reflect the state after the single retry (retried trials are
-  in `*.retry.json`).
-- The job targets ten minutes (`timeout-minutes: 10`); jobs for one PR share a concurrency group
-  and `max-parallel` bounds paid jobs. Actions are pinned by commit SHA.
+Precedence is `fail_no_agents` > `fail` > `blocked_infra` > `pass_with_warnings` > `pass`.
+`--informational` (the manual full suite) reports `fail` and `blocked_infra` but exits 0.
+
+### Merge gate workflow
+
+`.github/workflows/skill-evals.yml` is separate from `validate.yml`. It has no `paths:` filter, so
+its check reports on every pull request and queue entry; the `select` job decides relevance from
+the base/head diff (`scripts/routing_targets.py`, built on `select_changed.py`). Orchestration
+lives in `scripts/routing_ci.py` (`select`, `evaluate`) and the verdict in `scripts/routing_gate.py`.
+
+| Event | What runs | Paid calls | `routing-evals-gate` |
+| --- | --- | --- | --- |
+| Pull request push | `validate.yml`, plus a no-spend preview in the Select job summary: changed and adjacent skills, planned trials, estimated cost. A new skill below the scenario minimums only warns. | none, no secrets | passes immediately |
+| Merge queue (`merge_group`) | The relevant evals once, for the queued commit (diff `base_sha...head_sha`): changed skills plus at most 5 adjacent skills, each compared with its merge base. A queue entry is never cancelled by a later one. | yes, environment `skill-evals` | applies the policy below; fails the queue entry on `fail`, `blocked_infra`, `fail_no_agents` |
+| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`), `changed` (vs `origin/main`, with adjacent skills), or `all` (full suite); optional `agents` (`claude`, `codex`). `all` runs both agents on every skill with scenarios as snapshots, prints an estimated cost (planned trials x assumed $/trial, plus the hard bound from the cost ceiling), and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
+
+The full suite is manual only and never part of the gate. A manual `skill` run on a ref with
+nothing beyond `main` is a snapshot, not a comparison with itself. Environments restrict where
+secrets are used, so manual `skill`/`changed` runs work only from refs allowed by the
+`skill-evals` deployment branch rule (`main` and the queue refs).
+
+The gate is not enabled by the repo: until an admin makes `routing-evals-gate` a required check, all
+of this is advisory.
+
+#### Pass criteria
+
+- **Modified (existing) skills: regression-only, per agent.** A scenario passes by the usual rule
+  (at least `ceil(2/3 x trials)`). A *regression* is a scenario that passes on control (merge base)
+  and fails on candidate. A scenario that also fails on control is a warning, not a regression.
+- **Adjacent skills:** the same regression-only comparison, with one trial each at first.
+- **New skills (absent at the merge base):** absolute thresholds per agent (at least 90% positive
+  recall, 95% near-miss specificity) plus the scenario minimums, from the existing trial data.
+- **Confirmation re-run:** before failing on a regression, `eval:routing:compare --confirm` re-runs
+  just the regressed scenarios at 3 trials on both candidate and control (one shared ledger, so the
+  ceilings still bound the spend). The gate fails only if the candidate still fails and the
+  control still passes; otherwise it passes with a warning.
+
+#### Missing keys and infrastructure errors
+
+- Keys are the `ANTHROPIC_API_KEY` (Claude) and `OPENAI_API_KEY` (Codex) environment secrets;
+  `scripts/routing_ci_agents.py` reads only whether each is non-empty and never prints a value.
+  An agent without a key is skipped with `::warning title=agent_skipped::...` and a job-summary
+  line; results then carry `partial: true` and `agents_run`, and a partial result is accepted only
+  when `agents_run` is exactly the requested agents that had keys.
+- If at least one agent runs, a missing key only warns. If **no** agent can run, the gate fails
+  (`fail_no_agents`) in the merge queue and manual runs. Pull requests never need keys.
+- An agent that is still `infra_error` after the single retry (provider or telemetry failure, a
+  ceiling breach, a missing result or confirmation, a harness error) **fails closed**
+  (`blocked_infra`, with the reason in the summary). A maintainer re-run or an admin override
+  resolves it.
+
+#### Artifacts and limits
+
+- Each evaluate job uploads `routing-reports-<mode>-<skill>-<attempt>`: full Promptfoo JSON (raw responses and
+  skill calls are the diagnostic transcript), HTML, JUnit, result, comparison and run documents,
+  and logs. HTML and JUnit come from the first full run; `*.result.json` and the comparison reflect
+  the state after the single retry (`*.retry.json`) and any confirmation (`<variant>-confirm/`).
+  The gate job downloads them and writes the verdict table to its job summary.
+- Each evaluate job targets ten minutes (`timeout-minutes: 10`) with the eval deadline below it;
+  `max-parallel` bounds paid jobs. Actions are pinned by commit SHA, every job has least-privilege
+  permissions, and model/effort overrides are never read in CI.
+
+#### Admin setup checklist
+
+The repo cannot do these itself; until they are done the workflow is advisory and key-less.
+
+1. Create the team `skill-eval-maintainers`.
+2. Create environment `skill-evals`: no required reviewers; deployment branches limited to the
+   merge queue refs `gh-readonly-queue/*` and `main`.
+3. Create environment `skill-evals-full`: required reviewers = `skill-eval-maintainers`. This is
+   the only approval.
+4. Store `ANTHROPIC_API_KEY` and `OPENAI_API_KEY` as **environment secrets** in both environments
+   (not repo secrets), using dedicated keys with provider spend caps.
+5. Set the `ROUTING_*` repository variables if the defaults in `scripts/routing_ceilings.py`
+   (`mise run eval:routing:config`) do not fit.
+6. Main ruleset, in this order: require a pull request; require status checks `validate` and
+   `routing-evals-gate`; require the merge queue (start in evaluate mode).
+7. On a throwaway PR, verify how the required checks behave on the PR page (the gate passes
+   immediately) versus in the queue (the evals run and the gate decides).
+8. `release.yml` does not push to `main` (it creates a tag and release with the GitHub App token), so
+   the ruleset needs no bypass for it, unless tag rules are added.
 
 ### Model and effort settings
 
