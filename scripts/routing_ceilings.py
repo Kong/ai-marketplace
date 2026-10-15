@@ -30,10 +30,11 @@ COST = "cost_usd"
 RUN_TIMEOUT = "run_timeout_seconds"
 JOB_TIMEOUT = "job_timeout_seconds"
 
-# Sized from the pilot corpus: Codex used ~1.6M tokens and ~$2 for one skill (candidate + control), so ~2x headroom.
+# Sized for the gate's profile (one trial per scenario, confirmation only for failures): a typical agent
+# spends under ~$1, so the cost and token ceilings leave about 3x headroom and stop a confirmation storm sooner.
 DEFAULTS = {
-    "ROUTING_MAX_TOKENS": "4000000",
-    "ROUTING_MAX_COST_USD": "6",
+    "ROUTING_MAX_TOKENS": "2500000",
+    "ROUTING_MAX_COST_USD": "3",
     "ROUTING_MAX_CONCURRENCY": "4",
     "ROUTING_RUN_TIMEOUT_SECONDS": "240",
     "ROUTING_JOB_TIMEOUT_SECONDS": "480",

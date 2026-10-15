@@ -385,12 +385,12 @@ across candidate, control, and retries), `ROUTING_MAX_CONCURRENCY` (Promptfoo `-
 tokens and cost only when a run ends, so those ceilings are checked after each run and before
 every later launch: spend stops at the next boundary and can overshoot by at most one run.
 
-The defaults were sized for the old full-comparison profile. For the gate's smaller profile (about
-20-40 scenarios, one trial each, confirmation only for failures) a typical agent spends under $1,
-so consider `ROUTING_MAX_COST_USD=3` and `ROUTING_MAX_TOKENS=2500000` as repository variables: still
-about 3x the expected spend, but a confirmation storm (everything failing) then stops sooner and
-fails closed. Leave concurrency and the timeouts alone until the queue has produced real timings.
-The defaults in code are unchanged.
+The defaults are sized for the gate's profile (about 20-40 scenarios, one trial each, confirmation
+only for failures): a typical agent spends under $1, so `ROUTING_MAX_COST_USD` defaults to 3 and
+`ROUTING_MAX_TOKENS` to 2500000. That is about 3x the expected spend, and a confirmation storm
+(everything failing) stops sooner and fails closed. The full suite (`mode: all`) needs higher values:
+set the `ROUTING_*` repository variables (or the environment's variables) before running it. Leave
+concurrency and the timeouts alone until the queue has produced real timings.
 
 A breach makes the agent `infra_error` (kind `ceiling`, incomplete, never `routing_fail`, never
 retried). It is recorded in `breaches` in the result, comparison, and summary documents, printed
