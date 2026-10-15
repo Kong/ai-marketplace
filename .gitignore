@@ -9,3 +9,5 @@ __pycache__/
 
 .gemini
 .env
+
+node_modules/

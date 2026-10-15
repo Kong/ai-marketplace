@@ -1,0 +1,68 @@
+skill: kongctl-declarative
+scenarios:
+  - id: kongctl-declarative-positive-1
+    prompt: "We keep our Konnect config as kongctl YAML in git. Add a new control plane and a service for the orders backend and show me how to preview the change before applying."
+    expect: [kongctl-declarative]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-declarative-positive-2
+    prompt: "I have an OpenAPI file for our billing API. Turn it into a Konnect API entry using kongctl, with the spec attached, in our existing config folder."
+    expect: [kongctl-declarative]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-declarative-positive-3
+    prompt: "Set up a GitHub Actions pipeline that shows a kongctl plan on pull requests and applies it when merged to main."
+    expect: [kongctl-declarative]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-declarative-positive-4
+    prompt: "There's a portal that someone created by hand in Konnect. Bring it under kongctl management without recreating it."
+    expect: [kongctl-declarative]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-declarative-near-miss-1
+    prompt: "Write a GitHub Actions workflow that runs eslint and jest on every pull request for my Node project."
+    expect: []
+    forbid: [kongctl-declarative]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-declarative-near-miss-2
+    prompt: "Convert this Kubernetes Deployment YAML into a Helm chart with configurable replicas and image tag."
+    expect: []
+    forbid: [kongctl-declarative]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-declarative-near-miss-3
+    prompt: "Validate this OpenAPI 3.1 document for style problems and suggest better operation IDs."
+    expect: []
+    forbid: [kongctl-declarative]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-declarative-near-miss-4
+    prompt: "Show me how to structure a Terraform module for AWS VPCs with public and private subnets."
+    expect: []
+    forbid: [kongctl-declarative]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-declarative-sibling-1
+    prompt: "Just run kongctl and list which APIs exist in my Konnect org as JSON. I only want to look, not change anything."
+    expect: [kongctl-query]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-2
+    prompt: "Our infrastructure repo is all HCL with the Konnect provider. Add a new control plane there and show the plan output."
+    expect: [terraform-konnect]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-3
+    prompt: "In our decK-managed repo, add a rate-limiting plugin to the checkout service and diff it against the gateway."
+    expect: [deck-gateway]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]

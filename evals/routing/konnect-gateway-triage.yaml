@@ -1,0 +1,68 @@
+skill: konnect-gateway-triage
+scenarios:
+  - id: gateway-triage-positive-1
+    prompt: "Our hybrid data plane nodes in Konnect have been showing as disconnected since yesterday. Nothing changed on our side that we know of. What do we check?"
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: gateway-triage-positive-2
+    prompt: "I pushed a new route and plugin to our Konnect control plane an hour ago but the gateway pods in staging are still behaving the old way. Why isn't the change landing?"
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: gateway-triage-positive-3
+    prompt: "Konnect says the control plane and data plane are healthy, but requests to our service return 404 through the gateway. Where is the break?"
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: gateway-triage-positive-4
+    prompt: "I think we edited the production control plane when we meant to edit the staging one, and now live gateways don't match what's in our repo. Help me work out what is actually deployed."
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: gateway-triage-near-miss-1
+    prompt: "My Express app returns 500 when the request body has a null field. Help me find the bug in the handler."
+    expect: []
+    forbid: [konnect-gateway-triage]
+    trials: 3
+    tags: [near-miss]
+  - id: gateway-triage-near-miss-2
+    prompt: "A Kubernetes pod for our payments service keeps getting OOMKilled. How do I size its memory limits?"
+    expect: []
+    forbid: [konnect-gateway-triage]
+    trials: 3
+    tags: [near-miss]
+  - id: gateway-triage-near-miss-3
+    prompt: "Explain the difference between a layer 4 and a layer 7 load balancer."
+    expect: []
+    forbid: [konnect-gateway-triage]
+    trials: 3
+    tags: [near-miss]
+  - id: gateway-triage-near-miss-4
+    prompt: "Our nginx reverse proxy returns 502 intermittently to the upstream Node service. The cluster has nothing to do with Kong. How do I debug it?"
+    expect: []
+    forbid: [konnect-gateway-triage]
+    trials: 3
+    tags: [near-miss]
+  - id: gateway-triage-sibling-1
+    prompt: "Traffic is flowing through our Konnect gateway fine, but the Explorer dashboard shows no data for the last two days. Why is the analytics view empty?"
+    expect: [konnect-observability-triage]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-2
+    prompt: "A teammate can't open our production control plane in Konnect at all, while I can. They're in the same org. What's different about their access?"
+    expect: [konnect-access-scope]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-3
+    prompt: "We already know the cause: a service entity in our decK state file has the wrong upstream host. Update the file and show me how to preview the sync."
+    expect: [deck-gateway]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
