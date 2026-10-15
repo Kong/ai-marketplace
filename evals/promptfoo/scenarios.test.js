@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { buildTests, trialCap, forcedTrials, scenarioIds } = require('./scenarios');
+const { buildTests, trialCap, forcedTrials, minTrials, scenarioIds } = require('./scenarios');
 
 const labels = { positive: 'pos', negative: 'neg' };
 const FIXTURE = `
@@ -139,4 +139,20 @@ test('an unknown scenario id is an error, never a silent skip', () =>
 test('scenarioIds parses comma lists and treats empty as unset', () => {
   assert.deepStrictEqual([...scenarioIds('a, b,,c')], ['a', 'b', 'c']);
   for (const bad of [undefined, '', ' , ']) assert.strictEqual(scenarioIds(bad), null);
+});
+
+test('floorTrials raises one-trial scenarios but never lowers or exceeds a forced count', () =>
+  withFixture((dir) => {
+    const raised = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, floorTrials: 3 });
+    assert.strictEqual(raised.length, 9); // 3 + 3 + 3: the trials:1 scenarios now run three times
+    assert.ok(raised.every((t) => t.metadata.trials === 3));
+    const forced = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, floorTrials: 3, forceTrials: 1 });
+    assert.strictEqual(forced.length, 3);
+    const capped = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, floorTrials: 3, maxTrials: 1 });
+    assert.strictEqual(capped.length, 9); // the floor wins over the cap, the cap still lowers 5 to the floor
+  }));
+
+test('minTrials reads positive integers and otherwise means no floor', () => {
+  assert.strictEqual(minTrials('3'), 3);
+  for (const bad of [undefined, '', '0', '-2', 'x']) assert.strictEqual(minTrials(bad), 1);
 });

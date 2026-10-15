@@ -12,7 +12,7 @@ Exit codes are tabulated once in docs/testing.md.
 Per agent that was supposed to run (its API key was present):
     gate                 modified skill, LAZY CONTROL (routing_compare.lazy_compare): the candidate ran
                          each selected scenario once; only failed scenarios were confirmed (candidate,
-                         then control, at the scenarios' own trials). Fails only when the candidate
+                         then control, at max(own trials, 3)). Fails only when the candidate
                          still fails and the control passes (`routing_regression`); a scenario that
                          also fails on control is a `preexisting_failure` warning; a candidate that
                          passes the re-run is a `regression_not_confirmed` warning. A clean first pass

@@ -36,10 +36,18 @@ function scenarioIds(value = process.env.ROUTING_SCENARIO_IDS) {
   return ids.length > 0 ? new Set(ids) : null;
 }
 
+// ROUTING_MIN_TRIALS (positive integer) raises every scenario to at least this many trials (still
+// below ROUTING_FORCE_TRIALS). The gate's confirmation sets it, so a scenario declared with
+// `trials: 1` (the siblings) is not confirmed, or cleared, by a single flaky trial.
+function minTrials(value = process.env.ROUTING_MIN_TRIALS) {
+  const min = Number.parseInt(value, 10);
+  return Number.isInteger(min) && min > 0 ? min : 1;
+}
+
 // A scenario that expects a skill is "positive": the turn may stop once the
 // activation is observed. One that expects none is a "negative": the turn runs
 // to completion so that non-activation is observable.
-function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTrials = trialCap(), forceTrials = forcedTrials(), ids = scenarioIds() }) {
+function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTrials = trialCap(), forceTrials = forcedTrials(), floorTrials = minTrials(), ids = scenarioIds() }) {
   const tests = [];
   const unseen = new Set(ids || []);
   for (const file of scenarioFiles(dir)) {
@@ -53,7 +61,7 @@ function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTria
         ...scenario.expect.map((name) => ({ type: 'skill-used', value: name })),
         ...scenario.forbid.map((name) => ({ type: 'not-skill-used', value: name })),
       ];
-      const trials = forceTrials ?? Math.min(scenario.trials, maxTrials);
+      const trials = forceTrials ?? Math.max(Math.min(scenario.trials, maxTrials), floorTrials);
       for (let trial = 1; trial <= trials; trial += 1) {
         tests.push({
           description: `${scenario.id} | ${agent} | trial ${trial}/${trials} | expect [${scenario.expect}] forbid [${scenario.forbid}]`,
@@ -84,4 +92,4 @@ function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTria
   return tests;
 }
 
-module.exports = { buildTests, trialCap, forcedTrials, scenarioIds, SCENARIOS_DIR };
+module.exports = { buildTests, trialCap, forcedTrials, minTrials, scenarioIds, SCENARIOS_DIR };

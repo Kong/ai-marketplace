@@ -15,8 +15,14 @@ def entry(mode: str, ids: str = "a,b,c", new: bool = False) -> dict:
 class TrialPlanTests(unittest.TestCase):
     def test_gate_modified_skill_is_one_trial_per_scenario_with_a_confirmed_worst_case(self) -> None:
         plan = cost.entry_trials(entry("gate"), TRIALS, TRIALS)
-        # initial 3; worst: 3 + 2 x (3+3+1) (candidate and control re-run at own trials)
-        self.assertEqual(plan, {"scenarios": 3, "initial": 3, "worst": 17})
+        # initial 3; worst: 3 + 2 x (3+3+3): the trials:1 scenario is still confirmed at 3 trials on both sides
+        self.assertEqual(plan, {"scenarios": 3, "initial": 3, "worst": 21})
+
+    def test_one_trial_siblings_are_costed_at_three_confirmation_trials(self) -> None:
+        plan = cost.entry_trials(entry("gate", ids="c"), {"c": 1}, {})
+        self.assertEqual(plan, {"scenarios": 1, "initial": 1, "worst": 7})  # 1 + 2 x 3
+        five = cost.entry_trials(entry("gate", ids="d"), {"d": 5}, {})
+        self.assertEqual(five["worst"], 11)  # a 5-trial scenario keeps its own count: 1 + 2 x 5
 
     def test_gate_new_skill_runs_own_trials_without_control(self) -> None:
         self.assertEqual(cost.entry_trials(entry("gate", new=True), TRIALS, TRIALS), {"scenarios": 3, "initial": 7, "worst": 7})

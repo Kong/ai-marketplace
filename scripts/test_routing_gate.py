@@ -174,6 +174,20 @@ class GateTests(unittest.TestCase):
         self.assertEqual((verdict, out["exit_code"], self.codes(out)), ("fail", 1, ["routing_regression"]))
         self.assertIn("s1 (candidate 1/3, control 3/3)", out["reasons"][0]["detail"])
 
+    def test_lazy_one_trial_sibling_failing_once_is_judged_on_three_confirmation_trials(self) -> None:
+        # first pass: 1 trial failed; confirmation ran at 3 trials on both sides (the rule is >= ceil(2/3 x 3) = 2 passes)
+        self.reports.add(SKILL, "gate", {"claude": lazy("claude", {"sib": (0, 1)}, {"sib": (0, 3)}, {"sib": (3, 3)})})
+        verdict, out = self.verdict("gate")
+        self.assertEqual((verdict, self.codes(out)), ("fail", ["routing_regression"]))
+        self.assertIn("sib (candidate 0/3, control 3/3)", out["reasons"][0]["detail"])
+
+    def test_lazy_candidate_passing_two_of_three_on_confirmation_does_not_fail(self) -> None:
+        doc = lazy("claude", {"sib": (0, 1)}, {"sib": (2, 3)})  # candidate 2/3 meets ceil(2/3 x 3); no control needed
+        self.assertEqual(doc["confirmation"]["scenarios"][0]["outcome"], "cleared")
+        self.reports.add(SKILL, "gate", {"claude": doc})
+        verdict, out = self.verdict("gate")
+        self.assertEqual((verdict, self.codes(out)), ("pass_with_warnings", ["regression_not_confirmed"]))
+
     def test_lazy_failure_that_also_fails_on_control_is_a_preexisting_warning(self) -> None:
         self.reports.add(SKILL, "gate", {"claude": lazy("claude", {"s1": (0, 1)}, {"s1": (0, 3)}, {"s1": (1, 3)})})
         verdict, out = self.verdict("gate")

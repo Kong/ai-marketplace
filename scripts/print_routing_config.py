@@ -65,7 +65,7 @@ def render(config: dict[str, Any]) -> str:
         "",
         f"Trials: scenarios {trials['scenario_trials']['min']}-{trials['scenario_trials']['max']}; "
         f"new skills {trials['new_skill_trials']} on positive/near-miss; gate first pass {trials['gate_first_pass_trials']} per scenario "
-        f"(failures confirmed at the scenario's own trials), at most {trials['max_scenarios_per_skill']} scenarios per skill; "
+        f"(failures confirmed at max(scenario trials, 3)), at most {trials['max_scenarios_per_skill']} scenarios per skill; "
         f"{trials['pass_rule']}",
         "",
         "Ceilings (variable: default):",

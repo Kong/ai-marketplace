@@ -82,6 +82,11 @@ class SelectTests(unittest.TestCase):
                          "rough assumptions, not measurements", "Hard bound:"):
             self.assertIn(expected, text)
 
+    def test_preview_worst_case_confirms_one_trial_siblings_at_three_trials(self) -> None:
+        self.chosen = chosen([entry(ids=("g-1", "r-1"))])  # r-1 is declared trials: 1
+        self.run_select(EVENT_NAME="merge_group", BASE_SHA="b" * 40, HEAD_SHA=HEAD)
+        self.assertIn("| konnect-gateway-triage | gate | 2 | 2 | 14 |", self.summary.read_text())  # 2 + 2 x (3 + 3), not 2 + 2 x (3 + 1)
+
     def test_preview_lists_skills_skipped_because_the_surface_did_not_change(self) -> None:
         self.chosen = chosen([], skipped=[{"skill": "konnect-platform-router", "reason": "SKILL.md body changed, routing surface unchanged: skipped"}])
         code, out = self.run_select(EVENT_NAME="pull_request", BASE_SHA="b" * 40, HEAD_SHA=HEAD)

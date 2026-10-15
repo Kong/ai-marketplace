@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from typing import Any, Mapping
 
+import routing_compare as compare
+
 CLAUDE_USD_PER_TRIAL = 0.04
 CODEX_USD_PER_TRIAL = (0.05, 0.10)  # (low, high)
 
@@ -22,7 +24,7 @@ def entry_trials(entry: Mapping[str, Any], trials_by_id: Mapping[str, int], all_
     """Trials per agent for one matrix entry: `initial` (expected when nothing fails) and `worst`.
 
     gate, modified skill: one candidate trial per scenario; worst case every scenario fails and is
-                          confirmed on candidate and control at its own trial count.
+                          confirmed on candidate and control at max(its trials, CONFIRM_TRIALS).
     gate, new skill:      no control and no adaptive pass: every scenario at its own trials.
     compare:              candidate and control at the scenarios' own trials; the confirmation re-run
                           of regressed scenarios is the worst case.
@@ -30,9 +32,10 @@ def entry_trials(entry: Mapping[str, Any], trials_by_id: Mapping[str, int], all_
     """
     ids = [i for i in str(entry.get("scenarios") or "").split(",") if i]
     own = sum(trials_by_id.get(i, all_trials.get(i, 1)) for i in ids)
+    confirm = sum(max(trials_by_id.get(i, all_trials.get(i, 1)), compare.CONFIRM_TRIALS) for i in ids)
     mode = entry["mode"]
     if mode == GATE and not entry.get("new"):
-        return {"scenarios": len(ids), "initial": len(ids), "worst": len(ids) + 2 * own}
+        return {"scenarios": len(ids), "initial": len(ids), "worst": len(ids) + 2 * confirm}
     if mode == COMPARE:
         return {"scenarios": len(ids), "initial": 2 * own, "worst": 4 * own}
     return {"scenarios": len(ids), "initial": own, "worst": own}

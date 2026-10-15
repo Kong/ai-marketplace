@@ -540,12 +540,17 @@ class GateWiringTests(ThrowawayRepo):
         self.assertEqual(doc["confirmation"]["scenarios"][0]["outcome"], "cleared")
         self.assertFalse((self.repo / ".tmp/routing/control").exists())
 
-    def test_confirmed_regression_runs_control_at_the_scenarios_own_trials(self) -> None:
+    def test_first_pass_is_one_trial_with_no_floor(self) -> None:
+        self.gate(self.fake(first_ok=True))
+        self.assertNotIn("ROUTING_MIN_TRIALS", self.runs[0]["env"])
+
+    def test_confirmed_regression_runs_control_at_the_confirmation_trials(self) -> None:
         code, doc = self.gate(self.fake(first_ok=False, confirm_ok=False, control_ok=True))
         self.assertEqual([c["variant"] for c in self.runs], ["candidate", "candidate", "control"])
         for confirm in self.runs[1:]:
             self.assertEqual(confirm["pattern"], "^(?:p-0) \\| ")
-            self.assertEqual((confirm["env"]["ROUTING_FORCE_TRIALS"], confirm["env"]["ROUTING_MAX_TRIALS"]), ("", ""))  # scenario's own trials
+            # not forced: each scenario's own trials, raised to at least 3 so a trials:1 sibling is never confirmed by one trial
+            self.assertEqual((confirm["env"]["ROUTING_FORCE_TRIALS"], confirm["env"]["ROUTING_MAX_TRIALS"], confirm["env"]["ROUTING_MIN_TRIALS"]), ("", "", "3"))
         self.assertEqual(doc["confirmation"]["scenarios"][0]["outcome"], "confirmed")
         self.assertTrue((self.repo / ".tmp/routing/control/claude/.claude/skills/alpha").is_dir())  # built only when needed
         self.assertEqual(code, 1)  # the candidate's first-pass state; routing_gate.py renders the verdict

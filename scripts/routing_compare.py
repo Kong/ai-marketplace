@@ -31,7 +31,7 @@ Comparison document (`compare_agent`, modified skill)
 
 Lazy comparison document (`lazy_compare`, the merge gate's modified-skill path; control only where needed)
     The candidate runs every selected scenario once. Only scenarios that failed are confirmed: the
-    candidate again at each scenario's own trials and, for those still failing, the control at the
+    candidate again at max(the scenario's trials, CONFIRM_TRIALS) and, for those still failing, the control at the
     same trials. A scenario that passed the first pass cannot be a regression, so it never runs on
     the control. Unlike `compare_agent` there are no aggregate deltas (AC-14 behaviour stays with
     `eval:routing:compare` without `--gate`).

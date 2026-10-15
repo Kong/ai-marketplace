@@ -275,8 +275,9 @@ roughly $3-5, and the preview prints the estimate before anything is spent.
   it manually).
 - **Adaptive trials and lazy control.** The candidate runs each selected scenario once. A scenario
   that passes cannot be a regression, so it never runs on the control. A scenario that fails is
-  confirmed on the candidate at its own `trials`; if it still fails (fewer than `ceil(2/3 x trials)`
-  passes) the control runs it at the same trials. New skills keep the full absolute-threshold run at
+  confirmed on the candidate at `max(its trials, 3)`, so a `trials: 1` sibling is never confirmed (or
+  cleared) by a single flaky trial; if it still fails (fewer than `ceil(2/3 x trials)` passes at
+  that count, 2 of 3) the control runs it at the same count. The first pass stays at one trial. New skills keep the full absolute-threshold run at
   the scenarios' own trials and have no control.
 - **Cost visibility.** The Select summary lists the evaluation set size, initial trials per agent,
   worst-case trials (every scenario fails and is confirmed on both sides) and a cost range from
@@ -296,7 +297,7 @@ what the run exits with, and `routing_gate.py` renders the verdict.
   passes on control (merge base). A scenario that also fails on control is a `preexisting_failure`
   warning, not a regression.
 - **Lazy control (gate and manual CI runs):** the first pass is one candidate trial per scenario.
-  Only failed scenarios are re-run on the candidate at their own `trials`, and only those still
+  Only failed scenarios are re-run on the candidate at `max(their trials, 3)`, and only those still
   failing run on the control. The gate fails only if the candidate still fails and the control
   passes; a candidate that passes the re-run is a `regression_not_confirmed` warning. The full
   `eval:routing:compare --confirm` keeps its older behaviour: the whole comparison first, then a

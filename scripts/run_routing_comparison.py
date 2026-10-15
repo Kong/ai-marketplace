@@ -18,7 +18,7 @@ the result as `confirmation` in the comparison document (routing_compare.with_co
 `--gate` (the merge gate and manual CI runs) is the lazy-control path for a modified skill. The
 candidate runs the selected scenarios (`--scenarios`, default: the skill's reverse-index set from
 routing_selection.py) at one trial each. Only scenarios that failed are confirmed: the candidate again
-at each scenario's own `trials`, then the control, at the same trials, for those still failing. The
+at max(the scenario's `trials`, CONFIRM_TRIALS=3), then the control, at the same trials, for those still failing. The
 control never runs for a scenario that passed, and control workspaces are built only when needed.
 The result is a `lazy_comparison` document (routing_compare.lazy_compare) with no aggregate deltas; the
 full candidate-vs-control run without `--gate` keeps its per-scenario and aggregate deltas.
@@ -82,6 +82,7 @@ def evaluate_variant(
     scenario_ids: list[str] | None = None,
     force_trials: int | None = None,
     confirm_trials: int | None = compare.CONFIRM_TRIALS,
+    min_trials: int | None = None,
     prepare: bool | None = None,
 ) -> dict[str, Any]:
     """Materialize one variant's workspace for `agent` and reduce its routing run.
@@ -90,7 +91,8 @@ def evaluate_variant(
     nothing else differs between variants. `ref` None means the working tree. `confirm`
     re-runs only those scenarios in the already prepared workspace (reports under
     `<variant>-confirm/`, same ledger so ceilings still apply) at `confirm_trials` trials, or at
-    each scenario's own `trials` when that is None. `scenario_ids` selects scenarios across files
+    each scenario's own `trials` when that is None, raised to `min_trials` when given (the gate: at least
+    CONFIRM_TRIALS, so a `trials: 1` sibling is never confirmed by one flaky trial). `scenario_ids` selects scenarios across files
     (ROUTING_SCENARIO_IDS); `force_trials` forces the trial count of a first pass. `prepare`
     defaults to building the workspace unless this is a confirmation; the gate builds the control's
     workspace at its first and only use.
@@ -104,7 +106,10 @@ def evaluate_variant(
     if scenario_ids:
         env["ROUTING_SCENARIO_IDS"] = ",".join(scenario_ids)
     if confirm is not None:
-        env.update({"ROUTING_FORCE_TRIALS": str(confirm_trials) if confirm_trials else "", "ROUTING_MAX_TRIALS": ""})
+        env.update({
+            "ROUTING_FORCE_TRIALS": str(confirm_trials) if confirm_trials else "", "ROUTING_MAX_TRIALS": "",
+            "ROUTING_MIN_TRIALS": str(min_trials) if min_trials else "",
+        })
     elif force_trials:
         env.update({"ROUTING_FORCE_TRIALS": str(force_trials), "ROUTING_MAX_TRIALS": ""})
     run = run or (lambda h, s, report, pattern: runner.run_promptfoo(h, s, report, pattern, env=env, ledger=ledger))
@@ -138,7 +143,7 @@ def gate_agent(
     """Lazy-control gate for one agent of a modified skill.
 
     First pass: candidate only, one trial per scenario. Failed scenarios are re-run on the candidate
-    at their own trials; the control runs only for those still failing. Passing scenarios cost one
+    at max(own trials, 3); the control runs only for those still failing. Passing scenarios cost one
     candidate trial and nothing else.
     """
     evaluate = evaluate or evaluate_variant
@@ -147,13 +152,13 @@ def gate_agent(
     if not failed:
         return compare.lazy_compare(initial)
     print(f"{agent}: {len(failed)} of {len(scenario_ids)} scenario(s) failed the one-trial pass; confirming on candidate: {', '.join(failed)}")
-    candidate = evaluate("candidate", agent, skill, None, [], ledger=ledger, scenario_ids=scenario_ids, confirm=failed, confirm_trials=None)
+    candidate = evaluate("candidate", agent, skill, None, [], ledger=ledger, scenario_ids=scenario_ids, confirm=failed, confirm_trials=None, min_trials=compare.CONFIRM_TRIALS)
     still = compare.failed_scenarios(candidate) if candidate["complete"] else []
     control = None
     if still:
         print(f"{agent}: {len(still)} still failing; running the control on them: {', '.join(still)}")
         control = evaluate(
-            "control", agent, skill, base, [], ledger=ledger, scenario_ids=scenario_ids, confirm=still, confirm_trials=None, prepare=True
+            "control", agent, skill, base, [], ledger=ledger, scenario_ids=scenario_ids, confirm=still, confirm_trials=None, min_trials=compare.CONFIRM_TRIALS, prepare=True
         )
     return compare.lazy_compare(initial, candidate, control)
 

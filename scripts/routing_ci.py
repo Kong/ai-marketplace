@@ -48,7 +48,7 @@ MODES = ("skill", "changed", "all")
 RUN_MODES = (selection.GATE_MODE, "compare", "snapshot")
 RESULT_EXIT_CODES = (0, 1, 3)
 # Variables that would change what CI measures; never let them reach the eval processes.
-SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS", "ROUTING_SCENARIO_IDS")
+SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS", "ROUTING_MIN_TRIALS", "ROUTING_SCENARIO_IDS")
 
 
 class CiError(Exception):
@@ -149,7 +149,7 @@ def preview(selection_result: Mapping[str, Any], env: Mapping[str, str]) -> str:
         ceiling = ceilings.Ceilings.from_env(env).max_cost_usd
         lines.append(f"Hard bound: {len(matrix)} run(s) x {len(agents)} agent(s) x the per-run cost ceiling = ${len(matrix) * len(agents) * ceiling:.2f}.")
         if any(e["mode"] == selection.GATE_MODE and not e.get("new") for e in matrix):
-            lines += ["", "Gate runs use lazy control: one candidate trial per scenario, and the control (with the candidate re-run at each scenario's own trials) only for scenarios that fail."]
+            lines += ["", "Gate runs use lazy control: one candidate trial per scenario, and the control (with the candidate re-run at max(its trials, 3)) only for scenarios that fail."]
     else:
         lines.append("No skill with a changed routing surface and no edited scenario; nothing to evaluate and no provider calls will be made.")
     if selection_result["skipped"]:

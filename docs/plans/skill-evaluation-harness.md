@@ -77,9 +77,10 @@ decisions behind them:
   candidate and passes on control); new skills use the absolute thresholds plus scenario minimums.
   Absolute scores are not gated for existing skills because flake rates are unmeasured.
 - **Adaptive trials and lazy control:** the candidate runs each scenario once; the control never
-  runs for a scenario that passed. Failures are confirmed on the candidate at the scenario's own
-  `trials` (the field now means confirmation and new-skill trials, not "run 3 times everywhere"),
-  and the control runs only for those still failing. Failing on both sides is a warning
+  runs for a scenario that passed. Failures are confirmed on the candidate at `max(scenario trials, 3)`
+  (the baseline corpus declares all siblings `trials: 1`, which one flaky trial on each side must not
+  turn into a regression; `trials` still sets the new-skill trial
+  count, not "run 3 times everywhere"), and the control runs only for those still failing. Failing on both sides is a warning
   (`preexisting_failure`). The full candidate-vs-control comparison with aggregate deltas stays
   available manually (`eval:routing:compare` without `--gate`); the gate path deliberately has no
   deltas or control data for scenarios that passed.
