@@ -484,6 +484,102 @@ class ConfirmWiringTests(ThrowawayRepo):
         self.assertFalse(re.search(pattern, "bx2 | claude | trial 1/3 | expect [] forbid []"))
 
 
+class GateWiringTests(ThrowawayRepo):
+    """--gate: one candidate trial per scenario; candidate re-run and control only for failures."""
+
+    run_main = DriverPolicyTests.run_main
+    scenario_dir = DriverPolicyTests.scenario_dir
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.runs: list[dict] = []
+        directory = self.scenario_dir(scenario_yaml(skill="alpha"))
+        (directory / "gamma.yaml").rename(directory / "alpha.yaml")
+        self.directory = directory
+
+    def fake(self, first_ok: bool, confirm_ok: bool = False, control_ok: bool = True):
+        def run(ctx):
+            self.runs.append(ctx)
+            confirm = ctx["pattern"] is not None
+            trials = 3 if confirm else 1
+            if ctx["variant"] == "candidate":
+                ok = confirm_ok if confirm else first_ok
+            else:
+                ok = control_ok
+            return "", [fixtures.row(scenario="p-0", trial=t, trials=trials, calls=None if ok else [], success=ok) for t in range(1, trials + 1)]
+        run.wants_context = True
+        return run
+
+    def gate(self, fake, *extra: str):
+        code, calls = self.run_main("alpha", self.directory, fake, extra=("--gate", "--agent", "claude", *extra))
+        path = self.repo / ".tmp/routing/reports/claude-alpha.comparison.json"
+        return code, (json.loads(path.read_text()) if path.exists() else None)
+
+    def test_passing_candidate_runs_no_control_and_no_control_workspace(self) -> None:
+        code, doc = self.gate(self.fake(first_ok=True))
+        self.assertEqual(code, 0)
+        self.assertEqual([c["variant"] for c in self.runs], ["candidate"])
+        self.assertEqual(self.runs[0]["env"]["ROUTING_FORCE_TRIALS"], "1")
+        self.assertIn("p-0", self.runs[0]["env"]["ROUTING_SCENARIO_IDS"].split(","))
+        self.assertEqual((doc["mode"], doc["failed"], doc["confirmation"]), ("lazy_comparison", [], None))
+        self.assertFalse((self.repo / ".tmp/routing/control").exists())
+
+    def test_default_set_is_the_reverse_index_of_the_skill(self) -> None:
+        self.gate(self.fake(first_ok=True))
+        ids = self.runs[0]["env"]["ROUTING_SCENARIO_IDS"].split(",")
+        self.assertEqual(len(ids), 5 + 5 + 4)  # the whole own file, one trial each
+        self.assertEqual(len(ids), len(set(ids)))
+
+    def test_explicit_scenarios_restrict_the_run(self) -> None:
+        self.gate(self.fake(first_ok=True), "--scenarios", "p-0,n-1")
+        self.assertEqual(self.runs[0]["env"]["ROUTING_SCENARIO_IDS"], "p-0,n-1")
+
+    def test_candidate_that_passes_the_rerun_never_runs_the_control(self) -> None:
+        code, doc = self.gate(self.fake(first_ok=False, confirm_ok=True))
+        self.assertEqual([(c["variant"], c["pattern"] is not None) for c in self.runs], [("candidate", False), ("candidate", True)])
+        self.assertEqual(doc["confirmation"]["scenarios"][0]["outcome"], "cleared")
+        self.assertFalse((self.repo / ".tmp/routing/control").exists())
+
+    def test_confirmed_regression_runs_control_at_the_scenarios_own_trials(self) -> None:
+        code, doc = self.gate(self.fake(first_ok=False, confirm_ok=False, control_ok=True))
+        self.assertEqual([c["variant"] for c in self.runs], ["candidate", "candidate", "control"])
+        for confirm in self.runs[1:]:
+            self.assertEqual(confirm["pattern"], "^(?:p-0) \\| ")
+            self.assertEqual((confirm["env"]["ROUTING_FORCE_TRIALS"], confirm["env"]["ROUTING_MAX_TRIALS"]), ("", ""))  # scenario's own trials
+        self.assertEqual(doc["confirmation"]["scenarios"][0]["outcome"], "confirmed")
+        self.assertTrue((self.repo / ".tmp/routing/control/claude/.claude/skills/alpha").is_dir())  # built only when needed
+        self.assertEqual(code, 1)  # the candidate's first-pass state; routing_gate.py renders the verdict
+
+    def test_failure_on_both_sides_is_preexisting(self) -> None:
+        _, doc = self.gate(self.fake(first_ok=False, confirm_ok=False, control_ok=False))
+        self.assertEqual(doc["confirmation"]["scenarios"][0]["outcome"], "preexisting")
+
+    def test_new_skill_keeps_absolute_thresholds_and_no_control(self) -> None:
+        (self.directory / "alpha.yaml").unlink()
+        (self.directory / "gamma.yaml").write_text(scenario_yaml(skill="gamma", siblings={"beta": 2, "alpha": 2}))
+        code, calls = self.run_main("gamma", self.directory, lambda: ("", [fixtures.row()]), adjacent=("beta", "alpha"), extra=("--gate", "--agent", "claude"))
+        self.assertEqual(calls, ["claude:candidate"])
+        doc = json.loads((self.repo / ".tmp/routing/reports/claude-gamma.comparison.json").read_text())
+        self.assertEqual(doc["mode"], "new_skill")
+
+    def test_usage_errors_exit_2_before_any_run(self) -> None:
+        code, _ = self.run_main("alpha", self.directory, lambda: self.fail("must not run"), extra=("--gate", "--confirm"))
+        self.assertEqual(code, 2)
+
+    def test_scenarios_flag_needs_gate(self) -> None:
+        self.assertEqual(self.run_main("alpha", self.directory, lambda: self.fail("must not run"), extra=("--scenarios", "p-0"))[0], 2)
+
+    def test_unknown_scenario_id_exits_2_before_any_run(self) -> None:
+        code, _ = self.gate(lambda: self.fail("must not run"), "--scenarios", "p-0,nope")
+        self.assertEqual(code, 2)
+
+    def test_full_compare_without_gate_keeps_control_and_deltas(self) -> None:
+        code, calls = self.run_main("alpha", self.directory, lambda: ("", [fixtures.row()]), extra=("--agent", "claude"))
+        self.assertEqual(calls, ["claude:candidate", "claude:control"])
+        doc = json.loads((self.repo / ".tmp/routing/reports/claude-alpha.comparison.json").read_text())
+        self.assertEqual((doc["mode"], "delta" in doc["aggregate"]), ("comparison", True))
+
+
 class ExitCodeTests(unittest.TestCase):
     def test_uncaught_exception_exits_2_for_eval_runner(self) -> None:
         import run_routing_eval as runner

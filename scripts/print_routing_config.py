@@ -17,6 +17,7 @@ from typing import Any
 
 import routing_agents as agents_lib
 import routing_ceilings as ceilings
+import routing_selection as selection
 import routing_settings as settings_lib
 import validate_routing_scenarios as scenarios
 
@@ -25,7 +26,8 @@ def trial_policy() -> dict[str, Any]:
     return {
         "scenario_trials": {"min": scenarios.MIN_TRIALS, "max": scenarios.MAX_TRIALS},
         "new_skill_trials": scenarios.NEW_SKILL_TRIALS,
-        "adjacent_skill_trials": 1,
+        "gate_first_pass_trials": 1,
+        "max_scenarios_per_skill": selection.MAX_SCENARIOS_PER_SKILL,
         "pass_rule": "a scenario passes with at least ceil(2/3 * trials) passing trials",
     }
 
@@ -62,7 +64,8 @@ def render(config: dict[str, Any]) -> str:
     lines += [
         "",
         f"Trials: scenarios {trials['scenario_trials']['min']}-{trials['scenario_trials']['max']}; "
-        f"new skills {trials['new_skill_trials']} on positive/near-miss; adjacent skills {trials['adjacent_skill_trials']}; "
+        f"new skills {trials['new_skill_trials']} on positive/near-miss; gate first pass {trials['gate_first_pass_trials']} per scenario "
+        f"(failures confirmed at the scenario's own trials), at most {trials['max_scenarios_per_skill']} scenarios per skill; "
         f"{trials['pass_rule']}",
         "",
         "Ceilings (variable: default):",

@@ -10,11 +10,18 @@ select job's matrix `[{"skill", "mode"}]`, so a job that never produced a record
 Exit codes are tabulated once in docs/testing.md.
 
 Per agent that was supposed to run (its API key was present):
-    compare / adjacent   modified skill: REGRESSION-ONLY. A regression is a scenario that passes on
-                         control and fails on candidate; it fails the gate only when the 3-trial
-                         confirmation re-run (routing_compare.with_confirmation) reproduces it.
-                         A scenario failing on both sides is a warning, never a failure.
-    compare, new skill   absolute thresholds (routing_compare.evaluate_new_skill), no confirmation.
+    gate                 modified skill, LAZY CONTROL (routing_compare.lazy_compare): the candidate ran
+                         each selected scenario once; only failed scenarios were confirmed (candidate,
+                         then control, at the scenarios' own trials). Fails only when the candidate
+                         still fails and the control passes (`routing_regression`); a scenario that
+                         also fails on control is a `preexisting_failure` warning; a candidate that
+                         passes the re-run is a `regression_not_confirmed` warning. A clean first pass
+                         never runs the control.
+    gate, new skill      absolute thresholds (routing_compare.evaluate_new_skill), no control.
+    compare              full candidate-vs-control run (manual `eval:routing:compare --confirm`): REGRESSION-ONLY.
+                         A regression is a scenario that passes on control and fails on candidate; it
+                         fails only when the 3-trial confirmation re-run (routing_compare.with_confirmation)
+                         reproduces it. A scenario failing on both sides is a warning, never a failure.
     snapshot             manual runs only: the agent's own state; routing_fail is a failure.
     infra_error          incomplete after the single retry, a ceiling breach, a missing result or
                          confirmation, or a harness error: FAIL CLOSED (`blocked_infra`).
@@ -40,7 +47,7 @@ PASS, PASS_WITH_WARNINGS, FAIL, BLOCKED_INFRA, FAIL_NO_AGENTS = (
 HARNESS_ERROR = 2
 EXIT_CODES = {PASS: 0, PASS_WITH_WARNINGS: 0, FAIL: 1, BLOCKED_INFRA: 3, FAIL_NO_AGENTS: 4}
 RUN_SUFFIX = ".run.json"
-MODES = ("compare", "adjacent", "snapshot")
+MODES = ("gate", "compare", "snapshot")
 # Evaluate exit codes that are results (docs/testing.md); anything else is a harness or validation error.
 RESULT_EXIT_CODES = (0, 1, 3)
 
@@ -122,6 +129,39 @@ def judge_agent(skill: str, mode: str, agent: str, doc: dict[str, Any] | None) -
             detail = "new skill below threshold: " + "; ".join(unmet)
             return "fail", detail, [_reason(NEW_SKILL_THRESHOLD, skill, detail, agent)]
         return "pass", "new skill meets thresholds", []
+
+    if doc.get("mode") == compare.LAZY:
+        if incomplete:
+            return blocked
+        failed = doc.get("failed") or []
+        total = len(doc.get("scenarios") or [])
+        if not failed:
+            return "pass", f"{total} scenario(s) passed the first pass; control not run", []
+        conf = doc.get("confirmation")
+        if conf is None:
+            detail = f"{', '.join(failed)} failed the first pass but the confirmation did not happen"
+            return "blocked", detail, [_reason(CONFIRMATION_MISSING, skill, detail, agent)]
+        if not conf.get("complete", False) or conf.get("state") == results.INFRA_ERROR:
+            detail = "confirmation incomplete" + (f": {conf['reason']}" if conf.get("reason") else "")
+            return "blocked", detail, [_reason(INFRA_ERROR, skill, detail, agent)]
+        by_outcome: dict[str, list[dict[str, Any]]] = {}
+        for row in conf["scenarios"]:
+            by_outcome.setdefault(row["outcome"], []).append(row)
+        sides = lambda r: f"{r['id']} (candidate {r['candidate']['passes']}/{r['candidate']['trials']}, control {r['control']['passes']}/{r['control']['trials']})"  # noqa: E731
+        reasons = []
+        notes = []
+        if by_outcome.get(compare.PREEXISTING):
+            note = "also failing on control (not a regression): " + ", ".join(sides(r) for r in by_outcome[compare.PREEXISTING])
+            notes.append(note)
+            reasons.append(_reason(PREEXISTING, skill, note, agent))
+        if by_outcome.get(compare.CLEARED):
+            note = "failed the first pass but not reproduced on re-run: " + ", ".join(r["id"] for r in by_outcome[compare.CLEARED])
+            notes.append(note)
+            reasons.append(_reason(UNCONFIRMED_CLEARED, skill, note, agent))
+        if by_outcome.get(compare.CONFIRMED):
+            detail = "regression confirmed vs control: " + ", ".join(sides(r) for r in by_outcome[compare.CONFIRMED])
+            return "fail", detail, [*reasons, _reason(ROUTING_REGRESSION, skill, detail, agent)]
+        return "pass", "; ".join(notes), reasons
 
     if doc.get("mode") == "comparison":
         if incomplete:

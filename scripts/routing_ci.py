@@ -6,15 +6,19 @@
 Inputs arrive only through environment variables (never interpolated into a script).
 
 select:   EVENT_NAME, BASE_SHA, HEAD_SHA (pull_request and merge_group), MODE_INPUT, SKILL_INPUT,
-          AGENTS_INPUT (workflow_dispatch). Writes `skills` (matrix JSON `[{skill, mode}]`),
-          `has_skills` and `agents` to $GITHUB_OUTPUT and a no-spend preview to $GITHUB_STEP_SUMMARY.
-          mode is `compare` (candidate vs merge base, 3 trials), `adjacent` (same, 1 trial) or
-          `snapshot` (manual `all`, or a manual skill run on a ref with nothing beyond main).
+          AGENTS_INPUT (workflow_dispatch). Writes `skills` (matrix JSON
+          `[{skill, mode, scenarios, new, count}]`), `has_skills`, `agents` and `skipped` (JSON `[{skill, reason}]`, for the gate summary) to $GITHUB_OUTPUT and a
+          no-spend preview to $GITHUB_STEP_SUMMARY. A skill is selected only when its routing surface
+          changed or its scenarios were edited (routing_selection.py); `scenarios` is the comma-separated
+          evaluation set. mode is `gate` (lazy control: candidate at 1 trial, control only for failures;
+          a new skill runs absolute thresholds) or `snapshot` (manual `all`, or a manual skill run on a
+          ref with nothing beyond main). The preview also prints trials and a rough cost range
+          (routing_cost.py) and the skills skipped because their routing surface did not change.
           On pull_request a selection problem (for example a new skill below the scenario
           minimums) is a warning; in the merge queue and manual runs it fails the job.
-evaluate: SKILL, MODE, BASE_REF, REQUESTED_AGENTS, plus the provider keys and ROUTING_* ceiling
+evaluate: SKILL, MODE, SCENARIOS, BASE_REF, REQUESTED_AGENTS, plus the provider keys and ROUTING_* ceiling
           variables. Runs only the requested agents that have a key (routing_ci_agents.py), with
-          the regression confirmation re-run, and writes `.tmp/routing/reports/<skill>.run.json`
+          the lazy-control confirmation, and writes `.tmp/routing/reports/<skill>.run.json`
           for routing_gate.py. A routing_fail or infra_error is a recorded result, not a job
           failure (the gate job decides); exit 2 and unknown codes are harness errors and fail.
 """
@@ -32,19 +36,19 @@ import check_repo
 import routing_agents as agents_lib
 import routing_ceilings as ceilings
 import routing_ci_agents as ci_agents
+import routing_cost as cost
+import routing_selection as selection
+import routing_surface as surface
 import routing_targets as targets
 import select_changed
 import validate_routing_scenarios as scenarios
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 MODES = ("skill", "changed", "all")
-# Planning assumption for the preview, not a measurement: the pilot corpus used about $2 of Codex
-# across 54 trials (candidate + control of a 27-trial skill), so ~$0.04/trial; Claude is assumed the
-# same and rounded up. The hard bound is the per-run cost ceiling (routing_ceilings.py).
-ASSUMED_USD_PER_TRIAL = 0.05
+RUN_MODES = (selection.GATE_MODE, "compare", "snapshot")
 RESULT_EXIT_CODES = (0, 1, 3)
 # Variables that would change what CI measures; never let them reach the eval processes.
-SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS")
+SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS", "ROUTING_SCENARIO_IDS")
 
 
 class CiError(Exception):
@@ -55,21 +59,29 @@ def _git_ok(repo: Path, *args: str) -> bool:
     return subprocess.run(["git", *args], cwd=repo, capture_output=True).returncode == 0
 
 
-def entries(skills: list[str], mode: str) -> list[dict[str, str]]:
-    return [{"skill": skill, "mode": mode} for skill in skills]
+def snapshot_entry(skill: str) -> dict[str, Any]:
+    ids = [sc.id for sc in selection.load_corpus(scenarios.SCENARIOS_DIR) if sc.owner == skill]
+    return {"skill": skill, "mode": "snapshot", "scenarios": ",".join(ids), "new": False, "count": len(ids)}
 
 
 def select_matrix(env: Mapping[str, str], repo: Path = check_repo.REPO_ROOT) -> dict[str, Any]:
-    """Resolve the event to a matrix of {skill, mode}, the requested agents, notes and a diff preview."""
+    """Resolve the event to a matrix of {skill, mode, scenarios, ...}, the requested agents, notes and a diff preview."""
     event = env.get("EVENT_NAME", "")
     notes: list[str] = []
     warnings: list[str] = []
+    skipped: list[dict[str, str]] = []
     diff: dict[str, Any] | None = None
     covered = targets.covered_skills()
     try:
         agents = list(agents_lib.parse_agents([env.get("AGENTS_INPUT", "")]))
     except ValueError as exc:
         raise CiError(str(exc)) from None
+
+    def from_selection(chosen: dict[str, Any]) -> list[dict[str, Any]]:
+        nonlocal diff, notes, skipped
+        diff, notes, skipped = chosen["diff"], chosen["notes"], chosen["skipped"]
+        return chosen["entries"]
+
     if event == "workflow_dispatch":
         mode = env.get("MODE_INPUT", "")
         if mode not in MODES:
@@ -81,13 +93,17 @@ def select_matrix(env: Mapping[str, str], repo: Path = check_repo.REPO_ROOT) -> 
             raise CiError("skill must be a kebab-case skill name")
         try:
             if mode == "all":
-                matrix = entries(targets.resolve("all", None, None, covered, repo)[0], "snapshot")
+                matrix = [snapshot_entry(name) for name in sorted(covered)]
             elif mode == "skill":
+                if skill not in covered:
+                    raise ValueError(f"no routing scenarios for skill {skill!r}; covered: {sorted(covered)}")
                 # A ref with nothing beyond main has no control worth paying for: judge it as a snapshot.
-                run_mode = "snapshot" if _git_ok(repo, "merge-base", "--is-ancestor", "HEAD", "origin/main") else "compare"
-                matrix = entries(targets.resolve("skill", skill, None, covered, repo)[0], run_mode)
+                if _git_ok(repo, "merge-base", "--is-ancestor", "HEAD", "origin/main"):
+                    matrix = [snapshot_entry(skill)]
+                else:
+                    matrix = from_selection(selection.skill_entry(repo, skill, targets.default_base(repo)))
             else:
-                matrix, diff, notes = _diff_matrix(targets.default_base(repo), covered, repo)
+                matrix = from_selection(selection.select_gate(repo, targets.default_base(repo)))
         except (ValueError, select_changed.SelectionError) as exc:
             raise CiError(str(exc)) from None
     elif event in ("pull_request", "merge_group"):
@@ -97,14 +113,14 @@ def select_matrix(env: Mapping[str, str], repo: Path = check_repo.REPO_ROOT) -> 
         if head_sha(repo) != head:
             raise CiError("checked-out HEAD is not the event head SHA")
         try:
-            matrix, diff, notes = _diff_matrix(base, covered, repo)
+            matrix = from_selection(selection.select_gate(repo, base))
         except (ValueError, select_changed.SelectionError) as exc:
             if event == "merge_group":
                 raise CiError(str(exc)) from None
             matrix, warnings = [], [f"selection problem (blocks the merge queue, advisory here): {exc}"]
     else:
         raise CiError(f"unsupported event {event!r}")
-    return {"matrix": matrix, "agents": agents, "notes": notes, "warnings": warnings, "diff": diff, "event": event}
+    return {"matrix": matrix, "agents": agents, "notes": notes, "warnings": warnings, "diff": diff, "event": event, "skipped": skipped}
 
 
 def head_sha(repo: Path) -> str:
@@ -112,54 +128,39 @@ def head_sha(repo: Path) -> str:
     return out.stdout.strip()
 
 
-def _diff_matrix(base: str, covered: set[str], repo: Path) -> tuple[list[dict[str, str]], dict[str, Any], list[str]]:
-    diff = select_changed.select(repo, base)
-    changed, notes = targets.resolve("changed", None, base, covered, repo)
-    adjacent: list[str] = []
-    if changed:  # adjacent skills are only context for an evaluated changed skill
-        adjacent, adjacent_notes = targets.resolve("adjacent", None, base, covered, repo)
-        notes += adjacent_notes
-    return entries(changed, "compare") + entries(adjacent, "adjacent"), diff, notes
+def plan(matrix: list[dict[str, Any]]) -> list[dict[str, int]]:
+    trials = {sc.id: sc.trials for sc in selection.load_corpus(scenarios.SCENARIOS_DIR)}
+    return [cost.entry_trials(entry, trials, trials) for entry in matrix]
 
 
-def trial_count(skill: str, mode: str) -> int:
-    """Trials per agent for one matrix entry: 3-trial scenarios, 1 for adjacent, doubled for a control."""
-    cap = 1 if mode == "adjacent" else None
-    own = sum(min(s["trials"], cap or s["trials"]) for s in scenarios.target_scenarios(scenarios.SCENARIOS_DIR, skill))
-    return own * (1 if mode == "snapshot" else 2)
-
-
-def estimate(matrix: list[dict[str, str]], agents: list[str], env: Mapping[str, str]) -> dict[str, Any]:
-    trials = sum(trial_count(e["skill"], e["mode"]) for e in matrix) * len(agents)
-    cap = ceilings.Ceilings.from_env(env).max_cost_usd
-    return {
-        "trials": trials,
-        "estimated_usd": round(trials * ASSUMED_USD_PER_TRIAL, 2),
-        "ceiling_usd": round(len(matrix) * len(agents) * cap, 2),
-        "assumed_usd_per_trial": ASSUMED_USD_PER_TRIAL,
-    }
-
-
-def preview(selection: Mapping[str, Any], env: Mapping[str, str]) -> str:
-    matrix, agents, event = selection["matrix"], selection["agents"], selection["event"]
+def preview(selection_result: Mapping[str, Any], env: Mapping[str, str]) -> str:
+    matrix, agents, event = selection_result["matrix"], selection_result["agents"], selection_result["event"]
     lines = ["### Routing eval preview (no provider calls were made)", ""]
     if event == "pull_request":
         lines += ["Pull request pushes only validate and preview. The relevant evals run once in the merge queue.", ""]
     if matrix:
-        lines += ["| Skill | Run | Trials per agent |", "| --- | --- | --- |"]
-        lines += [f"| {e['skill']} | {e['mode']} | {trial_count(e['skill'], e['mode'])} |" for e in matrix]
-        est = estimate(matrix, agents, env)
+        plans = plan(matrix)
+        lines += ["| Skill | Run | Scenarios | Initial trials per agent | Worst-case trials per agent |", "| --- | --- | --- | --- | --- |"]
         lines += [
-            "",
-            f"Agents: {', '.join(agents)}. Planned trials: {est['trials']}, about ${est['estimated_usd']:.2f} at an assumed "
-            f"${est['assumed_usd_per_trial']:.2f}/trial (an estimate, not a measurement); confirmation re-runs of regressed scenarios are extra. "
-            f"Hard bound: {len(matrix)} run(s) x {len(agents)} agent(s) x the per-run cost ceiling = ${est['ceiling_usd']:.2f}.",
+            f"| {e['skill']} | {e['mode']}{' (new skill, absolute thresholds)' if e.get('new') else ''} | {p['scenarios']} | {p['initial']} | {p['worst']} |"
+            for e, p in zip(matrix, plans)
         ]
+        lines += [""] + cost.lines(plans, agents)
+        ceiling = ceilings.Ceilings.from_env(env).max_cost_usd
+        lines.append(f"Hard bound: {len(matrix)} run(s) x {len(agents)} agent(s) x the per-run cost ceiling = ${len(matrix) * len(agents) * ceiling:.2f}.")
+        if any(e["mode"] == selection.GATE_MODE and not e.get("new") for e in matrix):
+            lines += ["", "Gate runs use lazy control: one candidate trial per scenario, and the control (with the candidate re-run at each scenario's own trials) only for scenarios that fail."]
     else:
-        lines.append("No changed or adjacent skills with routing scenarios; nothing to evaluate and no provider calls will be made.")
-    lines += [f"- NOTE: {note}" for note in selection["notes"]] + [f"- WARNING: {w}" for w in selection["warnings"]]
-    if selection["diff"] is not None:
-        lines += ["", "<details><summary>Skills selected from the diff</summary>", "", "```json", json.dumps(selection["diff"], indent=2), "```", "</details>"]
+        lines.append("No skill with a changed routing surface and no edited scenario; nothing to evaluate and no provider calls will be made.")
+    if selection_result["skipped"]:
+        lines += ["", "Skipped (routing surface unchanged or nothing to run):"]
+        lines += [f"- {item['skill']}: {item['reason']}" for item in selection_result["skipped"]]
+    lines += [""] if selection_result["notes"] or selection_result["warnings"] else []
+    lines += [f"- NOTE: {note}" for note in selection_result["notes"]] + [f"- WARNING: {w}" for w in selection_result["warnings"]]
+    diff = selection_result["diff"]
+    if diff is not None:
+        lines += ["", f"Adjacent skills (context only; their scenarios run only when they name a selected skill): {', '.join(diff['adjacent']) or 'none'}"]
+        lines += ["", "<details><summary>Skills touched by the diff</summary>", "", "```json", json.dumps(diff, indent=2), "```", "</details>"]
     return "\n".join(lines) + "\n"
 
 
@@ -171,33 +172,38 @@ def _append(path: str | None, text: str) -> None:
 
 def select_main(env: Mapping[str, str]) -> int:
     try:
-        selection = select_matrix(env)
+        chosen = select_matrix(env)
     except CiError as exc:
         print(f"::error title=select::{exc}")
         return 2
-    matrix = selection["matrix"]
-    for note in selection["notes"]:
+    matrix = chosen["matrix"]
+    for note in chosen["notes"]:
         print(f"NOTE: {note}")
-    for warning in selection["warnings"]:
+    for warning in chosen["warnings"]:
         print(f"::warning title=select::{warning}")
-    text = preview(selection, env)
-    if selection["event"] == "workflow_dispatch" and env.get("MODE_INPUT") == "all":
+    text = preview(chosen, env)
+    if chosen["event"] == "workflow_dispatch" and env.get("MODE_INPUT") == "all":
         text += "\nFull suite: manual only, both requested agents, never part of the merge gate.\n"
     _append(env.get("GITHUB_STEP_SUMMARY"), text)
     print(text)
     _append(env.get("GITHUB_OUTPUT"), "\n".join([
         f"skills={json.dumps(matrix, separators=(',', ':'))}",
         f"has_skills={'true' if matrix else 'false'}",
-        f"agents={','.join(selection['agents'])}",
+        f"agents={','.join(chosen['agents'])}",
+        # One JSON line (json escapes newlines), so a skill name can never inject another output.
+        f"skipped={json.dumps(chosen['skipped'], separators=(',', ':'))}",
     ]))
     return 0
 
 
-def eval_command(skill: str, mode: str, base_ref: str, agents: list[str]) -> list[str]:
+def eval_command(skill: str, mode: str, base_ref: str, agents: list[str], scenario_ids: str = "") -> list[str]:
     agent = ",".join(agents)
     if mode == "snapshot":
         return ["mise", "run", "eval:routing", "--", "skill", skill, "--agent", agent]
-    return ["mise", "run", "eval:routing:compare", "--", skill, "--base", base_ref, "--agent", agent, "--confirm"]
+    command = ["mise", "run", "eval:routing:compare", "--", skill, "--base", base_ref, "--agent", agent]
+    if mode == "gate":
+        return command + ["--gate"] + (["--scenarios", scenario_ids] if scenario_ids else [])
+    return command + ["--confirm"]
 
 
 def evaluate_main(
@@ -205,9 +211,12 @@ def evaluate_main(
     run: Callable[..., "subprocess.CompletedProcess[Any]"] = subprocess.run,
     repo: Path = check_repo.REPO_ROOT,
 ) -> int:
-    skill, mode = env.get("SKILL", ""), env.get("MODE", "")
-    if not SKILL_NAME.match(skill) or mode not in ("compare", "adjacent", "snapshot"):
-        print("::error title=harness_error::evaluate needs SKILL and MODE (compare, adjacent or snapshot)")
+    skill, mode, scenario_ids = env.get("SKILL", ""), env.get("MODE", ""), env.get("SCENARIOS", "")
+    if not SKILL_NAME.match(skill) or mode not in RUN_MODES:
+        print(f"::error title=harness_error::evaluate needs SKILL and MODE ({', '.join(RUN_MODES)})")
+        return 2
+    if not all(SKILL_NAME.match(sid) for sid in scenario_ids.split(",") if sid):
+        print("::error title=harness_error::SCENARIOS must be comma-separated kebab-case scenario ids")
         return 2
     reports = repo / ".tmp" / "routing" / "reports"
     reports.mkdir(parents=True, exist_ok=True)
@@ -241,9 +250,7 @@ def evaluate_main(
         return 0
 
     child_env = {k: v for k, v in env.items() if k not in SCRUBBED}
-    if mode == "adjacent":
-        child_env["ROUTING_MAX_TRIALS"] = "1"
-    rc = run(eval_command(skill, mode, env.get("BASE_REF") or "origin/main", agents), env=child_env, cwd=repo, check=False).returncode
+    rc = run(eval_command(skill, mode, env.get("BASE_REF") or "origin/main", agents, scenario_ids), env=child_env, cwd=repo, check=False).returncode
     summary = reports / (f"{skill}.summary.json" if mode == "snapshot" else f"{skill}.comparison-summary.json")
     body = summary.read_text() if summary.is_file() else "no summary written"
     _append(summary_path, heading + f"<details><summary>summary document</summary>\n\n```json\n{body.rstrip()}\n```\n</details>\n")

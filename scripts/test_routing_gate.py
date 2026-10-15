@@ -35,6 +35,15 @@ def comparison(agent: str, candidate: dict, control: dict, confirm: tuple[dict, 
     return doc
 
 
+def lazy(agent: str, first: dict, cand: dict | None = None, ctrl: dict | None = None, **kwargs):
+    """Lazy-control document: `first` is the one-trial candidate pass, `cand`/`ctrl` the confirmation results."""
+    return compare.lazy_compare(
+        agent_result(agent, first, **kwargs),
+        agent_result(agent, cand) if cand is not None else None,
+        agent_result(agent, ctrl) if ctrl is not None else None,
+    )
+
+
 def new_skill(agent: str, positive_passes: int, near_miss_passes: int):
     result = agent_result(agent, {"p": (positive_passes, 10), "n": (near_miss_passes, 20)})
     return compare.evaluate_new_skill(result, {"p": ["positive"], "n": ["near-miss"]})
@@ -151,10 +160,66 @@ class GateTests(unittest.TestCase):
         self.reports.add(SKILL, "compare", {"claude": doc})
         self.assertEqual(self.verdict()[0], "blocked_infra")
 
-    def test_adjacent_skill_regression_is_gated_like_a_modified_skill(self) -> None:
-        doc = comparison("claude", {"s1": (0, 1)}, {"s1": (1, 1)}, confirm=({"s1": (0, 3)}, {"s1": (3, 3)}))
-        self.reports.add("beta", "adjacent", {"claude": doc})
-        self.assertEqual(self.verdict("adjacent", "beta")[0], "fail")
+    def test_lazy_clean_first_pass_passes_without_a_control(self) -> None:
+        doc = lazy("claude", {"s1": (1, 1), "s2": (1, 1)})
+        self.assertIsNone(doc["confirmation"])
+        self.reports.add(SKILL, "gate", {"claude": doc})
+        verdict, out = self.verdict("gate")
+        self.assertEqual((verdict, out["reasons"]), ("pass", []))
+        self.assertIn("control not run", out["skills"][0]["detail"])
+
+    def test_lazy_failure_that_control_passes_is_a_regression(self) -> None:
+        self.reports.add(SKILL, "gate", {"claude": lazy("claude", {"s1": (0, 1), "s2": (1, 1)}, {"s1": (1, 3)}, {"s1": (3, 3)})})
+        verdict, out = self.verdict("gate")
+        self.assertEqual((verdict, out["exit_code"], self.codes(out)), ("fail", 1, ["routing_regression"]))
+        self.assertIn("s1 (candidate 1/3, control 3/3)", out["reasons"][0]["detail"])
+
+    def test_lazy_failure_that_also_fails_on_control_is_a_preexisting_warning(self) -> None:
+        self.reports.add(SKILL, "gate", {"claude": lazy("claude", {"s1": (0, 1)}, {"s1": (0, 3)}, {"s1": (1, 3)})})
+        verdict, out = self.verdict("gate")
+        self.assertEqual((verdict, out["exit_code"], self.codes(out)), ("pass_with_warnings", 0, ["preexisting_failure"]))
+
+    def test_lazy_failure_that_passes_the_candidate_rerun_never_runs_the_control(self) -> None:
+        doc = lazy("claude", {"s1": (0, 1)}, {"s1": (3, 3)})
+        self.assertIsNone(doc["confirmation"]["scenarios"][0]["control"])
+        self.reports.add(SKILL, "gate", {"claude": doc})
+        verdict, out = self.verdict("gate")
+        self.assertEqual((verdict, self.codes(out)), ("pass_with_warnings", ["regression_not_confirmed"]))
+
+    def test_lazy_confirmed_regression_still_reports_a_preexisting_warning(self) -> None:
+        doc = lazy("claude", {"s1": (0, 1), "s2": (0, 1)}, {"s1": (0, 3), "s2": (0, 3)}, {"s1": (3, 3), "s2": (0, 3)})
+        self.reports.add(SKILL, "gate", {"claude": doc})
+        verdict, out = self.verdict("gate")
+        self.assertEqual((verdict, self.codes(out)), ("fail", ["preexisting_failure", "routing_regression"]))
+
+    def test_lazy_missing_or_incomplete_confirmation_fails_closed(self) -> None:
+        doc = lazy("claude", {"s1": (0, 1)})  # the confirmation never ran: the document says incomplete
+        self.assertFalse(doc["complete"])
+        self.reports.add(SKILL, "gate", {"claude": doc})
+        self.assertEqual(self.verdict("gate")[0], "blocked_infra")
+        forged = {**doc, "complete": True, "state": "routing_fail", "confirmation": None}  # defence in depth if a document lied about being complete
+        self.reports.add(SKILL, "gate", {"claude": forged})
+        self.assertEqual(self.codes(self.verdict("gate")[1]), ["confirmation_missing"])
+
+    def test_lazy_infra_error_in_the_first_pass_or_confirmation_fails_closed(self) -> None:
+        self.reports.add(SKILL, "gate", {"claude": lazy("claude", {"s1": (1, 1)}, infra="boom")})
+        self.assertEqual(self.verdict("gate")[0], "blocked_infra")
+        doc = compare.lazy_compare(agent_result("claude", {"s1": (0, 1)}), agent_result("claude", {"s1": (0, 3)}, infra="boom"))
+        self.assertFalse(doc["complete"])
+        self.reports.add(SKILL, "gate", {"claude": doc})
+        self.assertEqual(self.verdict("gate")[0], "blocked_infra")
+        # a control that errors is incomplete too, never read as a pass or a regression
+        doc = compare.lazy_compare(agent_result("claude", {"s1": (0, 1)}), agent_result("claude", {"s1": (0, 3)}), agent_result("claude", {"s1": (3, 3)}, infra="boom"))
+        self.assertEqual((doc["complete"], doc["confirmation"]["scenarios"][0]["outcome"]), (False, "incomplete"))
+
+    def test_lazy_ceiling_breach_fails_closed(self) -> None:
+        breach = [{"agent": "claude", "ceiling": "cost_usd", "limit": 6, "observed": 6.2}]
+        self.reports.add(SKILL, "gate", {"claude": lazy("claude", {"s1": (1, 1)}, breaches=breach)})
+        self.assertEqual(self.verdict("gate")[0], "blocked_infra")
+
+    def test_new_skill_in_gate_mode_uses_absolute_thresholds(self) -> None:
+        self.reports.add(SKILL, "gate", {"claude": new_skill("claude", 8, 20)})
+        self.assertEqual(self.codes(self.verdict("gate")[1]), ["new_skill_threshold"])
 
     def test_snapshot_judges_the_agent_state(self) -> None:
         self.reports.add(SKILL, "snapshot", {"claude": agent_result("claude", {"s1": (3, 3)})}, kind="result")
@@ -171,8 +236,8 @@ class GateTests(unittest.TestCase):
 
     def test_no_agents_fails_with_a_clear_reason(self) -> None:
         self.reports.add(SKILL, "compare", {}, agents=[], skipped=["claude", "codex"])
-        self.reports.add("beta", "adjacent", {}, agents=[], skipped=["claude", "codex"])
-        out = self.reports.judge([{"skill": SKILL, "mode": "compare"}, {"skill": "beta", "mode": "adjacent"}])
+        self.reports.add("beta", "gate", {}, agents=[], skipped=["claude", "codex"])
+        out = self.reports.judge([{"skill": SKILL, "mode": "compare"}, {"skill": "beta", "mode": "gate"}])
         self.assertEqual((out["verdict"], out["exit_code"]), ("fail_no_agents", 4))
         self.assertIn("Configure", gate.markdown(out) .replace("configure", "Configure"))
 
