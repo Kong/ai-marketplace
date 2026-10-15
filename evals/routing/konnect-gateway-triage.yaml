@@ -1,3 +1,5 @@
+# Pilot scenarios plus a baseline top-up suggested by an agent; the top-up is pending skill-owner review.
+# Top-up: gateway-triage-positive-5, sibling-4..12; near-miss-5..6 (were sibling-1..2) retagged; positive-3 reworded.
 skill: konnect-gateway-triage
 scenarios:
   - id: gateway-triage-positive-1
@@ -13,13 +15,19 @@ scenarios:
     trials: 3
     tags: [positive]
   - id: gateway-triage-positive-3
-    prompt: "Konnect says the control plane and data plane are healthy, but requests to our service return 404 through the gateway. Where is the break?"
+    prompt: "Konnect shows the CP healthy and every node green, but requests to our service return 404 through the gateway. Where is the break?"
     expect: [konnect-gateway-triage]
     forbid: []
     trials: 3
     tags: [positive]
   - id: gateway-triage-positive-4
     prompt: "I think we edited the production control plane when we meant to edit the staging one, and now live gateways don't match what's in our repo. Help me work out what is actually deployed."
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: gateway-triage-positive-5
+    prompt: "dp nodes on 3.4 show connected but they're ignoring the rate limit we set on the cp two hours ago. why"
     expect: [konnect-gateway-triage]
     forbid: []
     trials: 3
@@ -48,21 +56,75 @@ scenarios:
     forbid: [konnect-gateway-triage]
     trials: 3
     tags: [near-miss]
-  - id: gateway-triage-sibling-1
+  - id: gateway-triage-near-miss-5
     prompt: "Traffic is flowing through our Konnect gateway fine, but the Explorer dashboard shows no data for the last two days. Why is the analytics view empty?"
-    expect: [konnect-observability-triage]
+    expect: []
     forbid: [konnect-gateway-triage]
-    trials: 1
-    tags: [sibling]
-  - id: gateway-triage-sibling-2
+    trials: 3
+    tags: [near-miss]
+  - id: gateway-triage-near-miss-6
     prompt: "A teammate can't open our production control plane in Konnect at all, while I can. They're in the same org. What's different about their access?"
-    expect: [konnect-access-scope]
+    expect: []
     forbid: [konnect-gateway-triage]
-    trials: 1
-    tags: [sibling]
+    trials: 3
+    tags: [near-miss]
   - id: gateway-triage-sibling-3
     prompt: "We already know the cause: a service entity in our decK state file has the wrong upstream host. Update the file and show me how to preview the sync."
     expect: [deck-gateway]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-4
+    prompt: "Monday after the migration: some routes 502, the portal lost two APIs, and Explorer is blank for the billing control plane. Before anyone starts poking at gateways, which of these is the real problem area?"
+    expect: [konnect-platform-router]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-5
+    prompt: "Leadership wants one owner for 'Konnect is unreliable'. Complaints are a mix of slow config pushes, people locked out of prod, and dashboards that lag by hours. How do we split this up and who looks first?"
+    expect: [konnect-platform-router]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-6
+    prompt: "Give me the read-only kongctl command that lists the nodes registered to our edge-prod control plane, JSON output, so I can paste it into the incident doc."
+    expect: [kongctl-query]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-7
+    prompt: "What's the kongctl syntax to pull one service by name from a specific control plane and print only its host and port?"
+    expect: [kongctl-query]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-8
+    prompt: "We decided git is the truth after last week's drift. Our kong.yaml is authoritative; preview what a sync would change on the prod control plane, scoped to the team-payments tag only."
+    expect: [deck-gateway]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-9
+    prompt: "Root cause was a label typo on the control plane resource itself. It's defined in HCL with the kong/konnect provider, so fix the .tf and show me the plan output."
+    expect: [terraform-konnect]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-10
+    prompt: "We already know why nodes dropped: the client certificate we register through our Terraform konnect module expired. Rotate it in the module and plan the change."
+    expect: [terraform-konnect]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-11
+    prompt: "Our gateways are self-hosted and their entities live in Terraform using the kong-gateway provider. The checkout upstream targets still point at the old pool; update the HCL and run a plan."
+    expect: [terraform-kong-gateway]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: gateway-triage-sibling-12
+    prompt: "Review this terraform plan for our on-prem Kong cluster. After a provider version bump it wants to destroy and recreate three routes. Is that safe to apply?"
+    expect: [terraform-kong-gateway]
     forbid: [konnect-gateway-triage]
     trials: 1
     tags: [sibling]

@@ -1,3 +1,5 @@
+# Pilot scenarios plus a baseline top-up suggested by an agent; the top-up is pending skill-owner review.
+# Top-up: kongctl-declarative-positive-5, near-miss-5, sibling-4..10.
 skill: kongctl-declarative
 scenarios:
   - id: kongctl-declarative-positive-1
@@ -20,6 +22,12 @@ scenarios:
     tags: [positive]
   - id: kongctl-declarative-positive-4
     prompt: "There's a portal that someone created by hand in Konnect. Bring it under kongctl management without recreating it."
+    expect: [kongctl-declarative]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-declarative-positive-5
+    prompt: "Our konnect/ folder has _defaults.kongctl plus a pile of portal and api yaml. Remove the deprecated legacy-invoices API from it and walk me through making sure the sync doesn't take anything else with it."
     expect: [kongctl-declarative]
     forbid: []
     trials: 3
@@ -48,6 +56,12 @@ scenarios:
     forbid: [kongctl-declarative]
     trials: 3
     tags: [near-miss]
+  - id: kongctl-declarative-near-miss-5
+    prompt: "kubectl apply keeps failing with 'field is immutable' on my Deployment selector. How do I change the labels without downtime?"
+    expect: []
+    forbid: [kongctl-declarative]
+    trials: 3
+    tags: [near-miss]
   - id: kongctl-declarative-sibling-1
     prompt: "Just run kongctl and list which APIs exist in my Konnect org as JSON. I only want to look, not change anything."
     expect: [kongctl-query]
@@ -63,6 +77,48 @@ scenarios:
   - id: kongctl-declarative-sibling-3
     prompt: "In our decK-managed repo, add a rate-limiting plugin to the checkout service and diff it against the gateway."
     expect: [deck-gateway]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-4
+    prompt: "Our Konnect config is spread across a few repos and the UI. APIs, portals, and gateways disagree with what's in git, and I can't tell if it's a config problem, a publication problem, or permissions. Where do we even start?"
+    expect: [konnect-platform-router]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-5
+    prompt: "Partners get 403 calling the Ledger API we exposed through Konnect last week. Could be the gateway, could be their portal registration, could be something an admin changed. Not sure who should pick this up."
+    expect: [konnect-platform-router]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-6
+    prompt: "With kongctl, how do I see the versions under the shipments API without changing anything? I can't work out the path for nested resources."
+    expect: [kongctl-query]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-7
+    prompt: "Our kong.yaml (_format_version 3.0) needs a /v2/refunds route on the payments service. Show the validate and diff steps before anything goes live."
+    expect: [deck-gateway]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-8
+    prompt: "We run Konnect through Terraform Cloud workspaces. Someone created a portal in the UI last month; bring it into state instead of recreating it."
+    expect: [terraform-konnect]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-9
+    prompt: "Our on-prem Kong Enterprise is configured through HCL against the Admin API. Add key-auth to the inventory service and show the plan."
+    expect: [terraform-kong-gateway]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-10
+    prompt: "Repo has Terraform for our self-hosted gateways. Someone hand-created a route with curl against port 8001; get it into Terraform state without recreating it."
+    expect: [terraform-kong-gateway]
     forbid: [kongctl-declarative]
     trials: 1
     tags: [sibling]

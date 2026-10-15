@@ -1,0 +1,123 @@
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+skill: konnect-access-scope
+scenarios:
+  - id: konnect-access-scope-positive-1
+    prompt: "New hire on the platform team logs into Konnect and the Gateway Manager page is just empty for her. Everyone else on the team sees our four control planes. Why?"
+    expect: [konnect-access-scope]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-access-scope-positive-2
+    prompt: "My personal access token works with curl against the US API but every call returns 401 once I point at eu.api.konghq.com. Is the token tied to one geo?"
+    expect: [konnect-access-scope]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-access-scope-positive-3
+    prompt: "I can open the payments control plane and read its routes, but the Save button is greyed out whenever I try to change a plugin. Who decides that?"
+    expect: [konnect-access-scope]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-access-scope-positive-4
+    prompt: "We moved Konnect login to Okta last month. Now I want to add Priya to the analytics-viewers team in the Konnect UI but the membership controls won't let me touch her. What's going on?"
+    expect: [konnect-access-scope]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-access-scope-positive-5
+    prompt: "Strange one: a contractor who should only manage the staging portal somehow deleted a service in production. How did they end up with that much power in our org?"
+    expect: [konnect-access-scope]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-access-scope-near-miss-1
+    prompt: "Developers on our Dev Portal create an app, request access to the Orders API, and the request sits in pending forever. How do we get those approved automatically?"
+    expect: []
+    forbid: [konnect-access-scope]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-access-scope-near-miss-2
+    prompt: "Our CI role in AWS gets AccessDenied on s3:PutObject even though the bucket policy looks right. Help me read the IAM policy simulator output."
+    expect: []
+    forbid: [konnect-access-scope]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-access-scope-near-miss-3
+    prompt: "Clients calling our gateway route get 401 from the key-auth plugin even with the right apikey header. The consumer exists. What's wrong with the plugin config?"
+    expect: []
+    forbid: [konnect-access-scope]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-access-scope-near-miss-4
+    prompt: "Set up Okta SAML SSO for our internal Grafana instance and map the Okta groups to Grafana org roles."
+    expect: []
+    forbid: [konnect-access-scope]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-access-scope-near-miss-5
+    prompt: "Our data plane in us-east shows disconnected in Konnect and the logs mention a certificate verify failure on the cluster endpoint. Where do I look first?"
+    expect: []
+    forbid: [konnect-access-scope]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-access-scope-sibling-1
+    prompt: "Since we merged two Konnect orgs, half the team can't find things, our partner portal stopped listing APIs, and analytics look thin. I can't tell whether this is permissions or broken setup. Which area do I start with?"
+    expect: [konnect-platform-router]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-2
+    prompt: "A partner says our Konnect-hosted API returns 403 for them since Tuesday. I can't tell if their developer app lost its credential or someone on our side changed the gateway config."
+    expect: [konnect-platform-router]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-3
+    prompt: "Give me the kongctl command that prints which identity and org my current token resolves to, as JSON. Just reading, nothing else."
+    expect: [kongctl-query]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-4
+    prompt: "kongctl get teams prints a table for me but YAML for my teammate with the same command. Which profile setting causes that, and how do I force JSON?"
+    expect: [kongctl-query]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-5
+    prompt: "Our Konnect teams and role assignments live in kongctl YAML in the platform repo. Add a read-only team for the SRE rotation scoped to the prod control plane and show me the plan."
+    expect: [kongctl-declarative]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-6
+    prompt: "Auditors only need read access on analytics. Our Konnect teams are kongctl YAML; change the auditors team's role binding in the manifest and diff it before apply."
+    expect: [kongctl-declarative]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-7
+    prompt: "Our Konnect org is all HCL with the kong/konnect provider. Add a system account for the release pipeline plus a team with control plane admin on staging, and run a plan."
+    expect: [terraform-konnect]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-8
+    prompt: "Our Konnect system accounts and their roles are managed in HCL. Split the release-pipeline account's permissions into separate staging and prod modules and show the plan."
+    expect: [terraform-konnect]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-9
+    prompt: "Our partner developers can sign into the portal fine, but when they register an application for the Shipping API they never receive a client secret. Why?"
+    expect: [konnect-app-auth]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-access-scope-sibling-10
+    prompt: "A developer's application was approved yesterday, but they still can't see a credential for the Shipping API in the portal. Did the registration actually complete?"
+    expect: [konnect-app-auth]
+    forbid: [konnect-access-scope]
+    trials: 1
+    tags: [sibling]

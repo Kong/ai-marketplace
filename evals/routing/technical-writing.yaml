@@ -1,0 +1,123 @@
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+skill: technical-writing
+scenarios:
+  - id: technical-writing-positive-1
+    prompt: "Write a how-to for our internal CLI that shows a new engineer how to rotate their local signing key, ending with a way to confirm it worked."
+    expect: [technical-writing]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: technical-writing-positive-2
+    prompt: "This doc reads like a robot wrote it. Tighten it up, kill the filler, and make it second person."
+    expect: [technical-writing]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: technical-writing-positive-3
+    prompt: "Draft the authentication section for the Ledger API page on our Konnect developer portal: how to get a key, how to send it, placeholders only. Someone else is handling the layout."
+    expect: [technical-writing]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: technical-writing-positive-4
+    prompt: "Our troubleshooting guide for the rate limiting setup on Kong Gateway is a mess of passive sentences and inconsistent capitalization of Service and Route. Edit it to follow Kong's style conventions."
+    expect: [technical-writing]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: technical-writing-positive-5
+    prompt: "Turn these engineering notes about our webhooks API into a quickstart for external developers. Keep it to one page, list prerequisites up front, and separate request and response samples."
+    expect: [technical-writing]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: technical-writing-near-miss-1
+    prompt: "Write a punchy LinkedIn post announcing our new API product launch."
+    expect: []
+    forbid: [technical-writing]
+    trials: 3
+    tags: [near-miss]
+  - id: technical-writing-near-miss-2
+    prompt: "Convert src/utils.ts from CommonJS to ES modules and fix the imports across the repo."
+    expect: []
+    forbid: [technical-writing]
+    trials: 3
+    tags: [near-miss]
+  - id: technical-writing-near-miss-3
+    prompt: "Write unit tests for the date parsing module and get coverage above 90%."
+    expect: []
+    forbid: [technical-writing]
+    trials: 3
+    tags: [near-miss]
+  - id: technical-writing-near-miss-4
+    prompt: "Our dev portal pages show the right words but the hero and cards break on mobile. Fix the component layout."
+    expect: []
+    forbid: [technical-writing]
+    trials: 3
+    tags: [near-miss]
+  - id: technical-writing-near-miss-5
+    prompt: "Developers registered apps on our portal for the Claims API, but every credential gets a 401 at runtime. Is the auth strategy wired to the right service?"
+    expect: []
+    forbid: [technical-writing]
+    trials: 3
+    tags: [near-miss]
+  - id: technical-writing-sibling-1
+    prompt: "Partners complain our Konnect developer experience is bad: docs pages look stale, some APIs seem missing, and registrations stall. I can't tell whether this is content, publication, or access. Where should we start?"
+    expect: [konnect-platform-router]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-2
+    prompt: "Before I rewrite any documentation, I need to know which part of our Konnect setup is actually failing developers: the portal, the catalog behind it, or the auth flow. Help me classify it."
+    expect: [konnect-platform-router]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-3
+    prompt: "I have the copy for our API landing page. Now arrange it on the Konnect portal page: hero, three feature columns that wrap on mobile, and an expandable FAQ."
+    expect: [portal-page-design]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-4
+    prompt: "Which MDC components should hold the request and response samples on our portal page so they sit side by side on desktop and stack on phones?"
+    expect: [portal-page-design]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-5
+    prompt: "Restyle our portal pages after the brand refresh: deep green base, a new geometric typeface, and the new logo SVG. Check text contrast on the dark sections too."
+    expect: [portal-branding]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-6
+    prompt: "The text on our portal landing page is approved. Now make that page's colours, fonts, and imagery match orchidlabs.example as closely as the page allows."
+    expect: [portal-branding]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-7
+    prompt: "I was asked to write docs for the Refunds API on our partner portal, but the API isn't showing there at all. It's in Konnect. What step is missing before developers can see it?"
+    expect: [konnect-api-publish]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-8
+    prompt: "Docs for the Loyalty API are done, yet external partners see an older API version on the portal than internal users do. Is it published to the right audience?"
+    expect: [konnect-api-publish]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-9
+    prompt: "The generated reference docs for our Accounts API in Konnect show v1 operations even though we uploaded the v2 spec. Is the version modelled wrong in the catalog?"
+    expect: [konnect-api-catalog]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]
+  - id: technical-writing-sibling-10
+    prompt: "Before we write any guides, help me decide whether our three Fleet APIs should be one API with versions or a package in Konnect, and whether each needs a linked gateway implementation."
+    expect: [konnect-api-catalog]
+    forbid: [technical-writing]
+    trials: 1
+    tags: [sibling]

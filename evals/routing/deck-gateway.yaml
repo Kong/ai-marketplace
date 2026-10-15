@@ -1,0 +1,123 @@
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+skill: deck-gateway
+scenarios:
+  - id: deck-gateway-positive-1
+    prompt: "Our kong.yaml has _format_version 3.0 at the top. Add a key-auth plugin to the inventory route and tell me what to run so I can see the change before anything goes live."
+    expect: [deck-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: deck-gateway-positive-2
+    prompt: "export everything from our self-hosted kong admin api into yaml files so we can start tracking it in git"
+    expect: [deck-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: deck-gateway-positive-3
+    prompt: "I've got a swagger file for the shipping service. Can I generate services and routes from it with deck instead of writing them by hand?"
+    expect: [deck-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: deck-gateway-positive-4
+    prompt: "We split our gateway state into one file per team and tag each team's entities. Last week a sync from the payments folder wiped out the search team's routes. How should the CI step be scoped so that can't happen again?"
+    expect: [deck-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: deck-gateway-positive-5
+    prompt: "Our pipeline runs deck against a Konnect control plane. Bump the upstream timeout on the ledger service in the state file and push it, I've already reviewed what changes."
+    expect: [deck-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: deck-gateway-near-miss-1
+    prompt: "Translate this nginx.conf location block with proxy_pass and rate limiting into an Envoy listener config."
+    expect: []
+    forbid: [deck-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: deck-gateway-near-miss-2
+    prompt: "Write a GitHub Actions job that runs helm diff before helm upgrade for our ingress controller chart."
+    expect: []
+    forbid: [deck-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: deck-gateway-near-miss-3
+    prompt: "My DataKit flow calls two upstream APIs in parallel and the jq node that merges them returns null. Which wiring is wrong?"
+    expect: []
+    forbid: [deck-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: deck-gateway-near-miss-4
+    prompt: "Set up an AWS API Gateway stage with a usage plan and throttling using CloudFormation."
+    expect: []
+    forbid: [deck-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: deck-gateway-near-miss-5
+    prompt: "Since this morning our hybrid data planes report as offline in Konnect and requests are timing out. What broke?"
+    expect: []
+    forbid: [deck-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: deck-gateway-sibling-1
+    prompt: "Half our Konnect setup is confusing: some routes look stale, a few partner APIs vanished from the portal, and nobody agrees who owns what config. Where do I begin before anyone edits files?"
+    expect: [konnect-platform-router]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-2
+    prompt: "konnect broken since the migration. routes, catalog, perms all weird. help"
+    expect: [konnect-platform-router]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-3
+    prompt: "I just synced a new route to the billing control plane. Give me the kongctl read I can rerun to prove the route now exists with the right paths."
+    expect: [kongctl-query]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-4
+    prompt: "Before I write any gateway config, show me the kongctl get command that prints the org and region of my active profile as JSON."
+    expect: [kongctl-query]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-5
+    prompt: "Our self-hosted gateway services and routes are all defined with the kong/kong-gateway Terraform provider. Add a route for /v2/invoices to the billing service module."
+    expect: [terraform-kong-gateway]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-6
+    prompt: "Our on-prem Kong consumers are defined in HCL modules with the kong-gateway provider. Where should a new consumer group and its ACL plugin go so it matches the existing module split? Show the plan."
+    expect: [terraform-kong-gateway]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-7
+    prompt: "We manage our Konnect control planes and the services inside them in .tf files with the kong/konnect provider. Add a correlation-id plugin to the catalog service and show me the plan."
+    expect: [terraform-konnect]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-8
+    prompt: "We have gateway config in kong.yaml today but leadership wants it all in Terraform alongside our Konnect resources. Start the HCL side of that migration for the orders control plane."
+    expect: [terraform-konnect]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-9
+    prompt: "Our Konnect repo uses _defaults.kongctl and plan/apply. Add a new dev portal and publish the existing weather API to it."
+    expect: [kongctl-declarative]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: deck-gateway-sibling-10
+    prompt: "Add an API resource for our fulfillment OpenAPI spec to our kongctl manifests, linked to the prod control plane with a !ref rather than a hard-coded ID."
+    expect: [kongctl-declarative]
+    forbid: [deck-gateway]
+    trials: 1
+    tags: [sibling]

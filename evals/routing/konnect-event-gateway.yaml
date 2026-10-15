@@ -1,0 +1,123 @@
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+skill: konnect-event-gateway
+scenarios:
+  - id: konnect-event-gateway-positive-1
+    prompt: "Kafka clients connecting through our Konnect event proxy get a TLS handshake but then 'unknown topic' errors, even though the topic exists on the MSK cluster behind it. Where in the chain is it breaking?"
+    expect: [konnect-event-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-event-gateway-positive-2
+    prompt: "In Event Gateway, consumers authenticate with SASL/PLAIN fine but every produce to orders.created is rejected. Could a policy be blocking it?"
+    expect: [konnect-event-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-event-gateway-positive-3
+    prompt: "We set up two virtual clusters, team-a and team-b, on one listener. team-b's producers are landing their messages in team-a's backend. How does that happen?"
+    expect: [konnect-event-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-event-gateway-positive-4
+    prompt: "bootstrap server kafka.events.example.internal:9092 on our Kong event gateway times out, the per-broker hostnames resolve fine. sni mapping issue?"
+    expect: [konnect-event-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-event-gateway-positive-5
+    prompt: "Our streaming team wants to know which hop is failing: clients connect to the Konnect listener, but fetches stall and the backend Confluent cluster shows no consumer group activity at all."
+    expect: [konnect-event-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: konnect-event-gateway-near-miss-1
+    prompt: "Our self-hosted Kafka consumer group keeps rebalancing every few minutes. How should I tune session.timeout.ms and max.poll.interval.ms?"
+    expect: []
+    forbid: [konnect-event-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-event-gateway-near-miss-2
+    prompt: "Set up an AWS EventBridge rule that forwards S3 object-created events to a Lambda."
+    expect: []
+    forbid: [konnect-event-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-event-gateway-near-miss-3
+    prompt: "Our REST gateway route for the webhooks service returns 503 from the data plane while the upstream pod is healthy. Konnect shows the data plane connected. What's going on?"
+    expect: []
+    forbid: [konnect-event-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-event-gateway-near-miss-4
+    prompt: "Compare Kafka, RabbitMQ, and NATS for an order-processing pipeline that needs exactly-once semantics."
+    expect: []
+    forbid: [konnect-event-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-event-gateway-near-miss-5
+    prompt: "Which Konnect role should our Kafka platform team get so they can manage Event Gateway listeners but not touch the HTTP control planes?"
+    expect: []
+    forbid: [konnect-event-gateway]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-event-gateway-sibling-1
+    prompt: "We run both REST APIs and Kafka through Konnect. This morning some HTTP routes broke, a stream proxy started refusing clients, and an engineer lost access. Which of these do I chase first, and who owns it?"
+    expect: [konnect-platform-router]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-2
+    prompt: "konnect flaky for both the kafka and http teams since the reorg, and perms changed too. who looks?"
+    expect: [konnect-platform-router]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-3
+    prompt: "After the listener change was applied, which kongctl get should I rerun to confirm the analytics listener now points at the right virtual cluster?"
+    expect: [kongctl-query]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-4
+    prompt: "What's the exact kongctl get syntax to fetch child resources like listeners under one event gateway? Show me the help path, don't change anything."
+    expect: [kongctl-query]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-5
+    prompt: "team-b's virtual cluster in our kongctl YAML points at the wrong backend cluster. Fix the reference and show me the plan before apply."
+    expect: [kongctl-declarative]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-6
+    prompt: "Add a new listener and virtual cluster for the analytics topics to our kongctl manifests, referencing the existing backend cluster with !ref, and dry-run it."
+    expect: [kongctl-declarative]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-7
+    prompt: "Our event gateway resources are managed in HCL with the konnect provider. Add a backend cluster for the new Confluent environment and run terraform plan."
+    expect: [terraform-konnect]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-8
+    prompt: "The event gateway backend cluster address changed after the Confluent migration. It's declared in our HCL; update the attribute and check the plan only touches that resource."
+    expect: [terraform-konnect]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-9
+    prompt: "All our Kong data planes in the hybrid control plane went disconnected after the cert rotation, HTTP and everything. Kafka users noticed first but it's not just them. What do we check?"
+    expect: [konnect-gateway-triage]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-event-gateway-sibling-10
+    prompt: "Our HTTP data planes in the same hybrid control plane as the event proxies stopped heartbeating after a network change; the event side is fine. What's broken?"
+    expect: [konnect-gateway-triage]
+    forbid: [konnect-event-gateway]
+    trials: 1
+    tags: [sibling]

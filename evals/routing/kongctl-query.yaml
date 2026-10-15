@@ -1,0 +1,123 @@
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+skill: kongctl-query
+scenarios:
+  - id: kongctl-query-positive-1
+    prompt: "kongctl: how do I get the routes under one specific control plane? I keep guessing the subcommand wrong."
+    expect: [kongctl-query]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-query-positive-2
+    prompt: "kongctl get apis comes back as an empty list. Before I dig further, give me the kongctl reads that print my active profile's org and region next to that API list, as JSON. Don't change anything."
+    expect: [kongctl-query]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-query-positive-3
+    prompt: "I need a quick kongctl one-liner that prints just the name and id of every Konnect portal, no other fields, so I can paste it into a ticket."
+    expect: [kongctl-query]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-query-positive-4
+    prompt: "A teammate just applied a change that should have added a version to the loyalty API. Give me the exact kongctl read I can rerun to prove the version is there now."
+    expect: [kongctl-query]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-query-positive-5
+    prompt: "Our CI box authenticates to Konnect with a system token in an env var. What's the smallest kongctl command that proves the token works and shows which org it belongs to?"
+    expect: [kongctl-query]
+    forbid: []
+    trials: 3
+    tags: [positive]
+  - id: kongctl-query-near-miss-1
+    prompt: "Write a jq filter that pulls every .items[].metadata.name out of kubectl get pods -o json."
+    expect: []
+    forbid: [kongctl-query]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-query-near-miss-2
+    prompt: "How do I list all API Gateway REST APIs and their stages with the AWS CLI, output as a table?"
+    expect: []
+    forbid: [kongctl-query]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-query-near-miss-3
+    prompt: "Our CI system account can run kongctl get control-planes fine but is forbidden when reading the prod portal. Which role is the account missing?"
+    expect: []
+    forbid: [kongctl-query]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-query-near-miss-4
+    prompt: "Explorer shows requests for our Konnect APIs, but the consumer column is blank on every row even though key auth is on. Why is that field empty?"
+    expect: []
+    forbid: [kongctl-query]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-query-near-miss-5
+    prompt: "Show me how to use the GitHub CLI to list open pull requests with a given label as JSON."
+    expect: []
+    forbid: [kongctl-query]
+    trials: 3
+    tags: [near-miss]
+  - id: kongctl-query-sibling-1
+    prompt: "I'm new on the platform team. Some Konnect APIs seem unpublished, a couple of data planes look stale, and I'm not sure my permissions are even right. Which of these should I chase first?"
+    expect: [konnect-platform-router]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-2
+    prompt: "Hello, our Konnect is not working correct after region move. Some things are missing, some things give error. Please tell me what team must check it."
+    expect: [konnect-platform-router]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-3
+    prompt: "I can see with kongctl that the rewards portal exists but isn't in our repo. Our config is managed with kongctl plan and apply; bring it under management without recreating it."
+    expect: [kongctl-declarative]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-4
+    prompt: "Run a kongctl plan for our konnect folder and walk me through whether the diff deletes anything before we apply it."
+    expect: [kongctl-declarative]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-5
+    prompt: "Our gateway entities live in a decK state file. Diff the file against the staging control plane and tell me what would change on sync."
+    expect: [deck-gateway]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-6
+    prompt: "Dump the current services, routes and plugins from our Konnect control plane into a kong.yaml so we can start managing them with deck."
+    expect: [deck-gateway]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-7
+    prompt: "Our Konnect HCL hard-codes control plane IDs in three modules. Replace them with references or data sources so the IDs come from one place, and show the plan."
+    expect: [terraform-konnect]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-8
+    prompt: "terraform plan against our konnect provider says it'll replace the portal resource. Figure out from the HCL why and how to avoid the replace."
+    expect: [terraform-konnect]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-9
+    prompt: "We run Kong Gateway ourselves on VMs and keep its routes in HCL through the official Terraform provider for it. Add a rate-limiting plugin to the search route."
+    expect: [terraform-kong-gateway]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-query-sibling-10
+    prompt: "Our self-managed gateway HCL defines routes in a module we just renamed, and now plan wants to recreate every route. How do I move them in state instead?"
+    expect: [terraform-kong-gateway]
+    forbid: [kongctl-query]
+    trials: 1
+    tags: [sibling]
