@@ -640,3 +640,15 @@ in the repo rather than silently broadening the task into a scaffolding
 refactor.
 
 The exact commands and file map are documented elsewhere in this repo. This file is intentionally focused on writing better skills, not on repeating procedural details.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues in `Kong/ai-marketplace` is the active shared tracker. See
+`docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This repository uses a single domain context with lazy root glossary and ADR
+discovery. See `docs/agents/domain.md`.
