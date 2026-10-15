@@ -50,6 +50,8 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_agents.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_coverage.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ci_agents.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_gate.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ci.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_select_changed.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "gh skill publish --dry-run",
@@ -81,13 +83,14 @@ description = "Compare one skill's routing with its merge base, per agent: mise 
 usage = '''
 arg "<name>" help="Skill name; a skill absent at the merge base is judged on absolute thresholds"
 flag "--base <ref>" default="origin/main" help="Ref whose merge base with HEAD is the control"
+flag "--confirm" help="Re-run scenarios that regressed (pass on control, fail on candidate) at 3 trials on both sides; the merge gate requires this"
 flag "--agent <agent>" var=#true help="Run only this agent (claude or codex; repeatable or comma-separated). Default: both. A subset run is marked partial."
 '''
 env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
 run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
   # Materializes isolated candidate and control workspaces itself. Exit codes: see docs/testing.md.
-  "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_comparison.py {{usage.name}} --base {{usage.base}} $agent_args",
+  "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; [ \"$usage_confirm\" = true ] && agent_args=\"$agent_args --confirm\"; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/run_routing_comparison.py {{usage.name}} --base {{usage.base}} $agent_args",
 ]
 
 [tasks."eval:routing:config"]

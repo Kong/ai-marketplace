@@ -21,10 +21,17 @@ function trialCap(value = process.env.ROUTING_MAX_TRIALS) {
   return Number.isInteger(cap) && cap > 0 ? cap : Infinity;
 }
 
+// ROUTING_FORCE_TRIALS (positive integer) sets trials for every scenario, overriding the scenario's
+// own count and ROUTING_MAX_TRIALS. Only the gate's confirmation re-run sets it (scripts/run_routing_comparison.py).
+function forcedTrials(value = process.env.ROUTING_FORCE_TRIALS) {
+  const forced = Number.parseInt(value, 10);
+  return Number.isInteger(forced) && forced > 0 ? forced : null;
+}
+
 // A scenario that expects a skill is "positive": the turn may stop once the
 // activation is observed. One that expects none is a "negative": the turn runs
 // to completion so that non-activation is observable.
-function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTrials = trialCap() }) {
+function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTrials = trialCap(), forceTrials = forcedTrials() }) {
   const tests = [];
   for (const file of scenarioFiles(dir)) {
     const data = yaml.load(fs.readFileSync(file, 'utf8'));
@@ -35,7 +42,7 @@ function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTria
         ...scenario.expect.map((name) => ({ type: 'skill-used', value: name })),
         ...scenario.forbid.map((name) => ({ type: 'not-skill-used', value: name })),
       ];
-      const trials = Math.min(scenario.trials, maxTrials);
+      const trials = forceTrials ?? Math.min(scenario.trials, maxTrials);
       for (let trial = 1; trial <= trials; trial += 1) {
         tests.push({
           description: `${scenario.id} | ${agent} | trial ${trial}/${trials} | expect [${scenario.expect}] forbid [${scenario.forbid}]`,
@@ -63,4 +70,4 @@ function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTria
   return tests;
 }
 
-module.exports = { buildTests, trialCap, SCENARIOS_DIR };
+module.exports = { buildTests, trialCap, forcedTrials, SCENARIOS_DIR };

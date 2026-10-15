@@ -99,6 +99,11 @@ def retry_pattern(descriptions: list[str]) -> str:
     return "^(?:" + "|".join(escaped) + ")$"
 
 
+def scenario_pattern(scenario_ids: list[str]) -> str:
+    """Regex matching every trial description of exactly these scenarios (`<id> | <agent> | ...`)."""
+    return "^(?:" + "|".join(re.sub(r"[.*+?^${}()|\[\]\\]", r"\\\g<0>", sid) for sid in scenario_ids) + ") \\| "
+
+
 def evaluate_agent(
     agent: str,
     skill: str,
@@ -106,8 +111,11 @@ def evaluate_agent(
     reports_dir: Path = REPORTS_DIR,
     validation_errors: list[str] | None = None,
     ledger: ceilings.Ledger | None = None,
+    pattern: str | None = None,
 ) -> dict[str, Any]:
     """Run, retry once on infrastructure error, and reduce one agent.
+
+    `pattern` (see `scenario_pattern`) limits every launch to some scenarios.
 
     Ceilings are checked before every Promptfoo launch and after the last run. A breach
     stops the agent (no retry) as infra_error; trials already judged stay in the result.
@@ -130,11 +138,11 @@ def evaluate_agent(
         return output, rows
 
     try:
-        output, rows = launch(base, None)
+        output, rows = launch(base, pattern)
         if rows is None:
             print(output)
             retries = 1
-            output, rows = launch(retry_report, None)
+            output, rows = launch(retry_report, pattern)
             if rows is None:
                 print(output)
                 return results.agent_failure(agent, skill, results.PROVIDER, _last_line(output) or "no Promptfoo report", retries=1)

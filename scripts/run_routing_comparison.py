@@ -1,6 +1,6 @@
 """Compare a skill's routing in the PR (candidate) with its merge-base (control), per agent.
 
-    python scripts/run_routing_comparison.py <skill> [--base REF] [--agent claude|codex ...]
+    python scripts/run_routing_comparison.py <skill> [--base REF] [--agent claude|codex ...] [--confirm]
     (REF defaults to origin/main; --agent defaults to both and a subset run is marked partial)
 
 Two isolated workspaces are materialized under `.tmp/routing/{candidate,control}/<agent>`:
@@ -10,12 +10,16 @@ workspace differs. Reports land in `.tmp/routing/reports/{candidate,control}/`, 
 comparison in `.tmp/routing/reports/<agent>-<skill>.comparison.json` (shape documented in
 routing_compare.py). No score baseline is stored anywhere.
 
+`--confirm` (the merge gate) re-runs just the scenarios that regressed (pass on control, fail on
+candidate) at 3 trials on both sides, in the same workspaces and under the same ceilings, and records
+the result as `confirmation` in the comparison document (routing_compare.with_confirmation).
+
 A skill absent at the merge base is new: control is skipped, the scenario minimums are
 enforced as scenario validation, and the candidate is judged on absolute thresholds.
 
 Exit codes are tabulated in docs/testing.md; scenario validation failures (including the new-skill
 minimums) and unexpected exceptions exit 2 before any provider call. For a modified skill the
-state is the candidate's own; deltas are reported, not gated.
+state is the candidate's own; deltas are reported here and judged regression-only by routing_gate.py.
 """
 from __future__ import annotations
 
@@ -24,7 +28,7 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import check_repo
 import routing_agents as agents_lib
@@ -64,23 +68,45 @@ def evaluate_variant(
     run: runner.PromptfooRunner | None = None,
     routing_dir: Path | None = None,
     ledger: ceilings.Ledger | None = None,
+    confirm: list[str] | None = None,
 ) -> dict[str, Any]:
     """Materialize one variant's workspace for `agent` and reduce its routing run.
 
     The workspace root is handed to the Promptfoo configs through ROUTING_WORKSPACE_ROOT;
-    nothing else differs between variants. `ref` None means the working tree.
+    nothing else differs between variants. `ref` None means the working tree. `confirm`
+    re-runs only those scenarios at CONFIRM_TRIALS trials in the already prepared workspace
+    (reports under `<variant>-confirm/`, same ledger so ceilings still apply).
     """
     routing_dir = routing_dir or ROUTING_DIR
     root = routing_dir / variant
-    if not validation_errors:
+    if not validation_errors and confirm is None:
         workspaces.prepare_workspace(root / agent, agent, ref)
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
-    run = run or (lambda h, s, report, pattern: runner.run_promptfoo(
-        h, s, report, pattern, env={"ROUTING_WORKSPACE_ROOT": str(root)}, ledger=ledger
-    ))
+    env = {"ROUTING_WORKSPACE_ROOT": str(root)}
+    if confirm is not None:
+        env.update({"ROUTING_FORCE_TRIALS": str(compare.CONFIRM_TRIALS), "ROUTING_MAX_TRIALS": ""})
+    run = run or (lambda h, s, report, pattern: runner.run_promptfoo(h, s, report, pattern, env=env, ledger=ledger))
     return runner.evaluate_agent(
-        agent, skill, run, reports_dir=routing_dir / "reports" / variant, validation_errors=validation_errors, ledger=ledger
+        agent, skill, run,
+        reports_dir=routing_dir / "reports" / (f"{variant}-confirm" if confirm is not None else variant),
+        validation_errors=validation_errors, ledger=ledger,
+        pattern=runner.scenario_pattern(confirm) if confirm else None,
     )
+
+
+def confirm_regressions(
+    doc: dict[str, Any], agent: str, skill: str, base: str, ledger: ceilings.Ledger,
+    evaluate: Callable[..., dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """Re-run this comparison's regressed scenarios on candidate and control; no regressions, no spend."""
+    evaluate = evaluate or evaluate_variant
+    ids = compare.regressions(doc) if doc["complete"] and doc["mode"] == "comparison" else []
+    if not ids:
+        return doc
+    print(f"{agent}: confirming {len(ids)} regressed scenario(s) at {compare.CONFIRM_TRIALS} trials: {', '.join(ids)}")
+    candidate = evaluate("candidate", agent, skill, None, [], ledger=ledger, confirm=ids)
+    control = evaluate("control", agent, skill, base, [], ledger=ledger, confirm=ids)
+    return compare.with_confirmation(doc, candidate, control)
 
 
 def usage_note(doc: dict[str, Any]) -> str:
@@ -91,7 +117,15 @@ def usage_note(doc: dict[str, Any]) -> str:
 
 
 def describe(doc: dict[str, Any]) -> str:
-    return _describe(doc) + usage_note(doc)
+    return _describe(doc) + confirmation_note(doc) + usage_note(doc)
+
+
+def confirmation_note(doc: dict[str, Any]) -> str:
+    conf = doc.get("confirmation")
+    if not conf:
+        return ""
+    confirmed = [r["id"] for r in conf["scenarios"] if r["confirmed"]]
+    return f" confirmation[{conf['trials']} trials: {conf['state']}; confirmed={','.join(confirmed) or '-'}]"
 
 
 def _describe(doc: dict[str, Any]) -> str:
@@ -120,6 +154,7 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("skill")
     parser.add_argument("--base", default="origin/main")
+    parser.add_argument("--confirm", action="store_true", help="re-run regressed scenarios at 3 trials on both sides")
     parser.add_argument("--agent", action="append", help="claude or codex; repeat or comma-separate (default: both)")
     args = parser.parse_args(argv[1:])
     skill = args.skill
@@ -172,6 +207,8 @@ def main(argv: list[str]) -> int:
         else:
             control = evaluate_variant("control", agent, skill, base, validation_errors, ledger=ledger)
             doc = compare.compare_agent(candidate, control)
+            if args.confirm:
+                doc = confirm_regressions(doc, agent, skill, base, ledger)
         docs.append(settings_lib.annotate(doc, settings))
         doc.update(agents_lib.scope(agents))
 

@@ -353,6 +353,8 @@ class DriverPolicyTests(ThrowawayRepo):
 
         def stub(agent, name, report, pattern, env=None, ledger=None):
             calls.append(f"{agent}:{Path(env['ROUTING_WORKSPACE_ROOT']).name}")
+            if getattr(fake, "wants_context", False):
+                return fake({"agent": agent, "variant": Path(env["ROUTING_WORKSPACE_ROOT"]).name, "pattern": pattern, "env": env})
             return fake()
 
         patches = [
@@ -428,6 +430,58 @@ class DriverPolicyTests(ThrowawayRepo):
         )
         self.assertEqual(code, 0)
         self.assertIn('"mode": "comparison"', (self.repo / ".tmp/routing/reports/codex-alpha.comparison.json").read_text())
+
+
+class ConfirmWiringTests(ThrowawayRepo):
+    """--confirm re-runs only regressed scenarios, at 3 trials, on both sides."""
+
+    run_main = DriverPolicyTests.run_main
+    scenario_dir = DriverPolicyTests.scenario_dir
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.runs: list[dict] = []
+        directory = self.scenario_dir(scenario_yaml(skill="alpha"))
+        (directory / "gamma.yaml").rename(directory / "alpha.yaml")
+        self.directory = directory
+
+    def fake(self, candidate_confirm_passes: bool):
+        def run(ctx):
+            self.runs.append(ctx)
+            confirm = ctx["pattern"] is not None
+            candidate = ctx["variant"] == "candidate"
+            # first pass: candidate fails every scenario, control passes; re-run: candidate result is parameterized
+            ok = not candidate or (confirm and candidate_confirm_passes)
+            return "", [fixtures.row(scenario="p-0", trial=t, trials=3, calls=None if ok else [], success=ok) for t in (1, 2, 3)]
+        run.wants_context = True
+        return run
+
+    def test_regression_is_rerun_on_both_sides_at_three_trials(self) -> None:
+        code, calls = self.run_main("alpha", self.directory, self.fake(False), extra=("--confirm", "--agent", "claude"))
+        confirm_runs = [c for c in self.runs if c["pattern"]]
+        self.assertEqual([c["variant"] for c in confirm_runs], ["candidate", "control"])
+        self.assertEqual(confirm_runs[0]["pattern"], "^(?:p-0) \\| ")
+        self.assertTrue(all(c["env"]["ROUTING_FORCE_TRIALS"] == "3" and c["env"]["ROUTING_MAX_TRIALS"] == "" for c in confirm_runs))
+        doc = json.loads((self.repo / ".tmp/routing/reports/claude-alpha.comparison.json").read_text())
+        self.assertEqual(doc["confirmation"]["state"], "routing_fail")
+
+    def test_unreproduced_regression_is_recorded_as_not_confirmed(self) -> None:
+        self.run_main("alpha", self.directory, self.fake(True), extra=("--confirm", "--agent", "claude"))
+        doc = json.loads((self.repo / ".tmp/routing/reports/claude-alpha.comparison.json").read_text())
+        self.assertEqual((doc["confirmation"]["state"], doc["confirmation"]["scenarios"][0]["confirmed"]), ("pass", False))
+
+    def test_no_regression_or_no_flag_means_no_rerun(self) -> None:
+        self.run_main("alpha", self.directory, self.fake(False), extra=("--agent", "claude"))
+        self.assertFalse([c for c in self.runs if c["pattern"]])
+        doc = json.loads((self.repo / ".tmp/routing/reports/claude-alpha.comparison.json").read_text())
+        self.assertNotIn("confirmation", doc)
+
+    def test_scenario_pattern_matches_only_the_named_scenarios(self) -> None:
+        import re
+        pattern = driver.runner.scenario_pattern(["a-1", "b.2"])
+        self.assertTrue(re.search(pattern, "a-1 | claude | trial 1/3 | expect [] forbid []"))
+        self.assertFalse(re.search(pattern, "a-10 | claude | trial 1/3 | expect [] forbid []"))
+        self.assertFalse(re.search(pattern, "bx2 | claude | trial 1/3 | expect [] forbid []"))
 
 
 class ExitCodeTests(unittest.TestCase):

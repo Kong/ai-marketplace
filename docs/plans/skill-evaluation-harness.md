@@ -31,8 +31,9 @@ The routing MVP (issues #11-#20, integration PR #21) is implemented:
 - Candidate vs merge-base comparison for modified skills; absolute thresholds for new skills
   (at least 90% positive recall and 95% near-miss specificity per agent) with scenario minimums
   (5 positive, 5 near-miss, 2 sibling per adjacent skill, up to 5).
-- Advisory PR workflow (`.github/workflows/skill-evals.yml`): path-filtered, diff-selected
-  changed skills plus bounded adjacent skills, never the full catalog.
+- Gating workflow (`.github/workflows/skill-evals.yml`, merge queue only; advisory until an admin
+  requires the check `routing-evals-gate`): diff-selected changed skills plus bounded adjacent
+  skills; manual runs for one skill, changed skills, or the full suite.
 - Tasks: `eval:routing`, `eval:routing:compare`, `eval:routing:config`, `eval:routing:coverage`.
 
 ### Decisions made during implementation
@@ -43,16 +44,38 @@ The routing MVP (issues #11-#20, integration PR #21) is implemented:
   agent is still `infra_error` by default.
 - **Local overrides:** `ROUTING_{CODEX,CLAUDE}_{MODEL,EFFORT}` allow local experiments, are
   recorded as `overridden: true`, and are never used by CI, which always uses the pins.
-- **CI and missing keys:** an agent without its API key (always the case for fork PRs) is
-  skipped with a warning instead of becoming `infra_error`. A partial result is accepted only
-  when `agents_run` is exactly the agents that had keys; any other partial result fails.
-- **Adjacent skills:** run candidate-only with one trial in PRs (not compared with control).
+- **CI and missing keys:** an agent without its API key is skipped with a warning instead of
+  becoming `infra_error`. A partial result is accepted only when `agents_run` is exactly the
+  requested agents that had keys; any other partial result fails.
+- **Adjacent skills:** compared with control (regression-only), one trial each at first.
 - **Exit codes:** 0 pass, 1 `routing_fail`, 2 usage/validation/harness error, 3 `infra_error`,
   so a crash can never look like a routing regression (table in docs/testing.md).
 - **Evidence and storage:** raw Promptfoo JSON is the diagnostic transcript, uploaded as a CI
   artifact; credentials, reports, and score baselines are never committed.
-- **Advisory by default:** evals are not required for merge; deterministic validation stays in
-  `mise run ci`.
+- **Deterministic validation** stays in `mise run ci`; routing evals are model-backed and gate
+  only through the merge queue (below).
+
+### Gating decisions
+
+Rules and workflow are documented in [docs/testing.md](../testing.md#merge-gate-workflow); the
+decisions behind them:
+
+- **Where:** pull request pushes only validate and preview (no spend); the merge queue
+  (`merge_group`) runs the relevant evals once and `routing-evals-gate` blocks on failure. The full
+  suite is manual only, behind an approval environment, and never part of the gate. The repo does
+  not enable the gate; an admin makes `routing-evals-gate` required later.
+- **Pass criteria:** modified and adjacent skills are regression-only per agent (a scenario that
+  passes on control and fails on candidate); new skills use the absolute thresholds plus scenario
+  minimums. Absolute scores are not gated for existing skills because flake rates are unmeasured.
+- **Confirmation:** a regression fails only if a 3-trial re-run of just those scenarios, on both
+  candidate and control, reproduces it (cost-bounded by the same ceilings).
+- **Fail closed on infrastructure:** a persistent `infra_error` for an agent that should have run
+  blocks (`blocked_infra`); a re-run or admin override resolves it.
+- **Keys:** a missing key warns while any agent runs; no runnable agent fails the gate in the
+  queue and manual runs.
+- **Approvals** on both environments (`skill-evals` for queue and manual changed/skill runs,
+  `skill-evals-full` for the full suite), so no run starts, and no secret is exposed, without a
+  reviewer from `skill-eval-maintainers`.
 
 ## Why this fits this repository
 
@@ -101,10 +124,11 @@ agent's real skill-selection path. It does not claim routed skills improve task 
 
 ## Roadmap
 
-1. **Calibrate and promote.** Collect at least 20 representative advisory runs, then make
-   new-skill routing a required check, then modified-skill comparisons once measured flake rates
-   are acceptable. Deterministic scenario-schema and harness failures may block immediately.
-   Calibrate thresholds from observed variance first.
+1. **Enable and calibrate the gate.** The workflow is built; an admin enables it with the checklist
+   in docs/testing.md, starting the merge queue in evaluate mode. Collect at least 20 queue runs
+   and review flake rate, confirmation-rerun frequency, `blocked_infra` incidents, and spend
+   before treating the gate as final; adjust adjacent-skill trials and thresholds from observed
+   variance.
 2. **Corpus growth.** Cover more skills (see `mise run eval:routing:coverage`); every escaped
    skill failure becomes a minimal scenario before its fix lands. Add robustness variants
    (concise vs conversational wording, product term implied, explicit vs inferred toolchain,
