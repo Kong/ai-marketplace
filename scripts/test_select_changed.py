@@ -24,6 +24,10 @@ class SelectionTests(unittest.TestCase):
         self.addCleanup(temp.cleanup)
         self.repo = Path(temp.name)
         self.git("init", "-q", "-b", "main")
+        # `git commit` can start a detached `gc --auto` that keeps writing under .git/objects while the
+        # temporary directory is removed ("Directory not empty" at cleanup, intermittent in CI).
+        self.git("config", "gc.auto", "0")
+        self.git("config", "maintenance.auto", "false")
         self.write("README.md", "hi")
         self.write_skill("router", "Route ambiguous requests", category="routing")
         self.write_skill("alpha", "Diagnose gateway latency spikes", body="Use `beta` for fixes. Use `ghost-skill` too.")
