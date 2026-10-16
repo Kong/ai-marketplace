@@ -34,7 +34,9 @@ from pathlib import Path
 from typing import Any, Callable
 
 import check_repo
+import prepare_routing_workspace as workspaces
 import routing_agents as agents_lib
+import routing_aliases as aliasing
 import routing_ceilings as ceilings
 import routing_results as results
 import routing_settings as settings_lib
@@ -75,9 +77,12 @@ def run_promptfoo(
         command += ["--filter-pattern", pattern]
     else:
         command += [str(report.with_suffix(".html")), str(report.with_suffix(".junit.xml"))]
+    merged = {**os.environ, **(env or {})}
+    # Always explicit, so the Promptfoo configs can refuse a workspace built with the other setting.
+    merged[aliasing.ENV_VAR] = "1" if aliasing.enabled(merged) else "0"
     # Own process group so a timeout also stops the agent CLIs Promptfoo spawned.
     proc = subprocess.Popen(
-        command, cwd=check_repo.REPO_ROOT, env={**os.environ, **(env or {}), "ROUTING_SKILL": skill},
+        command, cwd=check_repo.REPO_ROOT, env={**merged, "ROUTING_SKILL": skill},
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, start_new_session=True,
     )
     try:
@@ -112,16 +117,26 @@ def evaluate_agent(
     validation_errors: list[str] | None = None,
     ledger: ceilings.Ledger | None = None,
     pattern: str | None = None,
+    workspace: workspaces.Workspace | None = None,
 ) -> dict[str, Any]:
     """Run, retry once on infrastructure error, and reduce one agent.
 
-    `pattern` (see `scenario_pattern`) limits every launch to some scenarios.
+    `pattern` (see `scenario_pattern`) limits every launch to some scenarios. `workspace` is the built
+    workspace the agent ran in: its aliases map result names back to real skill names, and the result
+    records `aliased` and the workspace `fingerprint`.
 
     Ceilings are checked before every Promptfoo launch and after the last run. A breach
     stops the agent (no retry) as infra_error; trials already judged stay in the result.
     """
+    aliases = workspace.aliases if workspace else None
+
+    def stamp(doc: dict[str, Any]) -> dict[str, Any]:
+        doc["aliased"] = aliases is not None
+        doc["fingerprint"] = workspace.fingerprint if workspace else None
+        return doc
+
     if validation_errors:
-        return results.agent_failure(agent, skill, results.SCENARIO_VALIDATION, "; ".join(validation_errors))
+        return stamp(results.agent_failure(agent, skill, results.SCENARIO_VALIDATION, "; ".join(validation_errors)))
 
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     runner = runner or functools.partial(run_promptfoo, ledger=ledger)
@@ -145,7 +160,7 @@ def evaluate_agent(
             output, rows = launch(retry_report, pattern)
             if rows is None:
                 print(output)
-                return results.agent_failure(agent, skill, results.PROVIDER, _last_line(output) or "no Promptfoo report", retries=1)
+                return stamp(results.agent_failure(agent, skill, results.PROVIDER, _last_line(output) or "no Promptfoo report", retries=1))
             attempts = [[], rows]
         else:
             attempts = [rows]
@@ -159,10 +174,10 @@ def evaluate_agent(
         breaches = [exc.breach]
 
     if not attempts:
-        return results.agent_failure(
+        return stamp(results.agent_failure(
             agent, skill, results.CEILING, ceilings.describe(breaches[0]), retries=retries, breaches=breaches
-        )
-    return results.reduce_agent(agent, skill, attempts, breaches)
+        ))
+    return stamp(results.reduce_agent(agent, skill, attempts, breaches, aliases))
 
 
 def _last_line(text: str) -> str:
@@ -177,6 +192,7 @@ def summarize(result: dict[str, Any]) -> str:
     usage = f" tokens={use['tokens']} cost=${use['cost_usd']:.4f} latency={use['latency_ms'] / 1000:.1f}s retries={result['retries']}"
     note = f" ({result['reason']})" if result["reason"] else ""
     config = f" {settings_lib.describe(result['settings'])}" if "settings" in result else ""
+    config += f" aliased={str(result.get('aliased', False)).lower()} fingerprint={result.get('fingerprint') or '-'}"
     return f"{result['agent']}: {result['state']}{'' if result['complete'] else ' [incomplete]'}{config} trials[{detail}] kinds={kinds}{usage}{note}"
 
 
@@ -214,6 +230,7 @@ def main(argv: list[str]) -> int:
         print(f"WARNING: partial run, {', '.join(agents)} only; not a both-agent result", file=sys.stderr)
     try:
         settings = settings_lib.load()  # fail fast on invalid ROUTING_*_MODEL / _EFFORT
+        aliased = aliasing.enabled()  # and on an invalid ROUTING_ALIAS_SKILLS
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return HARNESS_ERROR
@@ -232,7 +249,17 @@ def main(argv: list[str]) -> int:
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return HARNESS_ERROR
-    outcomes = [evaluate_agent(agent, skill, ledger=ledger) for agent in agents]
+    # The workspaces were built by `prepare_routing_workspace.py`; refuse one that is stale or built with
+    # the other alias setting before any provider call.
+    built: dict[str, workspaces.Workspace] = {}
+    for agent in agents:
+        try:
+            built[agent] = workspaces.verify_workspace(workspaces.TMP_ROOT / "routing" / agent, agent, aliased=aliased)
+        except (workspaces.WorkspaceIntegrityError, OSError, ValueError) as exc:
+            print(f"ERROR: workspace_integrity: {exc}", file=sys.stderr)
+            return HARNESS_ERROR
+        print(f"{agent}: workspace aliased={str(aliased).lower()} fingerprint={built[agent].fingerprint}")
+    outcomes = [evaluate_agent(agent, skill, ledger=ledger, workspace=built[agent]) for agent in agents]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:
         settings_lib.annotate(outcome, settings).update(agents_lib.scope(agents))

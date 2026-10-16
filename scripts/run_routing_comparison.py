@@ -37,11 +37,12 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 import check_repo
 import routing_agents as agents_lib
 import prepare_routing_workspace as workspaces
+import routing_aliases as aliasing
 import routing_ceilings as ceilings
 import routing_compare as compare
 import routing_results as results
@@ -84,6 +85,7 @@ def evaluate_variant(
     confirm_trials: int | None = compare.CONFIRM_TRIALS,
     min_trials: int | None = None,
     prepare: bool | None = None,
+    description_overrides: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Materialize one variant's workspace for `agent` and reduce its routing run.
 
@@ -95,12 +97,19 @@ def evaluate_variant(
     CONFIRM_TRIALS, so a `trials: 1` sibling is never confirmed by one flaky trial). `scenario_ids` selects scenarios across files
     (ROUTING_SCENARIO_IDS); `force_trials` forces the trial count of a first pass. `prepare`
     defaults to building the workspace unless this is a confirmation; the gate builds the control's
-    workspace at its first and only use.
+    workspace at its first and only use. A built or reused workspace is always verified against its
+    source (`WorkspaceIntegrityError`, exit 2 in the scripts) and its alias map and fingerprint are recorded
+    in the result. `description_overrides` is for the canary only.
     """
     routing_dir = routing_dir or ROUTING_DIR
     root = routing_dir / variant
-    if not validation_errors and (confirm is None if prepare is None else prepare):
-        workspaces.prepare_workspace(root / agent, agent, ref)
+    workspace = None
+    if not validation_errors:
+        if confirm is None if prepare is None else prepare:
+            workspace = workspaces.prepare_workspace(root / agent, agent, ref, description_overrides=description_overrides)
+        else:
+            workspace = workspaces.verify_workspace(root / agent, agent, ref, description_overrides=description_overrides)
+        print(f"{agent} {variant}: workspace aliased={str(workspace.aliases is not None).lower()} fingerprint={workspace.fingerprint}")
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     env = {"ROUTING_WORKSPACE_ROOT": str(root)}
     if scenario_ids:
@@ -117,7 +126,7 @@ def evaluate_variant(
         agent, skill, run,
         reports_dir=routing_dir / "reports" / (f"{variant}-confirm" if confirm is not None else variant),
         validation_errors=validation_errors, ledger=ledger,
-        pattern=runner.scenario_pattern(confirm) if confirm else None,
+        pattern=runner.scenario_pattern(confirm) if confirm else None, workspace=workspace,
     )
 
 
@@ -184,6 +193,7 @@ def confirmation_note(doc: dict[str, Any]) -> str:
 
 def _describe(doc: dict[str, Any]) -> str:
     config = f" [{settings_lib.describe(doc['settings'])}]" if "settings" in doc else ""
+    config += f" aliased={str(doc.get('aliased', False)).lower()}"
     return _describe_state(doc).replace(":", f"{config}:", 1)
 
 
@@ -214,6 +224,28 @@ def _describe_state(doc: dict[str, Any]) -> str:
     )
 
 
+def run_agent(
+    agent: str, skill: str, base: str, args: argparse.Namespace, is_new: bool, scenario_ids: list[str],
+    validation_errors: list[str], ledger: ceilings.Ledger, tags: dict[str, list[str]],
+    settings: dict[str, dict[str, Any]], agents: tuple[str, ...],
+) -> dict[str, Any]:
+    """One agent's comparison document: gate (lazy control), new skill (absolute), or full comparison."""
+    if args.gate and not is_new:
+        doc = gate_agent(agent, skill, base, scenario_ids, ledger)
+    else:
+        candidate = evaluate_variant("candidate", agent, skill, None, validation_errors, ledger=ledger)
+        if is_new:
+            doc = compare.evaluate_new_skill(candidate, tags)
+        else:
+            control = evaluate_variant("control", agent, skill, base, validation_errors, ledger=ledger)
+            doc = compare.compare_agent(candidate, control)
+            if args.confirm:
+                doc = confirm_regressions(doc, agent, skill, base, ledger)
+    settings_lib.annotate(doc, settings)
+    doc.update(agents_lib.scope(agents))
+    return doc
+
+
 @runner.guarded
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -241,6 +273,7 @@ def main(argv: list[str]) -> int:
     try:
         # Candidate and control inherit the same environment, so both use these effective settings.
         settings = settings_lib.load()
+        aliasing.enabled()  # fail fast on an invalid ROUTING_ALIAS_SKILLS
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return runner.HARNESS_ERROR
@@ -277,23 +310,13 @@ def main(argv: list[str]) -> int:
         return runner.HARNESS_ERROR
     tags = {s["id"]: s.get("tags") or [] for s in scenarios.target_scenarios(scenarios.SCENARIOS_DIR, skill)}
     print(f"{skill}: {'new skill (no control)' if is_new else 'modified'}; merge base {base[:12]}")
-    docs = []
-    for agent in agents:
-        if args.gate and not is_new:
-            doc = gate_agent(agent, skill, base, scenario_ids, ledger)
-            docs.append(settings_lib.annotate(doc, settings))
-            doc.update(agents_lib.scope(agents))
-            continue
-        candidate = evaluate_variant("candidate", agent, skill, None, validation_errors, ledger=ledger)
-        if is_new:
-            doc = compare.evaluate_new_skill(candidate, tags)
-        else:
-            control = evaluate_variant("control", agent, skill, base, validation_errors, ledger=ledger)
-            doc = compare.compare_agent(candidate, control)
-            if args.confirm:
-                doc = confirm_regressions(doc, agent, skill, base, ledger)
-        docs.append(settings_lib.annotate(doc, settings))
-        doc.update(agents_lib.scope(agents))
+    docs: list[dict[str, Any]] = []
+    try:
+        for agent in agents:
+            docs.append(run_agent(agent, skill, base, args, is_new, scenario_ids, validation_errors, ledger, tags, settings, agents))
+    except workspaces.WorkspaceIntegrityError as exc:
+        print(f"ERROR: workspace_integrity: {exc}", file=sys.stderr)
+        return runner.HARNESS_ERROR
 
     runner.REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for doc in docs:

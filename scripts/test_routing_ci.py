@@ -78,8 +78,8 @@ class SelectTests(unittest.TestCase):
     def test_preview_prints_cost_assumptions_and_range(self) -> None:
         self.run_select(EVENT_NAME="merge_group", BASE_SHA="b" * 40, HEAD_SHA=HEAD)
         text = self.summary.read_text()
-        for expected in ("Evaluation set: 2 scenario(s).", "| claude | 2 | 14 | $0.08 | $0.56 |", "| codex | 2 | 14 | $0.10-$0.20 | $0.70-$1.40 |",
-                         "rough assumptions, not measurements", "Hard bound:"):
+        for expected in ("Evaluation set: 2 scenario(s).", "| claude | 2 | 14 | $0.13 | $0.91 |", "| codex | 2 | 14 | $0.10-$0.20 | $0.70-$1.40 |",
+                         "rough assumptions", "(measured on CI)", "(unmeasured)", "Hard bound:"):
             self.assertIn(expected, text)
 
     def test_preview_worst_case_confirms_one_trial_siblings_at_three_trials(self) -> None:
@@ -141,7 +141,7 @@ class SelectTests(unittest.TestCase):
         self.assertEqual((code, [e["mode"] for e in self.matrix(out)]), (0, ["snapshot", "snapshot"]))
         text = self.summary.read_text()
         self.assertIn("| a | snapshot | 9 | 27 | 27 |", text)  # own trials, no control, no adaptive pass
-        self.assertIn("| claude | 54 | 54 | $2.16 | $2.16 |", text)
+        self.assertIn("| claude | 54 | 54 | $3.51 | $3.51 |", text)
         self.assertIn("$24.00", text)  # 2 runs x 2 agents x $6 ceiling
         self.assertIn("never part of the merge gate", text)
 
@@ -155,6 +155,29 @@ class SelectTests(unittest.TestCase):
         ):
             with self.subTest(env=env):
                 self.assertEqual(self.run_select(EVENT_NAME="workflow_dispatch", **env)[0], 2)
+
+    def test_dispatch_canary_selects_the_skills_own_positives_only(self) -> None:
+        ids = ["g-p1", "g-p2", "g-p3"]
+        with mock.patch.object(ci.canary, "positive_scenarios", return_value=ids):
+            code, out = self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="canary", SKILL_INPUT="konnect-gateway-triage", ALIAS_INPUT="off")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.matrix(out), [{"skill": "konnect-gateway-triage", "mode": "canary", "scenarios": "g-p1,g-p2,g-p3", "new": False, "count": 3}])
+        self.assertIn("| konnect-gateway-triage | canary | 3 | 3 | 3 |", self.summary.read_text())
+        self.assertFalse(self.gate_select.called)
+
+    def test_dispatch_canary_input_validation(self) -> None:
+        with mock.patch.object(ci.canary, "positive_scenarios", return_value=["g-p1"]):
+            for env in (
+                {"MODE_INPUT": "canary"},  # skill required
+                {"MODE_INPUT": "canary", "SKILL_INPUT": "no-corpus"},  # no scenarios
+                {"MODE_INPUT": "canary", "SKILL_INPUT": "konnect-gateway-triage", "ALIAS_INPUT": "maybe"},
+                {"MODE_INPUT": "changed", "ALIAS_INPUT": "on"},  # forcing aliasing is canary-only
+                {"MODE_INPUT": "skill", "SKILL_INPUT": "konnect-gateway-triage", "ALIAS_INPUT": "off"},
+            ):
+                with self.subTest(env=env):
+                    self.assertEqual(self.run_select(EVENT_NAME="workflow_dispatch", **env)[0], 2)
+            for alias in ("", "default"):  # the dispatch default does not change what other modes measure
+                self.assertEqual(self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="changed", ALIAS_INPUT=alias)[0], 0)
 
     def test_unsupported_event_fails(self) -> None:
         self.assertEqual(self.run_select(EVENT_NAME="push")[0], 2)
@@ -286,6 +309,56 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(self.evaluate("bogus")[0], 2)
         self.assertEqual(self.evaluate(SKILL="Bad Name")[0], 2)
         self.assertEqual(self.evaluate(REQUESTED_AGENTS="gemini")[0], 2)
+
+    def test_aliasing_is_never_read_from_the_ci_environment_and_is_recorded(self) -> None:
+        self.evaluate("gate", ROUTING_ALIAS_SKILLS="0", **{C: "x"})
+        self.assertNotIn("ROUTING_ALIAS_SKILLS", self.calls[-1][1])
+        self.assertIs(self.record()["aliased"], ci.aliasing.DEFAULT_ALIAS_SKILLS)
+        self.assertIn(f"skill names aliased: {'yes' if ci.aliasing.DEFAULT_ALIAS_SKILLS else 'no'}", self.summary.read_text())
+
+    def test_alias_input_is_canary_only_and_forces_the_setting_for_the_child(self) -> None:
+        self.assertEqual(self.evaluate("gate", ALIAS_INPUT="on", **{C: "x"})[0], 2)
+        self.assertEqual(self.evaluate("gate", ALIAS_INPUT="bogus", **{C: "x"})[0], 2)
+        self.assertEqual(self.calls, [])
+        self.write_docs = False
+        for given, forced in (("on", "1"), ("off", "0")):
+            self.evaluate("canary", ALIAS_INPUT=given, **{C: "x"})
+            self.assertEqual(self.calls[-1][1]["ROUTING_ALIAS_SKILLS"], forced)
+            self.assertIs(self.record()["aliased"], forced == "1")
+        self.evaluate("canary", ALIAS_INPUT="default", **{C: "x"})
+        self.assertNotIn("ROUTING_ALIAS_SKILLS", self.calls[-1][1])
+
+    def canary_doc(self, verdict: str, exit_code: int, agents=("claude",)) -> None:
+        doc = {"skill": "alpha", "verdict": verdict, "exit_code": exit_code, "aliased": True, "threshold_percent": 60,
+               "agents": {a: {"verdict": verdict, "positives": 5, "failed": [], "reason": None, "fingerprint": "f"} for a in agents},
+               "usage": {"cost_usd": 0.3, "trials": 5, "tokens": 9}, "agents_run": list(agents), "partial": len(agents) < 2}
+        self.reports.mkdir(parents=True, exist_ok=True)
+        (self.reports / "canary-alpha.canary.json").write_text(json.dumps(doc))
+
+    def test_canary_runs_the_canary_task_and_fails_the_job_unless_detected(self) -> None:
+        self.write_docs = False
+        for rc, verdict, title in ((0, "canary_detected", None), (1, "canary_missed", "canary_missed"), (3, "canary_incomplete", "canary_incomplete")):
+            self.rc = rc
+            self.canary_doc(verdict, rc)
+            code, out = self.evaluate("canary", SCENARIOS="s1,s2", **{C: "x"})
+            self.assertEqual(code, rc)
+            self.assertEqual(self.calls[-1][0], ["mise", "run", "eval:routing:canary", "--", "alpha", "--agent", "claude"])
+            self.assertEqual(self.record()["exit_code"], rc)
+            if title:
+                self.assertIn(f"::error title={title}::", out)
+            self.assertIn(f"canary alpha: {verdict}", self.summary.read_text())
+            self.assertIn("measured cost: $0.3000", self.summary.read_text())
+
+    def test_canary_with_no_agent_key_fails_instead_of_passing_unevaluated(self) -> None:
+        code, _ = self.evaluate("canary", SCENARIOS="s1")
+        self.assertEqual((code, self.calls, self.record()["exit_code"]), (3, [], 3))
+
+    def test_canary_partial_scope_must_match_the_keys(self) -> None:
+        self.write_docs = False
+        self.canary_doc("canary_detected", 0, agents=("claude", "codex"))  # ran codex without a key
+        code, out = self.evaluate("canary", **{C: "x"})
+        self.assertEqual(code, 2)
+        self.assertIn("title=partial", out)
 
     def test_records_feed_the_gate_end_to_end(self) -> None:
         self.evaluate(**{C: "x"})

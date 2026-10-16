@@ -212,6 +212,7 @@ def judge(matrix: list[dict[str, str]], runs: dict[tuple[str, str], tuple[dict[s
     agents_run: set[str] = set()
     agents_skipped: set[str] = set()
     any_agents = False
+    aliased: list[bool] = []
     for entry in matrix:
         skill, mode = entry["skill"], entry["mode"]
         found = runs.get((skill, mode))
@@ -221,6 +222,7 @@ def judge(matrix: list[dict[str, str]], runs: dict[tuple[str, str], tuple[dict[s
             reasons.append(_reason(MISSING_RESULT, skill, detail))
             continue
         record, directory = found
+        aliased.append(bool(record.get("aliased")))
         exit_code = record.get("exit_code")
         agents = list(record.get("agents") or [])
         for item in record.get("skipped") or []:
@@ -264,6 +266,7 @@ def judge(matrix: list[dict[str, str]], runs: dict[tuple[str, str], tuple[dict[s
         "reasons": reasons,
         "agents_run": sorted(agents_run),
         "agents_skipped": sorted(agents_skipped),
+        "aliased": bool(aliased) and all(aliased),
         "skills": rows,
     }
 
@@ -278,6 +281,7 @@ def markdown(doc: dict[str, Any]) -> str:
         ]
         lines.append("")
     lines.append(f"Agents run: {', '.join(doc['agents_run']) or 'none'}; skipped for a missing key: {', '.join(doc['agents_skipped']) or 'none'}")
+    lines.append(f"Skill names aliased: {'yes' if doc.get('aliased') else 'no'}")
     blocking = [r for r in doc["reasons"] if r["code"] not in WARNINGS]
     if blocking:
         lines += ["", "Reasons:"] + [f"- `{r['code']}` {r['skill']}{'/' + r['agent'] if r['agent'] else ''}: {r['detail']}" for r in blocking]

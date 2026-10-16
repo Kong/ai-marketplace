@@ -6,7 +6,7 @@
 // so activation evidence is a successful read of that exact file. The final
 // answer is never evidence (it is not what the skill-used assertion reads).
 const path = require('node:path');
-const { buildTests, SCENARIOS_DIR } = require('./scenarios');
+const { buildTests, loadAliases, SCENARIOS_DIR } = require('./scenarios');
 
 const { resolve, FIXED } = require('./settings');
 
@@ -45,6 +45,7 @@ module.exports = {
   tests: buildTests({
     skill,
     agent: 'codex',
+    aliases: loadAliases(workspace),
     providerLabels: { positive: LABEL, negative: LABEL },
     dir: process.env.ROUTING_SCENARIOS_DIR || SCENARIOS_DIR,
   }),

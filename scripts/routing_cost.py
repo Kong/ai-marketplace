@@ -1,8 +1,8 @@
 """Rough, no-spend trial and cost estimates for a routing eval selection. Offline.
 
-The per-trial prices are planning assumptions, not measurements: one routing trial is a short
-discovery-only agent turn. Change them here only; the preview, the docs and the tests read these
-constants. The hard bound on spend is the per-run cost ceiling (routing_ceilings.py), not this file.
+The per-trial prices are planning assumptions: one routing trial is a short discovery-only agent
+turn. Claude's is measured; Codex's is not. Change them here only; the preview, the docs and the tests
+read these constants. The hard bound on spend is the per-run cost ceiling (routing_ceilings.py), not this file.
 """
 from __future__ import annotations
 
@@ -10,10 +10,13 @@ from typing import Any, Mapping
 
 import routing_compare as compare
 
-CLAUDE_USD_PER_TRIAL = 0.04
+# Measured on CI: $0.058-0.065 per trial. 43 trials (manual run) used 1.07M tokens = $2.49; the 29-trial
+# gate profile used 682K tokens = $1.88. The top of the range is the planning figure.
+CLAUDE_USD_PER_TRIAL = 0.065
+# UNMEASURED: the old planning range, never checked against a live Codex run. Replace it once measured.
 CODEX_USD_PER_TRIAL = (0.05, 0.10)  # (low, high)
 
-GATE, COMPARE, SNAPSHOT = "gate", "compare", "snapshot"
+GATE, COMPARE, SNAPSHOT, CANARY = "gate", "compare", "snapshot", "canary"
 
 
 def usd_range(agent: str) -> tuple[float, float]:
@@ -29,11 +32,14 @@ def entry_trials(entry: Mapping[str, Any], trials_by_id: Mapping[str, int], all_
     compare:              candidate and control at the scenarios' own trials; the confirmation re-run
                           of regressed scenarios is the worst case.
     snapshot:             the skill's own file at its own trials (`all_trials` covers the whole corpus).
+    canary:               the skill's positive scenarios at one trial each, candidate only.
     """
     ids = [i for i in str(entry.get("scenarios") or "").split(",") if i]
     own = sum(trials_by_id.get(i, all_trials.get(i, 1)) for i in ids)
     confirm = sum(max(trials_by_id.get(i, all_trials.get(i, 1)), compare.CONFIRM_TRIALS) for i in ids)
     mode = entry["mode"]
+    if mode == CANARY:
+        return {"scenarios": len(ids), "initial": len(ids), "worst": len(ids)}
     if mode == GATE and not entry.get("new"):
         return {"scenarios": len(ids), "initial": len(ids), "worst": len(ids) + 2 * confirm}
     if mode == COMPARE:
@@ -67,8 +73,8 @@ def _range(pair: tuple[float, float]) -> str:
 
 def assumptions_text() -> str:
     low, high = CODEX_USD_PER_TRIAL
-    return (f"rough assumptions, not measurements: ~${CLAUDE_USD_PER_TRIAL:.2f}/trial Claude, ${low:.2f}-${high:.2f}/trial Codex "
-            "(scripts/routing_cost.py)")
+    return (f"rough assumptions: ~${CLAUDE_USD_PER_TRIAL:.3f}/trial Claude (measured on CI), ${low:.2f}-${high:.2f}/trial Codex "
+            "(unmeasured) (scripts/routing_cost.py)")
 
 
 def lines(plans: list[dict[str, int]], agents: list[str]) -> list[str]:

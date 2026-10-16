@@ -31,6 +31,9 @@ Agent result document (`reduce_agent` / `agent_failure`)
       "settings": {"model": {"value", "source"}, "effort": {"value"|null, "source"}},
                                      # effective agent settings; source is "default" or "override"
       "agents_run": [...], "partial": bool,   # run scripts add these; partial = fewer than all agents ran
+      "aliased": bool,               # skills had opaque aliases in the workspace (routing_aliases.py); every name
+                                     # in this document is the REAL skill name, mapped back from the aliases
+      "fingerprint": str | None,     # hash of every description in the workspace (run scripts add it)
       "overridden": bool,            # any ROUTING_*_MODEL / _EFFORT override was active
                                      # (settings/overridden are added by the run scripts, not reduce_agent)
       "counts": {"pass": n, "routing_fail": n, "infra_error": n},   # final trials
@@ -63,8 +66,9 @@ Agents never offset each other: routing_fail on any agent wins, then infra_error
 from __future__ import annotations
 
 import math
-from typing import Any
+from typing import Any, Mapping
 
+import routing_aliases as aliasing
 import routing_ceilings as ceilings
 
 PASS = "pass"
@@ -124,8 +128,19 @@ def _identity(row: dict[str, Any]) -> tuple[str, int, int, dict[str, Any]]:
     return scenario, int(meta.get("trial") or 1), int(meta.get("trials") or 1), meta
 
 
-def reduce_trial(row: dict[str, Any], agent: str) -> dict[str, Any]:
-    """Classify one Promptfoo result row."""
+def _real_calls(calls: list[dict[str, Any]], aliases: Mapping[str, str] | None) -> list[dict[str, Any]]:
+    if not aliases:
+        return calls
+    return [{**c, "name": aliasing.to_real(c["name"], aliases)} if isinstance(c.get("name"), str) else c for c in calls]
+
+
+def reduce_trial(row: dict[str, Any], agent: str, aliases: Mapping[str, str] | None = None) -> dict[str, Any]:
+    """Classify one Promptfoo result row.
+
+    `aliases` (real -> alias) is the workspace's map when skills were aliased: the row carries
+    aliases, the returned trial carries real names (expected, forbidden, observed, call names and the
+    quoted reason). The raw Promptfoo JSON is never rewritten.
+    """
     scenario, trial, trials, meta = _identity(row)
     response = row.get("response")
     calls: list[dict[str, Any]] = []
@@ -143,8 +158,9 @@ def reduce_trial(row: dict[str, Any], agent: str) -> dict[str, Any]:
     else:
         state, kind = ROUTING_FAIL, INVOCATION
         reason = _clip(grading.get("reason")) or "routing assertion failed"
+    reason = aliasing.to_real(reason, aliases) if reason else reason
 
-    output = response.get("output") if isinstance(response, dict) else None
+    output = _clip(response.get("output") if isinstance(response, dict) else None)
     usage = (response or {}).get("tokenUsage") if isinstance(response, dict) else None
     return {
         "scenario": scenario,
@@ -153,14 +169,14 @@ def reduce_trial(row: dict[str, Any], agent: str) -> dict[str, Any]:
         "state": state,
         "kind": kind,
         "reason": reason,
-        "expected": list(meta.get("expected") or []),
-        "forbidden": list(meta.get("forbidden") or []),
-        "observed": [c["name"] for c in calls if isinstance(c.get("name"), str) and c.get("is_error") is not True],
+        "expected": [aliasing.to_real(n, aliases) for n in meta.get("expected") or []],
+        "forbidden": [aliasing.to_real(n, aliases) for n in meta.get("forbidden") or []],
+        "observed": [c["name"] for c in _real_calls(calls, aliases) if isinstance(c.get("name"), str) and c.get("is_error") is not True],
         "attempts": 1,
         "evidence": {
-            "skill_calls": calls,
+            "skill_calls": _real_calls(calls, aliases),
             "error": _clip(error),
-            "output": _clip(output),
+            "output": aliasing.to_real(output, aliases) if output else None,
             "latency_ms": row.get("latencyMs"),
             "tokens": usage.get("total") if isinstance(usage, dict) else None,
             "cost": row.get("cost"),
@@ -175,7 +191,8 @@ def _scenario_state(passes: int, required: int, trials: list[dict[str, Any]]) ->
 
 
 def reduce_agent(
-    agent: str, skill: str, attempts: list[list[dict[str, Any]]], breaches: list[dict[str, Any]] | None = None
+    agent: str, skill: str, attempts: list[list[dict[str, Any]]], breaches: list[dict[str, Any]] | None = None,
+    aliases: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     """Reduce Promptfoo rows to an agent result.
 
@@ -188,7 +205,7 @@ def reduce_agent(
     merged: dict[tuple[str, int], dict[str, Any]] = {}
     for number, rows in enumerate(attempts, start=1):
         for row in rows:
-            trial = reduce_trial(row, agent)
+            trial = reduce_trial(row, agent, aliases)
             trial["attempts"] = number
             merged[(trial["scenario"], trial["trial"])] = trial
 
@@ -218,6 +235,7 @@ def reduce_agent(
         "state": state,
         "complete": state != INFRA_ERROR,
         "retries": max(len(attempts) - 1, 0),
+        "aliased": aliases is not None,
         "failure_kinds": kinds if scenarios else [PROVIDER],
         "counts": {s: sum(t["state"] == s for t in all_trials) for s in (PASS, ROUTING_FAIL, INFRA_ERROR)},
         "usage": ceilings.usage([row for rows in attempts for row in rows]),
@@ -239,6 +257,7 @@ def agent_failure(
         "state": INFRA_ERROR,
         "complete": False,
         "retries": retries,
+        "aliased": False,
         "failure_kinds": [kind],
         "counts": {PASS: 0, ROUTING_FAIL: 0, INFRA_ERROR: 0},
         "usage": ceilings.usage([]),
@@ -270,4 +289,5 @@ def combine_agents(results: list[dict[str, Any]], required: tuple[str, ...] = AG
         "breaches": [b for r in results for b in r.get("breaches") or []],
         "settings": {r["agent"]: r["settings"] for r in results if "settings" in r},
         "overridden": any(r.get("overridden") for r in results),
+        "aliased": bool(results) and all(r.get("aliased") for r in results),
     }

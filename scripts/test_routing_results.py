@@ -185,6 +185,21 @@ class RetryTests(unittest.TestCase):
         self.assertEqual((h["state"], h["failure_kinds"], h["retries"]), (r.INFRA_ERROR, [r.SCENARIO_VALIDATION], 0))
         self.assertEqual(self.calls, [])
 
+    def test_aliased_workspace_maps_names_back_and_records_aliased_and_fingerprint_on_every_outcome(self) -> None:
+        import prepare_routing_workspace as prep
+
+        ws = prep.Workspace(["alpha"], {"alpha": "s-aaaaaa"}, "abc123def456")
+        ok = run.evaluate_agent("codex", "alpha", self.runner([row(expected=("s-aaaaaa",), calls=["s-aaaaaa"])]), self.dir, workspace=ws)
+        self.assertEqual((ok["aliased"], ok["fingerprint"]), (True, "abc123def456"))
+        self.assertEqual(ok["scenarios"][0]["trials"][0]["observed"], ["alpha"])
+        for failure in (
+            run.evaluate_agent("codex", "alpha", self.runner(None, None), self.dir, workspace=ws),
+            run.evaluate_agent("codex", "alpha", self.runner(), self.dir, validation_errors=["x"], workspace=ws),
+        ):
+            self.assertEqual((failure["aliased"], failure["fingerprint"]), (True, "abc123def456"))
+        plain = run.evaluate_agent("codex", "alpha", self.runner([row()]), self.dir)
+        self.assertEqual((plain["aliased"], plain["fingerprint"]), (False, None))
+
     def test_retry_pattern_escapes_regex_metacharacters(self) -> None:
         desc = "s1 | codex | trial 1/3 | expect [a] forbid [b.c]"
         self.assertTrue(re.search(run.retry_pattern([desc]), desc))

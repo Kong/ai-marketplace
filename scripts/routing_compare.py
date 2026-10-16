@@ -15,6 +15,8 @@ Comparison document (`compare_agent`, modified skill)
       "failure_kinds": [...], "reason": str|None,   # union / first of both sides' infra failures
       "usage": {"trials", "tokens", "cost_usd", "latency_ms"},   # candidate + control, incl. retries
       "settings", "overridden",             # effective model/effort for both sides (same for candidate and control)
+      "aliased": bool,                      # opaque skill aliases in both workspaces (names below are real names)
+      "fingerprints": {"candidate": str|None, "control": str|None},   # description hash of each workspace
       "usage_by_side": {"candidate": usage, "control": usage},
       "breaches": [...],                    # ceilings reached on either side; non-empty => infra_error
       "aggregate": {"candidate": side, "control": side, "delta": float|None},
@@ -40,7 +42,8 @@ Lazy comparison document (`lazy_compare`, the merge gate's modified-skill path; 
       "state",                              # candidate's first-pass state; infra_error if incomplete or a ceiling breach
       "complete": bool, "candidate_state", "failure_kinds": [...], "reason": str|None,
       "usage", "usage_by_phase": {"initial": usage, "confirmation": usage}, "breaches": [...],
-      "settings", "overridden",
+      "settings", "overridden", "aliased",
+      "fingerprints": {"candidate": str|None, "control": str|None},   # control only when it ran
       "failed": [ids],                      # failed the first pass
       "scenarios": [{"id", "candidate": side|None}],        # first-pass sides
       "confirmation": None | {"state": pass|routing_fail|infra_error, "complete": bool, "reason": str|None,
@@ -57,6 +60,7 @@ New-skill document (`evaluate_new_skill`, no control exists)
       "failure_kinds": [...], "reason": str|None,   # from the agent result, e.g. scenario_validation
       "usage": usage, "breaches": [...],            # from the agent result
       "settings", "overridden",                     # effective model/effort, as above
+      "aliased", "fingerprint",                     # as in the agent result
       "expectations": {
         "positive_recall": check, "near_miss_specificity": check
       },
@@ -115,6 +119,8 @@ def compare_agent(candidate: dict[str, Any], control: dict[str, Any]) -> dict[st
         "agent": candidate["agent"],
         "skill": candidate["skill"],
         "mode": "comparison",
+        "aliased": bool(candidate.get("aliased")),
+        "fingerprints": {"candidate": candidate.get("fingerprint"), "control": control.get("fingerprint")},
         "state": results.INFRA_ERROR if breaches else candidate["state"],
         "complete": candidate["complete"] and control["complete"],
         "candidate_state": candidate["state"],
@@ -251,6 +257,11 @@ def lazy_compare(
         "agent": initial["agent"],
         "skill": initial["skill"],
         "mode": LAZY,
+        "aliased": bool(initial.get("aliased")),
+        "fingerprints": {
+            "candidate": initial.get("fingerprint"),
+            "control": confirm_control.get("fingerprint") if confirm_control else None,
+        },
         "state": results.INFRA_ERROR if not complete else initial["state"],
         "complete": complete,
         "candidate_state": initial["state"],
@@ -299,6 +310,8 @@ def evaluate_new_skill(agent_result: dict[str, Any], tags: dict[str, list[str]])
         "skill": agent_result["skill"],
         "mode": "new_skill",
         "control": "skipped",
+        "aliased": bool(agent_result.get("aliased")),
+        "fingerprint": agent_result.get("fingerprint"),
         "state": state,
         "complete": agent_result["complete"],
         "failure_kinds": agent_result["failure_kinds"],
