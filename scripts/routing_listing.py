@@ -1,20 +1,19 @@
 """Skill-listing presets for the Claude routing eval workspace. Offline; no model calls.
 
 Opt-in and experimental, for diagnosis, never the gate. Claude is shown a listing of every skill's
-name and description (https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short). The
-listing has a character budget; when it overflows, descriptions are dropped starting with the least
-used skills and only names reach the model. These presets run the same eval with a different listing,
-to test whether descriptions reach the model at all in this workspace:
+name and description (https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short). These
+presets run the same eval with a different listing, to measure how much routing depends on the
+descriptions (the name-only ablation, docs/testing.md); a raised listing budget was tried and is not the
+cause of name-driven routing:
 
     default   no extra settings: current behaviour
-    wide      raise the budget and the per-description cap so every description is listed in full
     name-only every skill set to "name-only" through `skillOverrides`: names only, no descriptions
 
 A preset is written as `<workspace>/.claude/settings.json` (project settings, read because the Claude
 config keeps `setting_sources: ['project']`). Presets are fixed constants: nothing else is ever
 written, so a dispatch input cannot smuggle in settings such as hooks. Codex has no equivalent.
 
-ROUTING_SKILL_LISTING (default, wide, name-only; unset or empty means default) selects the preset; an
+ROUTING_SKILL_LISTING (default, name-only; unset or empty means default) selects the preset; an
 invalid value is an error (exit 2 in the scripts).
 """
 from __future__ import annotations
@@ -25,16 +24,11 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 DEFAULT = "default"
-WIDE = "wide"
 NAME_ONLY = "name-only"
-PRESETS = (DEFAULT, WIDE, NAME_ONLY)
+PRESETS = (DEFAULT, NAME_ONLY)
 ENV_VAR = "ROUTING_SKILL_LISTING"
 SETTINGS_FILE = Path(".claude/settings.json")
 
-# skillListingBudgetFraction is a fraction of the context window in (0, 1] (documented default 0.01);
-# skillListingMaxDescChars is a positive integer (documented default 1536). Both are far above what
-# the workspace needs, so no description is dropped or cut.
-WIDE_SETTINGS: dict[str, Any] = {"skillListingBudgetFraction": 0.25, "skillListingMaxDescChars": 8192}
 NAME_ONLY_STATE = "name-only"
 
 
@@ -55,13 +49,10 @@ def selected(env: Mapping[str, str] | None = None) -> str:
 def settings_for(preset: str, skill_names: Iterable[str]) -> dict[str, Any] | None:
     """The settings document of `preset` for a workspace holding `skill_names`; None for default.
 
-    `skill_names` are the names as they appear in the workspace (the aliases when aliased), which is
-    what `skillOverrides` matches.
+    `skill_names` are the names as they appear in the workspace, which is what `skillOverrides` matches.
     """
     if preset not in PRESETS:
         raise ValueError(f"unknown skill listing preset {preset!r}; expected one of {', '.join(PRESETS)}")
-    if preset == WIDE:
-        return dict(WIDE_SETTINGS)
     if preset == NAME_ONLY:
         return {"skillOverrides": {name: NAME_ONLY_STATE for name in sorted(skill_names)}}
     return None

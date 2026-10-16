@@ -36,7 +36,6 @@ from typing import Any, Callable
 import check_repo
 import prepare_routing_workspace as workspaces
 import routing_agents as agents_lib
-import routing_aliases as aliasing
 import routing_ceilings as ceilings
 import routing_listing as listing_presets
 import routing_results as results
@@ -79,8 +78,6 @@ def run_promptfoo(
     else:
         command += [str(report.with_suffix(".html")), str(report.with_suffix(".junit.xml"))]
     merged = {**os.environ, **(env or {})}
-    # Always explicit, so the Promptfoo configs can refuse a workspace built with the other setting.
-    merged[aliasing.ENV_VAR] = "1" if aliasing.enabled(merged) else "0"
     # Own process group so a timeout also stops the agent CLIs Promptfoo spawned.
     proc = subprocess.Popen(
         command, cwd=check_repo.REPO_ROOT, env={**merged, "ROUTING_SKILL": skill},
@@ -123,16 +120,13 @@ def evaluate_agent(
     """Run, retry once on infrastructure error, and reduce one agent.
 
     `pattern` (see `scenario_pattern`) limits every launch to some scenarios. `workspace` is the built
-    workspace the agent ran in: its aliases map result names back to real skill names, and the result
-    records `aliased`, the skill-listing preset (`listing`) and the workspace `fingerprint`.
+    workspace the agent ran in: the result records the skill-listing preset (`listing`) and the workspace
+    `fingerprint`.
 
     Ceilings are checked before every Promptfoo launch and after the last run. A breach
     stops the agent (no retry) as infra_error; trials already judged stay in the result.
     """
-    aliases = workspace.aliases if workspace else None
-
     def stamp(doc: dict[str, Any]) -> dict[str, Any]:
-        doc["aliased"] = aliases is not None
         doc["listing"] = workspace.listing if workspace else listing_presets.DEFAULT
         doc["fingerprint"] = workspace.fingerprint if workspace else None
         return doc
@@ -179,7 +173,7 @@ def evaluate_agent(
         return stamp(results.agent_failure(
             agent, skill, results.CEILING, ceilings.describe(breaches[0]), retries=retries, breaches=breaches
         ))
-    return stamp(results.reduce_agent(agent, skill, attempts, breaches, aliases))
+    return stamp(results.reduce_agent(agent, skill, attempts, breaches))
 
 
 def _last_line(text: str) -> str:
@@ -194,7 +188,7 @@ def summarize(result: dict[str, Any]) -> str:
     usage = f" tokens={use['tokens']} cost=${use['cost_usd']:.4f} latency={use['latency_ms'] / 1000:.1f}s retries={result['retries']}"
     note = f" ({result['reason']})" if result["reason"] else ""
     config = f" {settings_lib.describe(result['settings'])}" if "settings" in result else ""
-    config += f" aliased={str(result.get('aliased', False)).lower()} listing={result.get('listing', listing_presets.DEFAULT)} fingerprint={result.get('fingerprint') or '-'}"
+    config += f" listing={result.get('listing', listing_presets.DEFAULT)} fingerprint={result.get('fingerprint') or '-'}"
     return f"{result['agent']}: {result['state']}{'' if result['complete'] else ' [incomplete]'}{config} trials[{detail}] kinds={kinds}{usage}{note}"
 
 
@@ -232,7 +226,6 @@ def main(argv: list[str]) -> int:
         print(f"WARNING: partial run, {', '.join(agents)} only; not a both-agent result", file=sys.stderr)
     try:
         settings = settings_lib.load()  # fail fast on invalid ROUTING_*_MODEL / _EFFORT
-        aliased = aliasing.enabled()  # and on an invalid ROUTING_ALIAS_SKILLS
         listing_presets.check_agents(listing_presets.selected(), agents)  # and on an invalid or codex-incompatible ROUTING_SKILL_LISTING
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
@@ -252,16 +245,16 @@ def main(argv: list[str]) -> int:
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return HARNESS_ERROR
-    # The workspaces were built by `prepare_routing_workspace.py`; refuse one that is stale or built with
-    # the other alias setting before any provider call.
+    # The workspaces were built by `prepare_routing_workspace.py`; refuse one that is stale before any
+    # provider call.
     built: dict[str, workspaces.Workspace] = {}
     for agent in agents:
         try:
-            built[agent] = workspaces.verify_workspace(workspaces.TMP_ROOT / "routing" / agent, agent, aliased=aliased)
+            built[agent] = workspaces.verify_workspace(workspaces.TMP_ROOT / "routing" / agent, agent)
         except (workspaces.WorkspaceIntegrityError, OSError, ValueError) as exc:
             print(f"ERROR: workspace_integrity: {exc}", file=sys.stderr)
             return HARNESS_ERROR
-        print(f"{agent}: workspace aliased={str(aliased).lower()} listing={built[agent].listing} fingerprint={built[agent].fingerprint}")
+        print(f"{agent}: workspace listing={built[agent].listing} fingerprint={built[agent].fingerprint}")
     outcomes = [evaluate_agent(agent, skill, ledger=ledger, workspace=built[agent]) for agent in agents]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:

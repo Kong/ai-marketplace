@@ -104,11 +104,11 @@ class EntryPointTests(unittest.TestCase):
         self.assertIn("overall: infra_error (partial: claude only)", out.getvalue())
         self.assertFalse((reports / "codex-alpha.result.json").exists())
 
-    def test_invalid_alias_setting_exits_2_for_every_entry_point(self) -> None:
+    def test_invalid_listing_setting_exits_2_for_every_entry_point(self) -> None:
         for entry, argv in ((runner.main, ["x", "alpha"]), (driver.main, ["x", "alpha"]), (printer.main, ["x"])):
-            with mock.patch.dict("os.environ", {**CLEAN, "ROUTING_ALIAS_SKILLS": "maybe"}), redirect_stderr(io.StringIO()) as err, redirect_stdout(io.StringIO()):
+            with mock.patch.dict("os.environ", {**CLEAN, "ROUTING_SKILL_LISTING": "maybe"}), redirect_stderr(io.StringIO()) as err, redirect_stdout(io.StringIO()):
                 self.assertEqual(entry(argv), 2)
-            self.assertIn("ROUTING_ALIAS_SKILLS", err.getvalue())
+            self.assertIn("ROUTING_SKILL_LISTING", err.getvalue())
 
     def test_eval_runner_refuses_a_stale_workspace_before_any_provider_call(self) -> None:
         def boom(*args, **kwargs):
@@ -121,25 +121,6 @@ class EntryPointTests(unittest.TestCase):
              redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()) as err:
             self.assertEqual(runner.main(["x", "alpha", "--agent", "claude"]), 2)
         self.assertIn("workspace_integrity: description differs", err.getvalue())
-
-    def test_promptfoo_always_gets_the_effective_alias_setting(self) -> None:
-        envs = []
-
-        class FakeProc:
-            pid = 1
-
-            def communicate(self, timeout=None):
-                return "", None
-
-        def popen(command, env=None, **kwargs):
-            envs.append(env)
-            return FakeProc()
-
-        with mock.patch.object(runner.subprocess, "Popen", popen):
-            for given, expected in (({}, "1" if runner.aliasing.DEFAULT_ALIAS_SKILLS else "0"), ({"ROUTING_ALIAS_SKILLS": "0"}, "0"), ({"ROUTING_ALIAS_SKILLS": "true"}, "1")):
-                with mock.patch.dict("os.environ", {**CLEAN, "ROUTING_ALIAS_SKILLS": ""}):
-                    runner.run_promptfoo("claude", "alpha", Path("/tmp/rr/x.json"), None, env=given)
-                self.assertEqual(envs[-1]["ROUTING_ALIAS_SKILLS"], expected)
 
     def test_eval_runner_rejects_unknown_agent(self) -> None:
         with redirect_stderr(io.StringIO()):
@@ -162,18 +143,6 @@ class PrinterTests(unittest.TestCase):
         self.assertEqual(data["trials"]["new_skill_trials"], 3)
         self.assertEqual(set(data["ceilings"]["defaults"]), set(printer.ceilings.DEFAULTS))
         self.assertEqual(data["fixed"]["codex"]["sandbox_mode"], "read-only")
-
-    def test_config_shows_the_alias_setting_and_its_source(self) -> None:
-        for value, enabled, source in (("", printer.aliasing.DEFAULT_ALIAS_SKILLS, "default"), ("0", False, "override"), ("true", True, "override")):
-            out = io.StringIO()
-            with mock.patch.dict("os.environ", {**CLEAN, "ROUTING_ALIAS_SKILLS": value}), redirect_stdout(out):
-                self.assertEqual(printer.main(["x", "--json"]), 0)
-            self.assertEqual(json.loads(out.getvalue())["aliasing"]["enabled"], enabled)
-            self.assertEqual(json.loads(out.getvalue())["aliasing"]["source"], source)
-        text = io.StringIO()
-        with mock.patch.dict("os.environ", {**CLEAN, "ROUTING_ALIAS_SKILLS": "0"}), redirect_stdout(text):
-            printer.main(["x"])
-        self.assertIn("Skill aliasing: off (override; ROUTING_ALIAS_SKILLS=1|0|true|false", text.getvalue())
 
     def test_text_output_marks_defaults(self) -> None:
         out = io.StringIO()

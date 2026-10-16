@@ -42,8 +42,6 @@ class ThrowawayRepo(unittest.TestCase):
             mock.patch.object(check_repo, "REPO_ROOT", self.repo),
             mock.patch.object(check_repo, "PLUGINS_DIR", self.repo / "plugins"),
             mock.patch.object(prep, "TMP_ROOT", self.repo / ".tmp"),
-            # These tests read skills by real name; aliasing has its own tests (test_routing_workspace.py).
-            mock.patch.dict("os.environ", {"ROUTING_ALIAS_SKILLS": "0"}),
         ):
             patcher.start()
             self.addCleanup(patcher.stop)
@@ -113,41 +111,34 @@ class WorkspaceIsolationTests(ThrowawayRepo):
             prep.prepare_workspace(Path("/tmp/routing-elsewhere"), "claude", self.base)
 
 
-class AliasedControlTests(ThrowawayRepo):
-    def test_candidate_and_control_share_aliases_and_both_are_verified(self) -> None:
+class ControlWorkspaceTests(ThrowawayRepo):
+    def test_control_has_only_the_skills_of_its_ref_and_both_are_verified(self) -> None:
         self.write_skill("gamma", "candidate-only gamma")  # candidate has one more skill
         root = self.repo / ".tmp" / "routing"
-        with mock.patch.dict("os.environ", {"ROUTING_ALIAS_SKILLS": "1"}):
-            cand = prep.prepare_workspace(root / "candidate" / "claude", "claude")
-            ctrl = prep.prepare_workspace(root / "control" / "claude", "claude", self.base)
-        for name in ("alpha", "beta"):
-            self.assertEqual(cand.aliases[name], ctrl.aliases[name])  # independent of which skills exist
-        self.assertNotIn("gamma", ctrl.aliases)
-        self.assertTrue((root / "control" / "claude" / ".claude/skills" / ctrl.aliases["alpha"] / "SKILL.md").is_file())
-        self.assertFalse((root / "control" / "claude" / ".claude/skills/alpha").exists())
+        cand = prep.prepare_workspace(root / "candidate" / "claude", "claude")
+        ctrl = prep.prepare_workspace(root / "control" / "claude", "claude", self.base)
+        self.assertIn("gamma", cand.names)
+        self.assertNotIn("gamma", ctrl.names)
+        self.assertTrue((root / "control" / "claude" / ".claude/skills/alpha/SKILL.md").is_file())
+        self.assertFalse((root / "control" / "claude" / ".claude/skills/gamma").exists())
 
-    def test_result_documents_record_aliased_fingerprint_and_real_names(self) -> None:
+    def test_result_documents_record_the_fingerprint(self) -> None:
         def fake(agent, skill, report, pattern):
-            alias = json.loads((self.repo / ".tmp/routing/candidate/codex.aliases.json").read_text())["alpha"]
-            return "", [fixtures.row(scenario="s1", trials=1, expected=(alias,), calls=[alias])]
+            return "", [fixtures.row(scenario="s1", trials=1, expected=("alpha",), calls=["alpha"])]
 
-        with mock.patch.dict("os.environ", {"ROUTING_ALIAS_SKILLS": "1"}):
-            doc = driver.evaluate_variant("candidate", "codex", "alpha", None, [], fake, self.repo / ".tmp" / "routing")
-        self.assertTrue(doc["aliased"])
+        doc = driver.evaluate_variant("candidate", "codex", "alpha", None, [], fake, self.repo / ".tmp" / "routing")
         self.assertRegex(doc["fingerprint"], "^[0-9a-f]{12}$")
         trial = doc["scenarios"][0]["trials"][0]
         self.assertEqual((trial["expected"], trial["observed"]), (["alpha"], ["alpha"]))
         lazy = compare.lazy_compare(doc)
-        self.assertTrue(lazy["aliased"])
         self.assertEqual(lazy["fingerprints"], {"candidate": doc["fingerprint"], "control": None})
         both = compare.compare_agent(doc, doc)
-        self.assertTrue(both["aliased"])
         self.assertEqual(both["fingerprints"]["control"], doc["fingerprint"])
 
     def test_a_stale_reused_workspace_is_refused(self) -> None:
         root = self.repo / ".tmp" / "routing"
         driver.evaluate_variant("candidate", "claude", "alpha", None, [], lambda *a: ("", [fixtures.row(scenario="s1", trials=1)]), root)
-        skill_md = root / "candidate/claude/.claude/skills/alpha/SKILL.md"  # aliasing is off in this class by default
+        skill_md = root / "candidate/claude/.claude/skills/alpha/SKILL.md"
         skill_md.write_text(skill_md.read_text().replace("Handle alpha work", "Brand voice"))
         with self.assertRaises(prep.WorkspaceIntegrityError):
             driver.evaluate_variant("candidate", "claude", "alpha", None, [], None, root, confirm=["s1"])
@@ -183,7 +174,7 @@ class VariantWiringTests(ThrowawayRepo):
         with mock.patch.object(driver.runner, "run_promptfoo", fake_promptfoo):
             driver.evaluate_variant("control", "claude", "alpha", self.base, [], None, self.repo / ".tmp" / "routing")
         root = self.repo / ".tmp" / "routing" / "control"
-        self.assertEqual(seen, {"ROUTING_WORKSPACE_ROOT": str(root), "ROUTING_ALIASES_FILE": str(root / "claude.aliases.json")})
+        self.assertEqual(seen, {"ROUTING_WORKSPACE_ROOT": str(root)})
 
     def test_validation_errors_skip_workspace_and_run(self) -> None:
         def boom(*args):

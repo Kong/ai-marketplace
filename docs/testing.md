@@ -133,10 +133,8 @@ mise run eval:routing:compare -- konnect-gateway-triage --agent codex # compare 
 mise run eval:routing:compare -- konnect-gateway-triage --confirm     # full compare, then re-run regressed scenarios at 3 trials
 mise run eval:routing:compare -- konnect-gateway-triage --gate        # lazy control, as the merge gate runs it (add --scenarios id,id to narrow)
 mise run eval:routing:canary -- konnect-gateway-triage --agent claude # eval of the eval: damage one description, see if the harness notices
-mise run eval:routing:canary -- konnect-gateway-triage --alias on     # same, with experimental opaque aliases (suppresses Claude routing; see Skill aliasing)
-ROUTING_ALIAS_SKILLS=1 mise run eval:routing -- skill konnect-gateway-triage  # opt in to experimental opaque skill aliases
-ROUTING_SKILL_LISTING=wide mise run eval:routing -- skill konnect-gateway-triage --agent claude  # experimental skill-listing preset (Claude only)
-mise run eval:routing:config -- --json                               # effective settings (including aliasing and listing), offline
+ROUTING_SKILL_LISTING=name-only mise run eval:routing -- skill konnect-gateway-triage --agent claude  # experimental skill-listing preset (Claude only)
+mise run eval:routing:config -- --json                               # effective settings (including the listing preset), offline
 mise run eval:routing:coverage                                        # which skills have scenarios, offline (--json too)
 ROUTING_CODEX_MODEL=gpt-5.5 ROUTING_CODEX_EFFORT=high mise run eval:routing -- skill konnect-gateway-triage --agent codex
 ```
@@ -246,7 +244,7 @@ lives in `scripts/routing_ci.py` (`select`, `evaluate`) and the verdict in `scri
 | --- | --- | --- | --- |
 | Pull request push | `validate.yml`, plus a no-spend preview in the Select job summary: the selected scenarios, initial and worst-case trials per agent, a rough cost range, and the skills skipped because their routing surface did not change. A new skill below the scenario minimums only warns. | none, no secrets | passes immediately |
 | Merge queue (`merge_group`) | Only skills whose routing surface changed, or whose scenarios were edited, once for the queued commit (diff `base_sha...head_sha`), at scenario level with lazy control (see [Cost and selection](#cost-and-selection)). A queue entry is never cancelled by a later one. | yes, environment `skill-evals` | applies the policy below; fails the queue entry on `fail`, `blocked_infra`, `fail_no_agents` |
-| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), or `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)); optional `agents` (`claude`, `codex`) for `canary` only, `alias` (`default`, `on`, `off`); and `listing` (`default`, `wide`, `name-only`; Claude only, see [Skill listing presets](#skill-listing-presets-experiment)). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
+| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), or `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)); optional `agents` (`claude`, `codex`); and `listing` (`default`, `name-only`; Claude only, see [Skill listing presets](#skill-listing-presets-experiment)). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
 
 The full suite is manual only and never part of the gate. A manual `skill` run on a ref with
 nothing beyond `main` is a snapshot, not a comparison with itself. Environments restrict where
@@ -376,59 +374,38 @@ The repo cannot do these itself; until they are done the workflow is advisory an
 The agentic routing eval does **not** reliably detect a description-only regression on a skill with a
 descriptive name. A descriptive skill name (`konnect-gateway-triage`) lets an agent route without
 reading the description. Live evidence: a merge-queue run passed the gate for a PR that rewrote a skill's
-description into off-domain marketing copy (29 trials, all passing), and the canary with real names on
-`konnect-gateway-triage` was `canary_missed` 0/5 (all five positives still routed by name). Treat a
+description into off-domain marketing copy (29 trials, all passing); the canary with real names on
+`konnect-gateway-triage` was `canary_missed` (all five positives still routed by name); and with every
+description removed (the `name-only` listing preset) all 43 scenarios of that skill still passed. Treat a
 passing gate as evidence about routing behavior with the current names, not as proof the descriptions
 are good; review description changes by hand.
 
-### Skill aliasing (opt-in, experimental)
+Opaque skill aliases were tried to isolate descriptions and removed: with aliases the agent cannot
+connect a request to an opaque name, so Claude answers `NONE` without calling the Skill tool for every
+positive and sibling, even for the undamaged skill. That measures nothing about descriptions. The
+name-only listing preset (below) is the supported way to measure how much routing depends on
+descriptions.
 
-Aliasing was added to isolate description quality: the eval workspaces (both agents, candidate and
-control, built the same way) rename every skill to a deterministic opaque alias, `s-` plus the first six
-hex digits of `sha1(real name)`. **Observed live on Claude, it does not work as a detector: aliasing ON
-suppresses skill selection.** On a 43-trial `konnect-gateway-triage` run, real names passed 43/43; with
-aliases on, every positive and sibling trial answered `NONE` after one turn and no tool call, even for the
-undamaged skill (only the near-misses, which expect no skill, passed). The earlier "aliases on => canary
-detected" reading was a false signal of the same suppression. So aliasing is off by default, opt-in, and
-not a valid description-sensitivity detector as implemented. The alias depends on the name alone, so it is
-stable across runs, between candidate and control, and independent of which skills exist (a collision is
-an error). The skill directory and the frontmatter `name` become the alias, the description is kept, and
-whole-word occurrences of real skill names inside every description are replaced by aliases (longest name
-first). Bodies are not touched. The map (real to alias) is written next to the workspace
-(`<workspace>.aliases.json`, or `ROUTING_ALIASES_FILE`), never inside it: Codex can read files in its
-workspace and must not see the map.
+### `NONE` telemetry (Claude)
 
-- Scenario expectations (`expect`/`forbid`) are mapped to aliases when Promptfoo loads them; Claude's
-  native Skill call name and Codex's `.agents/skills/<alias>/SKILL.md` read are compared with aliases.
-  Result, summary and comparison documents and reports show **real** skill names, mapped back from the
-  aliases; the raw Promptfoo JSON keeps what the agent saw. Every result, summary, comparison and
-  verdict document, and the job summary, records `aliased: true|false`.
-- `ROUTING_ALIAS_SKILLS` (`1`, `0`, `true`, `false`; invalid exits 2) turns it on or off. Unset or
-  empty means the repo default, `DEFAULT_ALIAS_SKILLS` in `scripts/routing_aliases.py` (currently
-  **off**), the only place to flip it. CI passes nothing and uses the default (the variable is scrubbed
-  from the evaluate job; only a canary dispatch input can force it). `mise run eval:routing:config`
-  shows the effective setting.
-- **`NONE` telemetry:** when Claude selects no skill it can omit `metadata.skillCalls` entirely. That is
-  valid "no skill used" only if the output, stripped and case-insensitive, is `NONE` and there is no
-  error: a positive then is `routing_fail`, a near-miss passes. Missing `skillCalls` with any other
-  output stays a `telemetry` infra_error (it could be a lost Skill call). A present empty list is valid.
+When Claude selects no skill it can omit `metadata.skillCalls` entirely. That is valid "no skill used"
+only if the output, stripped and case-insensitive, is `NONE` and there is no error: a positive then is
+`routing_fail`, a near-miss passes. Missing `skillCalls` with any other output stays a `telemetry`
+infra_error (it could be a lost Skill call). A present empty list is valid.
 
 ### Skill listing presets (experiment)
 
-Claude is shown each skill's name and description up front, but the listing has a character budget
-(by default 1% of the context window, each entry capped at 1,536 characters). When it overflows,
-Claude Code keeps every name and drops descriptions, least-invoked skills first, so a skill's
-description may never reach the model ([documented behaviour](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
-These presets exist to test whether that happens in the eval workspace and whether descriptions
-matter for the scenarios (the canary misses a destroyed description with real names). They are for
-diagnosis, not the gate: off by default, Claude only, and never read in `merge_group` or
-`pull_request` runs.
+Claude is shown each skill's name and description up front. The `name-only` preset lists names without
+descriptions, to measure how much routing depends on the descriptions: a scenario that still passes
+under `name-only` says nothing about description quality. A wider listing budget (every description
+listed in full) was tried and changed nothing, so the listing budget is not the cause of name-driven
+routing and that preset was removed. The preset is for diagnosis, not the gate: off by default, Claude
+only, and never read in `merge_group` or `pull_request` runs.
 
 | `ROUTING_SKILL_LISTING` | Written to `<workspace>/.claude/settings.json` |
 | --- | --- |
 | `default` (unset) | nothing: current behaviour |
-| `wide` | `skillListingBudgetFraction: 0.25`, `skillListingMaxDescChars: 8192`: every description listed in full |
-| `name-only` | `skillOverrides` with every workspace skill (the alias when aliased) set to `"name-only"` |
+| `name-only` | `skillOverrides` with every workspace skill set to `"name-only"` |
 
 Presets are constants in `scripts/routing_listing.py`; nothing else can be written, so an input can
 never inject settings such as hooks. `prepare_routing_workspace.py` writes the file (it fails if one
@@ -437,8 +414,8 @@ every result, summary, comparison and canary document records `listing`, as do t
 the workspace fingerprint line and `mise run eval:routing:config`. Run, for example:
 
 ```bash
-ROUTING_SKILL_LISTING=wide mise run eval:routing:canary -- konnect-gateway-triage --agent claude
-gh workflow run skill-evals.yml -f mode=canary -f skill=konnect-gateway-triage -f agents=claude -f listing=wide
+ROUTING_SKILL_LISTING=name-only mise run eval:routing -- skill konnect-gateway-triage --agent claude
+gh workflow run skill-evals.yml -f mode=skill -f skill=konnect-gateway-triage -f agents=claude -f listing=name-only
 ```
 
 The workflow input `listing` applies to modes `skill`, `changed` and `canary` and needs `agents=claude`;
@@ -449,8 +426,7 @@ only in `listing` do not cancel each other.
 
 After building each workspace the harness asserts, for every skill, that the workspace SKILL.md
 frontmatter is derived exactly from the source revision (the working tree, or the merge base for the
-control): the description (with aliases substituted) and the name (the alias, or the real name when
-aliasing is off), the directory set, and the alias map. Any mismatch exits 2 with the list, before any
+control): the description and the name, the directory set, and the skill-listing settings file. Any mismatch exits 2 with the list, before any
 provider call, so a stale or wrong workspace can never silently feed an eval. Workspaces that were
 built earlier are re-checked before they are reused (the standalone eval, the gate's confirmation
 runs). The log and every result document carry a fingerprint, a hash of all descriptions in the
@@ -459,8 +435,8 @@ workspace, so two runs can be shown to have measured the same descriptions.
 ### Canary (eval of the eval)
 
 The canary asks whether the harness can notice a destroyed description at all.
-`mise run eval:routing:canary -- <skill> [--agent ...] [--alias default|on|off]` (or the manual
-workflow with `mode: canary`, `skill`, optional `agents` and `alias`; environment `skill-evals`) builds
+`mise run eval:routing:canary -- <skill> [--agent ...]` (or the manual
+workflow with `mode: canary`, `skill` and optional `agents`; environment `skill-evals`) builds
 a candidate workspace in which only that skill's description is replaced by a fixed off-domain text
 (`CANARY_DESCRIPTION` in `scripts/routing_canary.py`, brand-voice marketing copy of about the same
 length as a real description), runs the skill's own positive scenarios at one trial each, candidate
@@ -475,16 +451,14 @@ only, and decides per agent:
 
 Overall, any missed agent makes it `canary_missed`, then any incomplete agent `canary_incomplete`.
 In CI `canary_missed` and `canary_incomplete` fail the evaluate job; the canary never affects
-`routing-evals-gate`. The result is `canary-<skill>.canary.json` (verdict per agent, `aliased`,
+`routing-evals-gate`. The result is `canary-<skill>.canary.json` (verdict per agent, `listing`,
 the damaged workspace's fingerprint, usage) and the measured cost is printed. A canary costs one trial
 per positive scenario per agent (about $0.33 for five on Claude at the measured price).
 
-Run it after changing models, pins or the harness (including the alias default), and after enabling
-the gate. With the default (real names), `canary_missed` is expected for skills with descriptive names:
-it is the known name-driven-routing limitation, and the output says so. `alias: on` returns
-`canary_detected`, but only because aliasing suppresses Claude's skill selection, so that is not
-evidence the harness sees descriptions. The canary counts an assertion failure (including a `NONE`
-answer) as failed to route, with aliases on or off. Offline tests drive the same code with fake results
+Run it after changing models, pins or the harness, and after enabling the gate. The canary always uses
+real skill names, so `canary_missed` is expected for skills with descriptive names: it is the known
+name-driven-routing limitation, and the output says so. The canary counts an assertion failure
+(including a `NONE` answer) as failed to route. Offline tests drive the same code with fake results
 (`--fake-results`).
 
 ### Model and effort settings

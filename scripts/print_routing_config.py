@@ -3,7 +3,7 @@
     python scripts/print_routing_config.py [--json]
 
 Per agent: effective model and effort, marked default or override (ROUTING_CODEX_MODEL,
-ROUTING_CODEX_EFFORT, ROUTING_CLAUDE_MODEL, ROUTING_CLAUDE_EFFORT), the skill aliasing setting (ROUTING_ALIAS_SKILLS), the skill-listing preset (ROUTING_SKILL_LISTING), plus the fixed
+ROUTING_CODEX_EFFORT, ROUTING_CLAUDE_MODEL, ROUTING_CLAUDE_EFFORT), the skill-listing preset (ROUTING_SKILL_LISTING), plus the fixed
 discovery settings, trial policy, and ceilings (defaults and variable names) read from their owning
 modules. Invalid override values exit 2, as they do for the eval scripts.
 """
@@ -16,7 +16,6 @@ import sys
 from typing import Any
 
 import routing_agents as agents_lib
-import routing_aliases as aliasing
 import routing_ceilings as ceilings
 import routing_listing as listing_presets
 import routing_selection as selection
@@ -45,10 +44,6 @@ def collect() -> dict[str, Any]:
         "overridden": any(doc["overridden"] for doc in loaded["settings"].values()),
         "fixed": loaded["fixed"],
         "trials": trial_policy(),
-        "aliasing": {
-            "enabled": aliasing.enabled(), "variable": aliasing.ENV_VAR, "default": aliasing.DEFAULT_ALIAS_SKILLS,
-            "source": "override" if os.environ.get(aliasing.ENV_VAR, "").strip() else "default",
-        },
         "listing": {
             "preset": listing_presets.selected(), "variable": listing_presets.ENV_VAR, "presets": list(listing_presets.PRESETS),
             "default": listing_presets.DEFAULT,
@@ -67,12 +62,6 @@ def render(config: dict[str, Any]) -> str:
     if config["overridden"]:
         active = [name for name in config["override_variables"] if os.environ.get(name)]
         lines.append(f"  overridden: true ({', '.join(active)} set)")
-    alias = config["aliasing"]
-    lines += [
-        "",
-        f"Skill aliasing: {'on' if alias['enabled'] else 'off'} ({alias['source']}; {alias['variable']}=1|0|true|false, "
-        f"default {'on' if alias['default'] else 'off'}). Opt-in, experimental: on, the agent sees opaque skill names, which suppresses Claude's skill selection (not a valid description-sensitivity detector).",
-    ]
     listing = config["listing"]
     lines += [
         "",

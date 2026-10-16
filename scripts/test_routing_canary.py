@@ -79,55 +79,48 @@ class OfflineRunTests(unittest.TestCase):
         self.addCleanup(shutil.rmtree, self.dir, ignore_errors=True)
         self.ids = canary.positive_scenarios(SKILL)
 
-    def run_canary(self, routed: dict[str, bool], aliased: bool, agents=("claude",)) -> dict:
-        fake = {agent: routed for agent in agents}
-        with mock.patch.dict("os.environ", {"ROUTING_ALIAS_SKILLS": "1" if aliased else "0"}):
-            return canary.run_canary(SKILL, agents, self.dir, fake=fake)
+    def run_canary(self, routed: dict[str, bool], agents=("claude",)) -> dict:
+        return canary.run_canary(SKILL, agents, self.dir, fake={agent: routed for agent in agents})
 
     def test_skill_has_its_own_positive_scenarios(self) -> None:
         self.assertGreaterEqual(len(self.ids), 5)
         self.assertTrue(all("positive" in s["tags"] for s in canary.scenarios.target_scenarios(canary.scenarios.SCENARIOS_DIR, SKILL) if s["id"] in self.ids))
 
-    def test_detected_with_and_without_aliasing(self) -> None:
-        for aliased in (True, False):
-            with self.subTest(aliased=aliased):
-                doc = self.run_canary({sid: False for sid in self.ids}, aliased, ("claude", "codex"))
-                self.assertEqual((doc["verdict"], doc["exit_code"], doc["aliased"], doc["offline"]), (canary.DETECTED, 0, aliased, True))
-                self.assertEqual(doc["positives"], self.ids)
-                self.assertEqual(doc["agents_run"], ["claude", "codex"])
-                self.assertEqual(doc["usage"]["trials"], 2 * len(self.ids))  # one trial per scenario per agent
+    def test_detected_when_every_positive_fails_to_route(self) -> None:
+        doc = self.run_canary({sid: False for sid in self.ids}, ("claude", "codex"))
+        self.assertEqual((doc["verdict"], doc["exit_code"], doc["offline"]), (canary.DETECTED, 0, True))
+        self.assertEqual(doc["positives"], self.ids)
+        self.assertEqual(doc["agents_run"], ["claude", "codex"])
+        self.assertEqual(doc["usage"]["trials"], 2 * len(self.ids))  # one trial per scenario per agent
 
     def test_none_answers_without_skill_calls_count_as_failed_to_route(self) -> None:
         # the fake runner emits the live shape for an unrouted answer: output NONE, no skillCalls
         rows = canary.fake_runner(self.dir, {"claude": {sid: False for sid in self.ids}}, self.ids)("claude", SKILL, self.dir / "x.json", None)[1]
         self.assertTrue(all(row["response"]["output"] == "NONE" and "skillCalls" not in row["response"]["metadata"] for row in rows))
-        doc = self.run_canary({sid: False for sid in self.ids}, True)
+        doc = self.run_canary({sid: False for sid in self.ids})
         self.assertEqual((doc["verdict"], doc["exit_code"], doc["agents"]["claude"]["failed"]), (canary.DETECTED, 0, sorted(self.ids)))
 
     def test_missed_when_the_damaged_skill_still_routes(self) -> None:
-        doc = self.run_canary({}, True)  # every scenario routed to the skill
+        doc = self.run_canary({})  # every scenario routed to the skill
         self.assertEqual((doc["verdict"], doc["exit_code"]), (canary.MISSED, 1))
 
     def test_boundary_over_the_real_scenarios(self) -> None:
         total = len(self.ids)
         needed = -(-total * canary.THRESHOLD_PERCENT // 100)
         fails = lambda n: {sid: False for sid in self.ids[:n]}  # noqa: E731
-        self.assertEqual(self.run_canary(fails(needed), True)["verdict"], canary.DETECTED)
-        self.assertEqual(self.run_canary(fails(needed - 1), True)["verdict"], canary.MISSED)
+        self.assertEqual(self.run_canary(fails(needed))["verdict"], canary.DETECTED)
+        self.assertEqual(self.run_canary(fails(needed - 1))["verdict"], canary.MISSED)
 
     def test_only_the_named_skill_is_damaged_and_the_workspace_verified(self) -> None:
-        self.run_canary({}, True)
+        self.run_canary({})
         root = self.dir / "canary" / "claude"
-        aliases = json.loads((self.dir / "canary" / "claude.aliases.json").read_text())
-        self.assertFalse((root / "aliases.json").exists())
-        damaged = check_repo.parse_frontmatter(root / ".claude/skills" / aliases[SKILL] / "SKILL.md")
+        damaged = check_repo.parse_frontmatter(root / ".claude/skills" / SKILL / "SKILL.md")
         self.assertEqual(damaged["description"], canary.CANARY_DESCRIPTION)
-        other = next(n for n in aliases if n != SKILL)
         real = {s.name: s.description for p in check_repo.discover_plugins() for s in check_repo.discover_skills(p)}
-        front = check_repo.parse_frontmatter(root / ".claude/skills" / aliases[other] / "SKILL.md")
-        self.assertNotEqual(front["description"], canary.CANARY_DESCRIPTION)
-        self.assertEqual(front["description"], canary.aliasing.alias_description(real[other], aliases))
-        prep.verify_workspace(root, "claude", aliased=True, description_overrides={SKILL: canary.CANARY_DESCRIPTION})
+        other = next(n for n in real if n != SKILL)
+        front = check_repo.parse_frontmatter(root / ".claude/skills" / other / "SKILL.md")
+        self.assertEqual(front["description"], real[other])
+        prep.verify_workspace(root, "claude", description_overrides={SKILL: canary.CANARY_DESCRIPTION})
 
     def test_unknown_skill_or_no_positives_is_an_error(self) -> None:
         with self.assertRaises(ValueError):
@@ -160,33 +153,22 @@ class CliTests(unittest.TestCase):
 
     def test_detected_run_writes_the_document_and_prints_the_cost(self) -> None:
         ids = canary.positive_scenarios(SKILL)
-        code, out, _ = self.main(SKILL, "--agent", "claude", "--alias", "off", fake={"claude": {sid: False for sid in ids}})
+        code, out, _ = self.main(SKILL, "--agent", "claude", fake={"claude": {sid: False for sid in ids}})
         self.assertEqual(code, 0)
-        self.assertIn(f"canary {SKILL}: canary_detected (aliased: false;", out)
+        self.assertIn(f"canary {SKILL}: canary_detected (listing: default;", out)
         self.assertIn("measured cost: $0.0000", out)
         doc = json.loads((self.dir / "reports" / f"canary-{SKILL}.canary.json").read_text())
-        self.assertEqual((doc["verdict"], doc["aliased"], doc["partial"], doc["agents_run"]), (canary.DETECTED, False, True, ["claude"]))
+        self.assertEqual((doc["verdict"], doc["partial"], doc["agents_run"]), (canary.DETECTED, True, ["claude"]))
         self.assertEqual(doc["settings"]["claude"]["model"]["source"], "default")
         self.assertFalse(doc["overridden"])
 
-    def test_missed_exits_one_and_alias_on_overrides_the_environment(self) -> None:
-        with mock.patch.dict("os.environ", {"ROUTING_ALIAS_SKILLS": "0"}):
-            code, out, _ = self.main(SKILL, "--agent", "claude", "--alias", "on", fake={})
+    def test_missed_exits_one_and_prints_the_name_driven_note(self) -> None:
+        code, out, _ = self.main(SKILL, "--agent", "claude", fake={})
         self.assertEqual(code, 1)
-        self.assertIn("canary_missed (aliased: true;", out)
-
-    def test_missed_with_real_names_prints_the_name_driven_note(self) -> None:
-        _, out, _ = self.main(SKILL, "--agent", "claude", "--alias", "off", fake={})
         self.assertIn("canary_missed", out)
         self.assertIn("name-driven-routing limitation", out)
-        _, aliased_out, _ = self.main(SKILL, "--agent", "claude", "--alias", "on", fake={})
-        self.assertNotIn("name-driven-routing limitation", aliased_out)
 
-    def test_invalid_alias_environment_and_unknown_skill_exit_two(self) -> None:
-        with mock.patch.dict("os.environ", {"ROUTING_ALIAS_SKILLS": "maybe"}):
-            code, _, err = self.main(SKILL, fake={})
-        self.assertEqual(code, 2)
-        self.assertIn("ROUTING_ALIAS_SKILLS must be one of", err)
+    def test_unknown_skill_exits_two(self) -> None:
         code, _, err = self.main("no-such-skill", fake={})
         self.assertEqual(code, 2)
         self.assertIn("no-such-skill", err)
