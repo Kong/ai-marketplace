@@ -10,9 +10,7 @@ isolated from the checkout.
 
 With --ref, skills come from that git revision instead of the working tree (the control).
 
-Skills are renamed to opaque aliases unless ROUTING_ALIAS_SKILLS=0 (routing_aliases.py); the
-real->alias map is written next to the workspace (<workspace>.aliases.json), not inside it, so
-the agent cannot read it. For Claude only, ROUTING_SKILL_LISTING (routing_listing.py: default, wide,
+Skills keep their real names. For Claude only, ROUTING_SKILL_LISTING (routing_listing.py: default,
 name-only; experimental, diagnosis only) writes <workspace>/.claude/settings.json; Codex rejects a
 non-default preset (exit 2). After every build the workspace is checked
 against the source revision (`verify_workspace`): a mismatch exits 2, so a stale or wrong workspace
@@ -22,6 +20,8 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
+import re
 import shutil
 import subprocess
 import sys
@@ -30,7 +30,6 @@ from pathlib import Path
 from typing import Mapping
 
 import check_repo
-import routing_aliases as aliasing
 import routing_listing as listing_presets
 import select_changed
 
@@ -60,8 +59,7 @@ class WorkspaceIntegrityError(ValueError):
 
 @dataclass(frozen=True)
 class Workspace:
-    names: list[str]  # real skill names
-    aliases: dict[str, str] | None  # real -> alias, None when not aliased
+    names: list[str]  # skill names
     fingerprint: str
     listing: str = listing_presets.DEFAULT  # skill-listing preset the workspace was built with
 
@@ -111,28 +109,27 @@ def workspace_descriptions(out: Path, agent: str) -> dict[str, str]:
 
 
 def verify_workspace(
-    out: Path, agent: str, ref: str | None = None, aliased: bool | None = None,
+    out: Path, agent: str, ref: str | None = None,
     description_overrides: Mapping[str, str] | None = None, listing: str | None = None,
 ) -> Workspace:
     """Assert the workspace's SKILL.md frontmatter derives exactly from the source revision.
 
-    Per skill the expected description is the source description with real skill names replaced by
-    aliases (or the explicit override, used verbatim: the canary), and the expected name is the
-    alias or the real name. The directory set, the directory/name pairing and the alias map (kept
-    outside the workspace) must match too, as must the skill-listing settings file (exactly the preset's, absent for default). Raises WorkspaceIntegrityError listing every mismatch; returns the fingerprint.
+    Per skill the expected description is the source description (or the explicit override, used
+    verbatim: the canary) and the expected name is the skill name. The directory set and the
+    directory/name pairing must match too, as must the skill-listing settings file (exactly the
+    preset's, absent for default). Raises WorkspaceIntegrityError listing every mismatch; returns the
+    fingerprint.
     """
-    aliased = aliasing.enabled() if aliased is None else aliased
     listing = resolve_listing(agent, listing)
     overrides = dict(description_overrides or {})
     source = source_skills(ref)
     unknown = sorted(set(overrides) - set(source))
     if unknown:
         raise WorkspaceIntegrityError(f"description override for unknown skill(s): {', '.join(unknown)}")
-    aliases = aliasing.build_aliases(source) if aliased else None
     problems: list[str] = []
     root = skills_root_of(out, agent)
     present = {entry.name for entry in root.iterdir() if entry.is_dir()} if root.is_dir() else set()
-    expected = {(aliases or {}).get(name, name): name for name in source}
+    expected = {name: name for name in source}
     for missing in sorted(set(expected) - present):
         problems.append(f"skill directory {missing!r} ({expected[missing]}) is missing")
     for extra in sorted(present - set(expected)):
@@ -145,21 +142,12 @@ def verify_workspace(
         except (OSError, ValueError) as exc:
             problems.append(f"{dir_name}: unreadable SKILL.md frontmatter: {exc}")
             continue
-        want_description = overrides[real] if real in overrides else (
-            aliasing.alias_description(source[real][2], aliases) if aliases else source[real][2]
-        )
+        want_description = overrides[real] if real in overrides else source[real][2]
         descriptions[dir_name] = str(frontmatter.get("description"))
         if frontmatter.get("name") != dir_name:
             problems.append(f"{dir_name}: frontmatter name {frontmatter.get('name')!r} should be {dir_name!r}")
         if descriptions[dir_name] != want_description:
             problems.append(f"{dir_name} ({real}): description differs from the source revision")
-    try:
-        on_disk = aliasing.load(out)
-    except ValueError as exc:
-        problems.append(str(exc))
-        on_disk = None
-    if on_disk != aliases:
-        problems.append(f"alias map {aliasing.aliases_path(out).name} does not match the expected aliases (aliasing {'on' if aliased else 'off'})")
     try:
         if listing_presets.read(out) != listing_presets.settings_for(listing, expected):
             problems.append(f"{listing_presets.SETTINGS_FILE} does not match the {listing} skill-listing preset")
@@ -168,43 +156,53 @@ def verify_workspace(
     if problems:
         shown = "; ".join(problems[:8]) + (f"; and {len(problems) - 8} more" if len(problems) > 8 else "")
         raise WorkspaceIntegrityError(f"workspace {out} does not match {ref or 'the working tree'}: {shown}")
-    return Workspace(sorted(source), aliases, fingerprint_of(descriptions), listing)
+    return Workspace(sorted(source), fingerprint_of(descriptions), listing)
 
 
 def workspace_info(out: Path, agent: str) -> Workspace:
-    """Alias map and fingerprint of an already built workspace (no source check)."""
-    aliases = aliasing.load(out)
-    return Workspace(sorted(aliases or []), aliases, fingerprint_of(workspace_descriptions(out, agent)))
+    """Skill names and fingerprint of an already built workspace (no source check)."""
+    descriptions = workspace_descriptions(out, agent)
+    return Workspace(sorted(descriptions), fingerprint_of(descriptions))
 
 
-def _install(dest: Path, real: str, aliases: Mapping[str, str] | None, description: str | None) -> None:
-    alias = aliases[real] if aliases else None
-    if alias is None and description is None:
-        return
-    skill_md = dest / "SKILL.md"
-    skill_md.write_text(aliasing.rewrite_skill_md(skill_md.read_text(encoding="utf-8"), alias, description), encoding="utf-8")
+def rewrite_description(text: str, description: str) -> str:
+    """A SKILL.md with its frontmatter `description` replaced; the rest is kept byte for byte."""
+    if not text.startswith("---\n") or "\n---\n" not in text[4:]:
+        raise ValueError("SKILL.md has no YAML frontmatter")
+    head, rest = text[4:].split("\n---\n", 1)
+    out: list[str] = []
+    found = skipping = False
+    for line in head.split("\n"):
+        if skipping and line[:1] in (" ", "\t"):
+            continue  # continuation of the replaced multi-line value
+        skipping = False
+        if not found and re.match(r"^description:", line):
+            found = skipping = True
+            # A JSON string is a valid double-quoted YAML scalar, whatever punctuation the text holds.
+            out.append(f"description: {json.dumps(description, ensure_ascii=False)}")
+            continue
+        out.append(line)
+    if not found:
+        raise ValueError("SKILL.md frontmatter lacks description")
+    return "---\n" + "\n".join(out) + "\n---\n" + rest
 
 
 def prepare_workspace(
-    out: Path, agent: str = "claude", ref: str | None = None, aliased: bool | None = None,
+    out: Path, agent: str = "claude", ref: str | None = None,
     description_overrides: Mapping[str, str] | None = None, listing: str | None = None,
 ) -> Workspace:
     """Rebuild `out` with all skills for `agent`; refuse destinations outside .tmp/.
 
-    Skills come from the working tree, or from git revision `ref` when given. With `aliased` (default:
-    ROUTING_ALIAS_SKILLS) each skill directory and frontmatter name become its opaque alias and
-    real skill names inside descriptions are replaced by aliases. `description_overrides` (real name ->
-    text, used verbatim) replaces descriptions: the canary only. `listing` (default: ROUTING_SKILL_LISTING) is a
+    Skills come from the working tree, or from git revision `ref` when given. `description_overrides`
+    (skill name -> text, used verbatim) replaces descriptions: the canary only. `listing` (default: ROUTING_SKILL_LISTING) is a
     skill-listing preset written as .claude/settings.json (Claude only; another agent raises ValueError). The result is verified against the source.
     """
     out = out.resolve()
     if not out.is_relative_to(TMP_ROOT.resolve()) or out == TMP_ROOT.resolve():
         raise ValueError(f"workspace must be a subdirectory of {TMP_ROOT}: {out}")
-    aliased = aliasing.enabled() if aliased is None else aliased
     listing = resolve_listing(agent, listing)
     overrides = dict(description_overrides or {})
     source = source_skills(ref)
-    aliases = aliasing.build_aliases(source) if aliased else None
     unknown = sorted(set(overrides) - set(source))
     if unknown:
         raise ValueError(f"description override for unknown skill(s): {', '.join(unknown)}")
@@ -213,19 +211,17 @@ def prepare_workspace(
     skills_root = skills_root_of(out, agent)
     skills_root.mkdir(parents=True)
     for real, (plugin, dir_name, description) in source.items():
-        dest = skills_root / (aliases[real] if aliases else real)
+        dest = skills_root / real
         if ref is not None:
             copy_skill_at_ref(plugin, dir_name, ref, dest)
         else:
             shutil.copytree(check_repo.PLUGINS_DIR / plugin / "skills" / dir_name, dest)
-        new_description = overrides[real] if real in overrides else (aliasing.alias_description(description, aliases) if aliases else None)
-        if new_description == description:
-            new_description = None
-        _install(dest, real, aliases, new_description)
-    aliasing.write(out, aliases)
+        if real in overrides and overrides[real] != description:
+            skill_md = dest / "SKILL.md"
+            skill_md.write_text(rewrite_description(skill_md.read_text(encoding="utf-8"), overrides[real]), encoding="utf-8")
     if agent == "claude":
         listing_presets.write(out, listing, [entry.name for entry in skills_root.iterdir()])
-    return verify_workspace(out, agent, ref, aliased, overrides, listing)
+    return verify_workspace(out, agent, ref, overrides, listing)
 
 
 def main(argv: list[str]) -> int:
@@ -241,7 +237,7 @@ def main(argv: list[str]) -> int:
         return 2
     print(
         f"prepared {len(workspace.names)} {args.agent} skills in {args.workspace} "
-        f"(aliased: {str(workspace.aliases is not None).lower()}, listing: {workspace.listing}, fingerprint {workspace.fingerprint})"
+        f"(listing: {workspace.listing}, fingerprint {workspace.fingerprint})"
     )
     return 0
 

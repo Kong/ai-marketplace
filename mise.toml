@@ -32,6 +32,7 @@ description = "Validate manifests, skills, and generated content"
 run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/validate_routing_scenarios.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_description_routing.py",
 ]
 
 [tasks.ci]
@@ -40,6 +41,7 @@ run = [
   { task = "lint" },
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_openai_package.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_scenarios.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_description_routing.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_workspace.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_results.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_compare.py",
@@ -57,8 +59,8 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_selection.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_cost.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
-  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_aliases.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_canary.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ablation.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_listing.py",
   "gh skill publish --dry-run",
 ]
@@ -102,24 +104,38 @@ run = [
 ]
 
 [tasks."eval:routing:canary"]
-description = "Eval of the eval: damage one skill's description and check the routing eval notices (paid): mise run eval:routing:canary -- <name> [--agent claude] [--alias default|on|off]"
+description = "Eval of the eval: damage one skill's description and check the routing eval notices (paid): mise run eval:routing:canary -- <name> [--agent claude]"
 usage = '''
 arg "<name>" help="Skill whose own positive scenarios are run against a destroyed description"
-flag "--alias <alias>" default="default" help="Force skill aliasing: default (ROUTING_ALIAS_SKILLS or repo default, off), on (experimental; suppresses Claude routing), or off" {
-  choices "default" "on" "off"
-}
 flag "--agent <agent>" var=#true help="Run only this agent (claude or codex; repeatable or comma-separated). Default: both."
 '''
 env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
 run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
   # Exit codes: 0 canary_detected, 1 canary_missed, 2 harness error, 3 incomplete (see docs/testing.md).
-  "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_canary.py {{usage.name}} --alias {{usage.alias}} $agent_args",
+  "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_canary.py {{usage.name}} $agent_args",
+]
+
+[tasks."eval:routing:ablation"]
+description = "Name-only ablation (paid): which of one skill's own scenarios depend on its description? mise run eval:routing:ablation -- <name> [--agent claude]"
+usage = '''
+arg "<name>" help="Skill whose own scenarios are run once under the default and once under the name-only skill listing"
+flag "--agent <agent>" var=#true help="Agent to run; only claude supports the name-only listing (default: claude)"
+'''
+env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
+run = [
+  "npm ci --ignore-scripts --no-audit --no-fund",
+  # Exit codes: 0 complete, 2 harness error (including a non-Claude agent), 3 incomplete (see docs/testing.md).
+  "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_ablation.py {{usage.name}} $agent_args",
 ]
 
 [tasks."eval:routing:config"]
 description = "Print effective routing eval model/effort, fixed settings, trial policy and ceilings (offline): mise run eval:routing:config -- [--json]"
 run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/print_routing_config.py"
+
+[tasks."eval:routing:descriptions"]
+description = "Free lexical check that descriptions still carry routing signal (offline; part of lint): mise run eval:routing:descriptions -- [--report]"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_description_routing.py"
 
 [tasks."eval:routing:coverage"]
 description = "List which skills have routing scenarios and their tag counts (offline, informational, never fails on gaps): mise run eval:routing:coverage -- [--json]"

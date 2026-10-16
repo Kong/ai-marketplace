@@ -6,7 +6,7 @@
 Inputs arrive only through environment variables (never interpolated into a script).
 
 select:   EVENT_NAME, BASE_SHA, HEAD_SHA (pull_request and merge_group), MODE_INPUT, SKILL_INPUT,
-          AGENTS_INPUT, ALIAS_INPUT, LISTING_INPUT (workflow_dispatch). Writes `skills` (matrix JSON
+          AGENTS_INPUT, LISTING_INPUT (workflow_dispatch). Writes `skills` (matrix JSON
           `[{skill, mode, scenarios, new, count}]`), `has_skills`, `agents` and `skipped` (JSON `[{skill, reason}]`, for the gate summary) to $GITHUB_OUTPUT and a
           no-spend preview to $GITHUB_STEP_SUMMARY. A skill is selected only when its routing surface
           changed or its scenarios were edited (routing_selection.py); `scenarios` is the comma-separated
@@ -17,8 +17,11 @@ select:   EVENT_NAME, BASE_SHA, HEAD_SHA (pull_request and merge_group), MODE_IN
           On pull_request a selection problem (for example a new skill below the scenario
           minimums) is a warning; in the merge queue and manual runs it fails the job.
           Dispatch mode `canary` (one skill; scripts/routing_canary.py) selects that skill's own positive
-          scenarios; it is the eval of the eval and never part of the merge gate.
-evaluate: SKILL, MODE, SCENARIOS, BASE_REF, REQUESTED_AGENTS, ALIAS_INPUT (canary only), EVENT_NAME, MODE_INPUT and
+          scenarios; it is the eval of the eval and never part of the merge gate. Dispatch mode
+          `ablation` (one skill; scripts/routing_ablation.py, Claude only) selects all of that skill's own
+          scenarios and runs them under the default and name-only listings (two trials per scenario);
+          a diagnostic that never affects the merge gate.
+evaluate: SKILL, MODE, SCENARIOS, BASE_REF, REQUESTED_AGENTS, EVENT_NAME, MODE_INPUT and
           LISTING_INPUT (a skill-listing preset, claude only, manual skill/changed/canary runs only), plus the provider keys and ROUTING_* ceiling
           variables. Runs only the requested agents that have a key (routing_ci_agents.py), with
           the lazy-control confirmation, and writes `.tmp/routing/reports/<skill>.run.json`
@@ -36,8 +39,8 @@ from pathlib import Path
 from typing import Any, Callable, Mapping
 
 import check_repo
+import routing_ablation as ablation
 import routing_agents as agents_lib
-import routing_aliases as aliasing
 import routing_canary as canary
 import routing_ceilings as ceilings
 import routing_ci_agents as ci_agents
@@ -50,14 +53,15 @@ import select_changed
 import validate_routing_scenarios as scenarios
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-MODES = ("skill", "changed", "all", "canary")
-RUN_MODES = (selection.GATE_MODE, "compare", "snapshot", "canary")
-ALIAS_INPUTS = {"": None, "default": None, "on": "1", "off": "0"}
+MODES = ("skill", "changed", "all", "canary", "ablation")
+RUN_MODES = (selection.GATE_MODE, "compare", "snapshot", "canary", "ablation")
 RESULT_EXIT_CODES = (0, 1, 3)
 # Variables that would change what CI measures; never let them reach the eval processes.
-SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS", "ROUTING_MIN_TRIALS", "ROUTING_SCENARIO_IDS", aliasing.ENV_VAR, listing_presets.ENV_VAR)
+SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS", "ROUTING_MIN_TRIALS", "ROUTING_SCENARIO_IDS", listing_presets.ENV_VAR)
 # Dispatch modes that accept a skill-listing preset; `all` ignores it (both agents, and a full suite is not an experiment).
 LISTING_MODES = ("skill", "changed", "canary")
+# Dispatch modes that take a `skill` input.
+SKILL_MODES = ("skill", "canary", "ablation")
 
 
 class CiError(Exception):
@@ -116,13 +120,8 @@ def select_matrix(env: Mapping[str, str], repo: Path = check_repo.REPO_ROOT) -> 
         if mode not in MODES:
             raise CiError(f"mode must be one of {', '.join(MODES)}")
         skill = env.get("SKILL_INPUT", "")
-        if (mode in ("skill", "canary")) != bool(skill):
-            raise CiError("`skill` is required for mode=skill and mode=canary and not accepted otherwise")
-        alias_input = env.get("ALIAS_INPUT", "")
-        if alias_input not in ALIAS_INPUTS:
-            raise CiError("alias must be default, on or off")
-        if ALIAS_INPUTS[alias_input] is not None and mode != "canary":
-            raise CiError("alias on/off is only accepted for mode=canary; every other run uses the default")
+        if (mode in SKILL_MODES) != bool(skill):
+            raise CiError("`skill` is required for mode=skill, mode=canary and mode=ablation and not accepted otherwise")
         if skill and not SKILL_NAME.match(skill):
             raise CiError("skill must be a kebab-case skill name")
         try:
@@ -131,6 +130,14 @@ def select_matrix(env: Mapping[str, str], repo: Path = check_repo.REPO_ROOT) -> 
                 if not ids:
                     raise ValueError(f"skill {skill!r} has no positive scenarios of its own to run the canary on; covered: {sorted(covered)}")
                 matrix = [{"skill": skill, "mode": "canary", "scenarios": ",".join(ids), "new": False, "count": len(ids)}]
+            elif mode == "ablation":
+                ids = [s["id"] for s in ablation.own_scenarios(skill)] if skill in covered else []
+                if not ids:
+                    raise ValueError(f"skill {skill!r} has no routing scenarios of its own to run the ablation on; covered: {sorted(covered)}")
+                if env.get("AGENTS_INPUT", "").strip() and agents != [ablation.AGENT]:
+                    raise ValueError("ablation runs on claude only (the name-only listing is a Claude setting); set agents=claude or leave it empty")
+                agents = [ablation.AGENT]
+                matrix = [{"skill": skill, "mode": "ablation", "scenarios": ",".join(ids), "new": False, "count": len(ids)}]
             elif mode == "all":
                 matrix = [snapshot_entry(name) for name in sorted(covered)]
             elif mode == "skill":
@@ -246,6 +253,8 @@ def eval_command(skill: str, mode: str, base_ref: str, agents: list[str], scenar
     agent = ",".join(agents)
     if mode == "canary":
         return ["mise", "run", "eval:routing:canary", "--", skill, "--agent", agent]
+    if mode == "ablation":
+        return ["mise", "run", "eval:routing:ablation", "--", skill, "--agent", agent]
     if mode == "snapshot":
         return ["mise", "run", "eval:routing", "--", "skill", skill, "--agent", agent]
     command = ["mise", "run", "eval:routing:compare", "--", skill, "--base", base_ref, "--agent", agent]
@@ -266,14 +275,7 @@ def evaluate_main(
     if not all(SKILL_NAME.match(sid) for sid in scenario_ids.split(",") if sid):
         print("::error title=harness_error::SCENARIOS must be comma-separated kebab-case scenario ids")
         return 2
-    alias_input = env.get("ALIAS_INPUT", "")
-    if alias_input not in ALIAS_INPUTS or (ALIAS_INPUTS[alias_input] is not None and mode != "canary"):
-        print("::error title=harness_error::ALIAS_INPUT must be default, on or off, and on/off only applies to mode=canary")
-        return 2
-    # CI never reads ROUTING_ALIAS_SKILLS from the environment: the repo default applies, except for an explicit canary input.
     child_env = {k: v for k, v in env.items() if k not in SCRUBBED}
-    if ALIAS_INPUTS[alias_input] is not None:
-        child_env[aliasing.ENV_VAR] = ALIAS_INPUTS[alias_input]
     # Likewise ROUTING_SKILL_LISTING: only a manual dispatch's allowlisted preset name applies.
     try:
         listing, listing_notice = dispatch_listing(env)
@@ -303,7 +305,6 @@ def evaluate_main(
         "skipped": plan["skipped"], "exit_code": None,
         # A re-run of failed jobs is a new attempt; the gate judges the highest attempt per skill.
         "attempt": int(env.get("GITHUB_RUN_ATTEMPT") or 1),
-        "aliased": aliasing.enabled(child_env),
         "listing": listing,
     }
     record_path = reports / f"{skill}.run.json"
@@ -314,23 +315,26 @@ def evaluate_main(
     write_record()  # a crash below leaves exit_code null, which the gate treats as a harness error
     for message in plan["messages"]:
         print(f"::warning title=agent_skipped::{message}")
-    heading = f"### Routing eval ({mode}): {skill}\n{plan['summary']}; skill names aliased: {'yes' if record['aliased'] else 'no'}; skill listing: {listing}\n"
+    heading = f"### Routing eval ({mode}): {skill}\n{plan['summary']}; skill listing: {listing}\n"
     if not agents:
         print(f"::warning title=agent_skipped::{ci_agents.NO_KEYS_MESSAGE}; the gate will fail in the merge queue and manual runs")
         _append(summary_path, heading + f"{ci_agents.NO_KEYS_MESSAGE}; no provider calls were made.\n")
-        # A canary that ran nothing answers nothing: fail it rather than report success.
-        record["exit_code"] = canary.EXIT_CODES[canary.INCOMPLETE] if mode == "canary" else 0
+        # A canary or ablation that ran nothing answers nothing: fail it rather than report success.
+        record["exit_code"] = canary.EXIT_CODES[canary.INCOMPLETE] if mode == "canary" else ablation.EXIT_INCOMPLETE if mode == "ablation" else 0
         write_record()
         return record["exit_code"]
 
     rc = run(eval_command(skill, mode, env.get("BASE_REF") or "origin/main", agents, scenario_ids), env=child_env, cwd=repo, check=False).returncode
     summary = reports / (
         f"canary-{skill}.canary.json" if mode == "canary"
+        else f"ablation-{skill}.ablation.json" if mode == "ablation"
         else f"{skill}.summary.json" if mode == "snapshot" else f"{skill}.comparison-summary.json"
     )
     body = summary.read_text() if summary.is_file() else "no summary written"
     if mode == "canary" and summary.is_file():
         _append(summary_path, heading + "\n".join(f"- {line.strip()}" for line in canary.render(json.loads(body))) + "\n")
+    if mode == "ablation" and summary.is_file():
+        _append(summary_path, heading + "\n".join(ablation.render(json.loads(body))) + "\n")
     _append(summary_path, heading + f"<details><summary>summary document</summary>\n\n```json\n{body.rstrip()}\n```\n</details>\n")
     breaches: list[dict[str, Any]] = []
     if summary.is_file():
@@ -354,6 +358,9 @@ def evaluate_main(
     if mode == "canary" and rc in (1, 3):
         name = canary.MISSED if rc == 1 else canary.INCOMPLETE
         print(f"::error title={name}::{skill}: {'the routing eval did not notice the damaged description (blind spot)' if rc == 1 else 'infrastructure error left the canary undecided'}")
+        return rc
+    if mode == "ablation" and rc == ablation.EXIT_INCOMPLETE:
+        print(f"::error title=ablation_incomplete::{skill}: infrastructure error left the ablation undecided; no gate effect")
         return rc
     if rc == 1:
         print(f"::warning title=routing_fail::{skill} ({mode}): routing failed on at least one agent; the gate decides (regression-only)")

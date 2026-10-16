@@ -42,7 +42,6 @@ from typing import Any, Callable, Mapping
 import check_repo
 import routing_agents as agents_lib
 import prepare_routing_workspace as workspaces
-import routing_aliases as aliasing
 import routing_listing as listing_presets
 import routing_ceilings as ceilings
 import routing_compare as compare
@@ -87,11 +86,11 @@ def evaluate_variant(
     min_trials: int | None = None,
     prepare: bool | None = None,
     description_overrides: Mapping[str, str] | None = None,
+    listing: str | None = None,
 ) -> dict[str, Any]:
     """Materialize one variant's workspace for `agent` and reduce its routing run.
 
-    The workspace root and the alias map path (outside the workspace) are handed to the Promptfoo
-    configs through ROUTING_WORKSPACE_ROOT and ROUTING_ALIASES_FILE;
+    The workspace root is handed to the Promptfoo configs through ROUTING_WORKSPACE_ROOT;
     nothing else differs between variants. `ref` None means the working tree. `confirm`
     re-runs only those scenarios in the already prepared workspace (reports under
     `<variant>-confirm/`, same ledger so ceilings still apply) at `confirm_trials` trials, or at
@@ -100,20 +99,21 @@ def evaluate_variant(
     (ROUTING_SCENARIO_IDS); `force_trials` forces the trial count of a first pass. `prepare`
     defaults to building the workspace unless this is a confirmation; the gate builds the control's
     workspace at its first and only use. A built or reused workspace is always verified against its
-    source (`WorkspaceIntegrityError`, exit 2 in the scripts) and its alias map and fingerprint are recorded
-    in the result. `description_overrides` is for the canary only.
+    source (`WorkspaceIntegrityError`, exit 2 in the scripts) and its fingerprint is recorded
+    in the result. `description_overrides` is for the canary only; `listing` (default: ROUTING_SKILL_LISTING)
+    selects the skill-listing preset of the workspace, which the ablation varies per variant.
     """
     routing_dir = routing_dir or ROUTING_DIR
     root = routing_dir / variant
     workspace = None
     if not validation_errors:
         if confirm is None if prepare is None else prepare:
-            workspace = workspaces.prepare_workspace(root / agent, agent, ref, description_overrides=description_overrides)
+            workspace = workspaces.prepare_workspace(root / agent, agent, ref, description_overrides=description_overrides, listing=listing)
         else:
-            workspace = workspaces.verify_workspace(root / agent, agent, ref, description_overrides=description_overrides)
-        print(f"{agent} {variant}: workspace aliased={str(workspace.aliases is not None).lower()} listing={workspace.listing} fingerprint={workspace.fingerprint}")
+            workspace = workspaces.verify_workspace(root / agent, agent, ref, description_overrides=description_overrides, listing=listing)
+        print(f"{agent} {variant}: workspace listing={workspace.listing} fingerprint={workspace.fingerprint}")
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
-    env = {"ROUTING_WORKSPACE_ROOT": str(root), aliasing.ALIASES_ENV_VAR: str(aliasing.aliases_path(root / agent))}
+    env = {"ROUTING_WORKSPACE_ROOT": str(root)}
     if scenario_ids:
         env["ROUTING_SCENARIO_IDS"] = ",".join(scenario_ids)
     if confirm is not None:
@@ -195,7 +195,7 @@ def confirmation_note(doc: dict[str, Any]) -> str:
 
 def _describe(doc: dict[str, Any]) -> str:
     config = f" [{settings_lib.describe(doc['settings'])}]" if "settings" in doc else ""
-    config += f" aliased={str(doc.get('aliased', False)).lower()} listing={doc.get('listing', listing_presets.DEFAULT)}"
+    config += f" listing={doc.get('listing', listing_presets.DEFAULT)}"
     return _describe_state(doc).replace(":", f"{config}:", 1)
 
 
@@ -275,8 +275,7 @@ def main(argv: list[str]) -> int:
     try:
         # Candidate and control inherit the same environment, so both use these effective settings.
         settings = settings_lib.load()
-        aliasing.enabled()  # fail fast on an invalid ROUTING_ALIAS_SKILLS
-        listing_presets.check_agents(listing_presets.selected(), agents)  # and ROUTING_SKILL_LISTING
+        listing_presets.check_agents(listing_presets.selected(), agents)  # fail fast on an invalid ROUTING_SKILL_LISTING
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return runner.HARNESS_ERROR

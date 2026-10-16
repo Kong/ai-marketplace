@@ -3,7 +3,7 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { buildTests, loadAliases, trialCap, forcedTrials, minTrials, scenarioIds } = require('./scenarios');
+const { buildTests, trialCap, forcedTrials, minTrials, scenarioIds } = require('./scenarios');
 
 const labels = { positive: 'pos', negative: 'neg' };
 const FIXTURE = `
@@ -155,59 +155,4 @@ test('floorTrials raises one-trial scenarios but never lowers or exceeds a force
 test('minTrials reads positive integers and otherwise means no floor', () => {
   assert.strictEqual(minTrials('3'), 3);
   for (const bad of [undefined, '', '0', '-2', 'x']) assert.strictEqual(minTrials(bad), 1);
-});
-
-const ALIASES = { alpha: 's-aaaaaa', beta: 's-bbbbbb' };
-
-test('with aliases, assertions, metadata and descriptions use aliases for both agents', () =>
-  withFixture((dir) => {
-    for (const agent of ['claude', 'codex']) {
-      const tests = buildTests({ skill: 'alpha', agent, providerLabels: labels, dir, aliases: ALIASES });
-      assert.deepStrictEqual(tests[0].assert, [{ type: 'skill-used', value: 's-aaaaaa' }]);
-      assert.deepStrictEqual(tests[3].assert, [{ type: 'not-skill-used', value: 's-aaaaaa' }]);
-      assert.deepStrictEqual(tests[4].assert, [
-        { type: 'skill-used', value: 's-bbbbbb' },
-        { type: 'not-skill-used', value: 's-aaaaaa' },
-      ]);
-      assert.deepStrictEqual(tests[4].metadata.expected, ['s-bbbbbb']);
-      assert.deepStrictEqual(tests[4].metadata.forbidden, ['s-aaaaaa']);
-      assert.strictEqual(tests[4].metadata.aliased, true);
-      assert.strictEqual(tests[4].metadata.target, 'alpha');
-      assert.match(tests[4].description, /expect \[s-bbbbbb\] forbid \[s-aaaaaa\]/);
-    }
-  }));
-
-test('without aliases the real names are asserted and aliased is false', () =>
-  withFixture((dir) => {
-    const tests = buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir });
-    assert.strictEqual(tests[0].metadata.aliased, false);
-  }));
-
-test('a scenario naming a skill missing from the aliases file is an error', () =>
-  withFixture((dir) => {
-    assert.throws(
-      () => buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, aliases: { alpha: 's-aaaaaa' } }),
-      /unknown skill 'beta'/,
-    );
-  }));
-
-test('loadAliases reads the sibling aliases file (or ROUTING_ALIASES_FILE) and rejects a workspace that disagrees with ROUTING_ALIAS_SKILLS', () => {
-  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'routing-ws-'));
-  const dir = path.join(parent, 'claude');
-  fs.mkdirSync(dir);
-  try {
-    assert.strictEqual(loadAliases(dir, undefined), null);
-    assert.strictEqual(loadAliases(dir, '0'), null);
-    assert.throws(() => loadAliases(dir, '1'), /ROUTING_ALIAS_SKILLS=1 but .* missing/);
-    fs.writeFileSync(path.join(parent, 'claude.aliases.json'), JSON.stringify(ALIASES));
-    assert.ok(!fs.existsSync(path.join(dir, 'aliases.json')));
-    assert.deepStrictEqual(loadAliases(dir, undefined), ALIASES);
-    assert.deepStrictEqual(loadAliases(dir, 'true'), ALIASES);
-    assert.throws(() => loadAliases(dir, '0'), /ROUTING_ALIAS_SKILLS=0 but .* present/);
-    const other = path.join(parent, 'elsewhere.json');
-    fs.writeFileSync(other, JSON.stringify({ alpha: 's-cccccc' }));
-    assert.deepStrictEqual(loadAliases(dir, '1', other), { alpha: 's-cccccc' });
-  } finally {
-    fs.rmSync(parent, { recursive: true });
-  }
 });

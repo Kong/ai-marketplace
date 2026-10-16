@@ -97,20 +97,27 @@ decisions behind them:
 - **Description sensitivity (live finding, known limitation):** a PR that rewrote
   `konnect-gateway-triage`'s description into off-domain marketing copy passed the queue gate (29
   trials, all passing), because descriptive names let the agent route without the description; the
-  canary with real names confirmed it (`canary_missed` 0/5). Opaque skill aliases
-  (`ROUTING_ALIAS_SKILLS`, one constant in `scripts/routing_aliases.py`) were tried to isolate
-  descriptions, but a 43-trial live run showed aliasing ON suppresses Claude's skill selection: real
-  names passed 43/43, while with aliases every positive and sibling trial answered `NONE` (one turn, no
-  tool call), even for the undamaged skill. The earlier "aliases on => canary detected" reading was
-  that suppression, so the default is **off**, aliasing is opt-in/experimental and not a valid
-  description-sensitivity detector as implemented, and description-only regressions on skills with
-  descriptive names are **not** reliably detected by the agentic routing eval. Kept: every built
-  workspace is verified against its source revision and fingerprinted, and the canary
-  (`mode: canary`, `mise run eval:routing:canary`) remains, now noting `canary_missed` with real names as
-  this limitation. The same runs exposed a reducer bug: Promptfoo copies an assertion failure into the
+  canary with real names confirmed it (`canary_missed` 0/5), and with every description removed (the
+  `name-only` listing preset) all 43 scenarios of that skill still passed. Description-only
+  regressions on skills with descriptive names are **not** reliably detected by the agentic routing
+  eval. Kept: every built workspace is verified against its source revision and fingerprinted, and the
+  canary (`mode: canary`, `mise run eval:routing:canary`), which notes `canary_missed` as this
+  limitation. The same runs exposed a reducer bug: Promptfoo copies an assertion failure into the
   row-level `error` (failureReason 1), which was misclassified as a provider `infra_error`; only
   `response.error` or failureReason 2 (or an error with no failureReason) is infrastructure now.
   Details: docs/testing.md.
+- **Aliasing tried and removed:** opaque skill aliases (`s-` plus a hash of the name) were built to
+  isolate descriptions from names. A 43-trial live run showed aliasing suppresses Claude's skill
+  selection: real names passed 43/43, while with aliases every positive and sibling trial answered
+  `NONE` (one turn, no tool call), even for the undamaged skill; the earlier "aliases on => canary
+  detected" reading was that suppression. An opaque name gives the agent nothing to route on, so the
+  approach cannot separate description from name, and it was removed with its plumbing. A wider
+  skill-listing budget (every description listed in full) was also tried and changed nothing, so the
+  listing budget is not the cause either; that preset was removed too. The `name-only` listing preset
+  stays as the ablation (`mise run eval:routing:ablation`, workflow mode `ablation`): a skill's own
+  scenarios run under the default and name-only listings and are classified `description_dependent`,
+  `name_solvable` or `failing`. A free lexical check over descriptions (`scripts/check_description_routing.py`,
+  in lint) catches gross description damage and near-duplicates without a model.
 - **Measured cost:** Claude about $0.058-0.065 per trial on CI (43 trials, 1.07M tokens, $2.49; the
   29-trial gate profile, 682K tokens, $1.88), so `routing_cost.py` plans at $0.065; Codex remains
   the unmeasured old range of $0.05-0.10. Artifacts are kept 10 days, the repository maximum.

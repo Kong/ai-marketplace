@@ -17,7 +17,11 @@ name: Skill routing evals
 #                   eval: one skill's description is replaced by off-domain text and its own positive
 #                   scenarios must stop routing (scripts/routing_canary.py). It uses the `skill-evals`
 #                   environment, fails the evaluate job when the harness does not notice, and never
-#                   affects the merge gate.
+#                   affects the merge gate. `ablation` is the name-only baseline: one skill's own scenarios
+#                   run on Claude at one trial each under the default and the name-only skill listing,
+#                   and each scenario is classified as description-dependent or name-solvable
+#                   (scripts/routing_ablation.py). It uses the `skill-evals` environment, is a
+#                   diagnostic with artifacts and a cost preview, and never affects the merge gate.
 #
 # The gate is not enabled by this file. Until an admin makes the check `routing-evals-gate` required
 # in the main ruleset, every outcome here is advisory. There is deliberately no `paths:` filter: the
@@ -36,7 +40,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "skill: one skill vs origin/main; changed: skills changed vs origin/main; all: full suite (manual only, needs approval); canary: damage one skill's description and check the eval notices"
+        description: "skill: one skill vs origin/main; changed: skills changed vs origin/main; all: full suite (manual only, needs approval); canary: damage one skill's description and check the eval notices; ablation: one skill's own scenarios under the default and name-only listing (Claude only, diagnostic)"
         required: true
         type: choice
         default: changed
@@ -45,38 +49,29 @@ on:
           - changed
           - all
           - canary
+          - ablation
       skill:
-        description: Skill name (required when mode is skill or canary; must have routing scenarios)
+        description: Skill name (required when mode is skill, canary or ablation; must have routing scenarios)
         required: false
         type: string
       agents:
-        description: Optional comma-separated agents to run (claude, codex); default both
+        description: Optional comma-separated agents to run (claude, codex); default both. mode ablation runs on claude only
         required: false
         type: string
-      alias:
-        description: "Canary only: force opaque skill aliases on or off for this run (default: the repo default, off; on suppresses Claude routing)"
-        required: false
-        type: choice
-        default: default
-        options:
-          - default
-          - "on"
-          - "off"
       listing:
-        description: "Claude only, diagnosis (modes skill, changed, canary; needs agents=claude): skill-listing preset. wide: raise the listing budget so every description is listed; name-only: list names without descriptions. Ignored for mode all"
+        description: "Claude only, diagnosis (modes skill, changed, canary; needs agents=claude): skill-listing preset. name-only: list names without descriptions. Ignored for mode all and ablation (ablation runs both listings itself)"
         required: false
         type: choice
         default: default
         options:
           - default
-          - wide
           - name-only
 
 permissions: {}
 
 concurrency:
-  # Manual dispatches differing in mode, skill, alias, listing or agents run side by side; an identical repeat cancels.
-  group: skill-evals-${{ github.event.pull_request.number || github.event.merge_group.head_ref || format('{0}-{1}-{2}-{3}-{4}', inputs.mode, inputs.skill, inputs.alias, inputs.listing, inputs.agents) }}
+  # Manual dispatches differing in mode, skill, listing or agents run side by side; an identical repeat cancels.
+  group: skill-evals-${{ github.event.pull_request.number || github.event.merge_group.head_ref || format('{0}-{1}-{2}-{3}', inputs.mode, inputs.skill, inputs.listing, inputs.agents) }}
   # A queue entry is never cancelled by a later one: the queue needs every result.
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
@@ -109,7 +104,6 @@ jobs:
           MODE_INPUT: ${{ inputs.mode }}
           SKILL_INPUT: ${{ inputs.skill }}
           AGENTS_INPUT: ${{ inputs.agents }}
-          ALIAS_INPUT: ${{ inputs.alias }}
           LISTING_INPUT: ${{ inputs.listing }}
           ROUTING_MAX_COST_USD: ${{ vars.ROUTING_MAX_COST_USD }}
         run: uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_ci.py select
@@ -145,7 +139,6 @@ jobs:
           SCENARIOS: ${{ matrix.scenarios }}
           BASE_REF: ${{ github.event.merge_group.base_sha || 'origin/main' }}
           REQUESTED_AGENTS: ${{ needs.select.outputs.agents }}
-          ALIAS_INPUT: ${{ inputs.alias }}
           # An allowlisted preset name only (scripts/routing_listing.py); routing_ci.py applies it for manual skill, changed and canary runs.
           LISTING_INPUT: ${{ inputs.listing }}
           EVENT_NAME: ${{ github.event_name }}
@@ -194,9 +187,9 @@ jobs:
           MODE_INPUT: ${{ inputs.mode }}
         run: |
           set -euo pipefail
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$MODE_INPUT" = "canary" ]; then
-            echo "### routing-evals-gate: canary run, not a gate decision
-          The canary verdict is the result of the evaluate job; it never affects the merge gate." | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && { [ "$MODE_INPUT" = "canary" ] || [ "$MODE_INPUT" = "ablation" ]; }; then
+            echo "### routing-evals-gate: $MODE_INPUT run, not a gate decision
+          The $MODE_INPUT result is in the evaluate job and its artifacts; it never affects the merge gate." | tee -a "$GITHUB_STEP_SUMMARY"
             echo "apply=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi

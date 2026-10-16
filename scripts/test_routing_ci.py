@@ -159,7 +159,7 @@ class SelectTests(unittest.TestCase):
     def test_dispatch_canary_selects_the_skills_own_positives_only(self) -> None:
         ids = ["g-p1", "g-p2", "g-p3"]
         with mock.patch.object(ci.canary, "positive_scenarios", return_value=ids):
-            code, out = self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="canary", SKILL_INPUT="konnect-gateway-triage", ALIAS_INPUT="off")
+            code, out = self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="canary", SKILL_INPUT="konnect-gateway-triage")
         self.assertEqual(code, 0)
         self.assertEqual(self.matrix(out), [{"skill": "konnect-gateway-triage", "mode": "canary", "scenarios": "g-p1,g-p2,g-p3", "new": False, "count": 3}])
         self.assertIn("| konnect-gateway-triage | canary | 3 | 3 | 3 |", self.summary.read_text())
@@ -170,29 +170,55 @@ class SelectTests(unittest.TestCase):
             for env in (
                 {"MODE_INPUT": "canary"},  # skill required
                 {"MODE_INPUT": "canary", "SKILL_INPUT": "no-corpus"},  # no scenarios
-                {"MODE_INPUT": "canary", "SKILL_INPUT": "konnect-gateway-triage", "ALIAS_INPUT": "maybe"},
-                {"MODE_INPUT": "changed", "ALIAS_INPUT": "on"},  # forcing aliasing is canary-only
-                {"MODE_INPUT": "skill", "SKILL_INPUT": "konnect-gateway-triage", "ALIAS_INPUT": "off"},
             ):
                 with self.subTest(env=env):
                     self.assertEqual(self.run_select(EVENT_NAME="workflow_dispatch", **env)[0], 2)
-            for alias in ("", "default"):  # the dispatch default does not change what other modes measure
-                self.assertEqual(self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="changed", ALIAS_INPUT=alias)[0], 0)
+
+    def test_dispatch_ablation_selects_the_skills_own_scenarios_on_claude_only_with_a_doubled_cost_preview(self) -> None:
+        rows = [{"id": f"g-{i}"} for i in range(1, 5)]
+        with mock.patch.object(ci.ablation, "own_scenarios", return_value=rows):
+            code, out = self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="ablation", SKILL_INPUT="konnect-gateway-triage")
+        self.assertEqual(code, 0)
+        self.assertEqual(self.matrix(out), [{"skill": "konnect-gateway-triage", "mode": "ablation", "scenarios": "g-1,g-2,g-3,g-4", "new": False, "count": 4}])
+        self.assertEqual(out["agents"], "claude")
+        text = self.summary.read_text()
+        self.assertIn("| konnect-gateway-triage | ablation | 4 | 8 | 8 |", text)  # two listings, one trial each
+        self.assertIn("| claude | 8 | 8 | $0.52 | $0.52 |", text)
+        self.assertNotIn("codex", text.split("Evaluation set")[1])
+        self.assertFalse(self.gate_select.called)
+
+    def test_dispatch_ablation_input_validation(self) -> None:
+        with mock.patch.object(ci.ablation, "own_scenarios", return_value=[{"id": "g-1"}]):
+            base = {"EVENT_NAME": "workflow_dispatch", "MODE_INPUT": "ablation", "SKILL_INPUT": "konnect-gateway-triage"}
+            for bad in (
+                {"SKILL_INPUT": ""},  # skill required
+                {"SKILL_INPUT": "no-corpus"},  # no scenarios
+                {"AGENTS_INPUT": "codex"},
+                {"AGENTS_INPUT": "claude,codex"},
+            ):
+                with self.subTest(bad=bad):
+                    self.assertEqual(self.run_select(**{**base, **bad})[0], 2)
+            for good in ({}, {"AGENTS_INPUT": "claude"}):
+                self.assertEqual(self.run_select(**{**base, **good})[0], 0)
+            # the listing input is ignored with a notice: the ablation runs both listings itself
+            self.assertEqual(self.run_select(**base, LISTING_INPUT="name-only")[0], 0)
+            self.assertIn("listing=name-only is ignored for mode=ablation", self.summary.read_text())
+            self.assertEqual(self.run_select(EVENT_NAME="merge_group", BASE_SHA="b" * 40, HEAD_SHA=HEAD, MODE_INPUT="ablation")[0], 0)  # merge_group never reads it
 
     def test_dispatch_listing_needs_claude_only_and_a_known_preset(self) -> None:
         base = {"EVENT_NAME": "workflow_dispatch", "MODE_INPUT": "changed"}
-        self.assertEqual(self.run_select(**base, LISTING_INPUT="wide")[0], 2)  # agents default to both
-        self.assertEqual(self.run_select(**base, LISTING_INPUT="wide", AGENTS_INPUT="codex")[0], 2)
+        self.assertEqual(self.run_select(**base, LISTING_INPUT="name-only")[0], 2)  # agents default to both
+        self.assertEqual(self.run_select(**base, LISTING_INPUT="name-only", AGENTS_INPUT="codex")[0], 2)
         self.assertEqual(self.run_select(**base, LISTING_INPUT="narrow", AGENTS_INPUT="claude")[0], 2)
-        for listing in ("", "default", "wide", "name-only"):
+        for listing in ("", "default", "name-only"):
             self.assertEqual(self.run_select(**base, LISTING_INPUT=listing, AGENTS_INPUT="claude")[0], 0)
         self.assertEqual(self.run_select(**base, LISTING_INPUT="default")[0], 0)  # default keeps both agents
         # mode all ignores the preset (with a notice), so the default agents are fine
-        code, _ = self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="all", LISTING_INPUT="wide")
+        code, _ = self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="all", LISTING_INPUT="name-only")
         self.assertEqual(code, 0)
-        self.assertIn("listing=wide is ignored for mode=all", self.summary.read_text())
+        self.assertIn("listing=name-only is ignored for mode=all", self.summary.read_text())
         # merge_group and pull_request never read it
-        self.assertEqual(self.run_select(EVENT_NAME="merge_group", BASE_SHA="b" * 40, HEAD_SHA=HEAD, LISTING_INPUT="wide")[0], 0)
+        self.assertEqual(self.run_select(EVENT_NAME="merge_group", BASE_SHA="b" * 40, HEAD_SHA=HEAD, LISTING_INPUT="name-only")[0], 0)
 
     def test_unsupported_event_fails(self) -> None:
         self.assertEqual(self.run_select(EVENT_NAME="push")[0], 2)
@@ -325,51 +351,33 @@ class EvaluateTests(unittest.TestCase):
         self.assertEqual(self.evaluate(SKILL="Bad Name")[0], 2)
         self.assertEqual(self.evaluate(REQUESTED_AGENTS="gemini")[0], 2)
 
-    def test_aliasing_is_never_read_from_the_ci_environment_and_is_recorded(self) -> None:
-        self.evaluate("gate", ROUTING_ALIAS_SKILLS="0", **{C: "x"})
-        self.assertNotIn("ROUTING_ALIAS_SKILLS", self.calls[-1][1])
-        self.assertIs(self.record()["aliased"], ci.aliasing.DEFAULT_ALIAS_SKILLS)
-        self.assertIn(f"skill names aliased: {'yes' if ci.aliasing.DEFAULT_ALIAS_SKILLS else 'no'}", self.summary.read_text())
-
-    def test_alias_input_is_canary_only_and_forces_the_setting_for_the_child(self) -> None:
-        self.assertEqual(self.evaluate("gate", ALIAS_INPUT="on", **{C: "x"})[0], 2)
-        self.assertEqual(self.evaluate("gate", ALIAS_INPUT="bogus", **{C: "x"})[0], 2)
-        self.assertEqual(self.calls, [])
-        self.write_docs = False
-        for given, forced in (("on", "1"), ("off", "0")):
-            self.evaluate("canary", ALIAS_INPUT=given, **{C: "x"})
-            self.assertEqual(self.calls[-1][1]["ROUTING_ALIAS_SKILLS"], forced)
-            self.assertIs(self.record()["aliased"], forced == "1")
-        self.evaluate("canary", ALIAS_INPUT="default", **{C: "x"})
-        self.assertNotIn("ROUTING_ALIAS_SKILLS", self.calls[-1][1])
-
     def test_listing_preset_applies_only_to_manual_dispatch_and_never_reaches_ci_runs(self) -> None:
-        dispatch = {"EVENT_NAME": "workflow_dispatch", "MODE_INPUT": "skill", "LISTING_INPUT": "wide", "REQUESTED_AGENTS": "claude"}
+        dispatch = {"EVENT_NAME": "workflow_dispatch", "MODE_INPUT": "skill", "LISTING_INPUT": "name-only", "REQUESTED_AGENTS": "claude"}
         self.evaluate("snapshot", ROUTING_SKILL_LISTING="name-only", **{C: "x"})  # the ambient variable is scrubbed
         self.assertNotIn("ROUTING_SKILL_LISTING", self.calls[-1][1])
         self.assertEqual(self.record()["listing"], "default")
         self.evaluate("snapshot", **dispatch, **{C: "x"})
-        self.assertEqual(self.calls[-1][1]["ROUTING_SKILL_LISTING"], "wide")
-        self.assertEqual(self.record()["listing"], "wide")
-        self.assertIn("skill listing: wide", self.summary.read_text())
+        self.assertEqual(self.calls[-1][1]["ROUTING_SKILL_LISTING"], "name-only")
+        self.assertEqual(self.record()["listing"], "name-only")
+        self.assertIn("skill listing: name-only", self.summary.read_text())
         for event in ("merge_group", "pull_request"):
             self.evaluate("gate", **{**dispatch, "EVENT_NAME": event, "REQUESTED_AGENTS": "claude,codex"}, **{C: "x", O: "y"})
             self.assertNotIn("ROUTING_SKILL_LISTING", self.calls[-1][1])
             self.assertEqual(self.record()["listing"], "default")
 
     def test_listing_is_ignored_with_a_notice_for_all_and_rejected_for_codex_or_invalid_values(self) -> None:
-        code, out = self.evaluate("snapshot", EVENT_NAME="workflow_dispatch", MODE_INPUT="all", LISTING_INPUT="wide", **{C: "x"})
+        code, out = self.evaluate("snapshot", EVENT_NAME="workflow_dispatch", MODE_INPUT="all", LISTING_INPUT="name-only", **{C: "x"})
         self.assertEqual(code, 0)
         self.assertIn("listing_ignored", out)
         self.assertNotIn("ROUTING_SKILL_LISTING", self.calls[-1][1])
         n = len(self.calls)
         bad = {"EVENT_NAME": "workflow_dispatch", "MODE_INPUT": "skill"}
         self.assertEqual(self.evaluate("snapshot", LISTING_INPUT="narrow", **bad, **{C: "x"})[0], 2)
-        self.assertEqual(self.evaluate("snapshot", LISTING_INPUT="wide", REQUESTED_AGENTS="claude,codex", **bad, **{C: "x", O: "y"})[0], 2)
+        self.assertEqual(self.evaluate("snapshot", LISTING_INPUT="name-only", REQUESTED_AGENTS="claude,codex", **bad, **{C: "x", O: "y"})[0], 2)
         self.assertEqual(len(self.calls), n)
 
     def canary_doc(self, verdict: str, exit_code: int, agents=("claude",)) -> None:
-        doc = {"skill": "alpha", "verdict": verdict, "exit_code": exit_code, "aliased": True, "threshold_percent": 60,
+        doc = {"skill": "alpha", "verdict": verdict, "exit_code": exit_code, "threshold_percent": 60,
                "agents": {a: {"verdict": verdict, "positives": 5, "failed": [], "reason": None, "fingerprint": "f"} for a in agents},
                "usage": {"cost_usd": 0.3, "trials": 5, "tokens": 9}, "agents_run": list(agents), "partial": len(agents) < 2}
         self.reports.mkdir(parents=True, exist_ok=True)
@@ -388,6 +396,41 @@ class EvaluateTests(unittest.TestCase):
                 self.assertIn(f"::error title={title}::", out)
             self.assertIn(f"canary alpha: {verdict}", self.summary.read_text())
             self.assertIn("measured cost: $0.3000", self.summary.read_text())
+
+    def ablation_doc(self, exit_code: int, agents=("claude",)) -> None:
+        doc = {"skill": "alpha", "mode": "ablation", "agent": "claude", "complete": exit_code == 0, "exit_code": exit_code,
+               "counts": {"total": 2, "description_dependent": 1, "name_solvable": 1, "failing": 0, "incomplete": 0,
+                          "percent": {"description_dependent": 50.0, "name_solvable": 50.0, "failing": 0.0}},
+               "by_tag": {}, "scenarios": [{"id": "s1", "class": "description_dependent"}], "listings": {},
+               "usage": {"cost_usd": 0.2, "trials": 4, "tokens": 9}, "agents_run": list(agents), "partial": len(agents) < 2}
+        self.reports.mkdir(parents=True, exist_ok=True)
+        (self.reports / "ablation-alpha.ablation.json").write_text(json.dumps(doc))
+
+    def test_ablation_runs_the_ablation_task_reports_it_and_never_blocks_on_routing(self) -> None:
+        self.write_docs = False
+        self.rc = 0
+        self.ablation_doc(0)
+        code, out = self.evaluate("ablation", SCENARIOS="s1,s2", EVENT_NAME="workflow_dispatch", MODE_INPUT="ablation", **{C: "x"})
+        self.assertEqual(code, 0)
+        self.assertEqual(self.calls[-1][0], ["mise", "run", "eval:routing:ablation", "--", "alpha", "--agent", "claude"])
+        self.assertEqual(self.record()["exit_code"], 0)
+        self.assertIn("ablation alpha", self.summary.read_text())
+        self.assertIn("measured cost: $0.2000", self.summary.read_text())
+        self.assertNotIn("ROUTING_SKILL_LISTING", self.calls[-1][1])  # the ablation sets both listings itself
+        self.rc = 3
+        self.ablation_doc(3)
+        code, out = self.evaluate("ablation", **{C: "x"})
+        self.assertEqual(code, 3)
+        self.assertIn("::error title=ablation_incomplete::", out)
+
+    def test_ablation_with_no_agent_key_fails_and_a_codex_only_scope_is_refused(self) -> None:
+        code, _ = self.evaluate("ablation", SCENARIOS="s1")
+        self.assertEqual((code, self.calls, self.record()["exit_code"]), (3, [], 3))
+        self.write_docs = False
+        self.ablation_doc(0, agents=("claude", "codex"))  # ran codex without a key
+        code, out = self.evaluate("ablation", **{C: "x"})
+        self.assertEqual(code, 2)
+        self.assertIn("title=partial", out)
 
     def test_canary_with_no_agent_key_fails_instead_of_passing_unevaluated(self) -> None:
         code, _ = self.evaluate("canary", SCENARIOS="s1")

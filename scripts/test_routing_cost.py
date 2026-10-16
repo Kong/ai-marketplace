@@ -30,6 +30,9 @@ class TrialPlanTests(unittest.TestCase):
     def test_snapshot_is_the_full_file_at_own_trials(self) -> None:
         self.assertEqual(cost.entry_trials(entry("snapshot"), TRIALS, TRIALS)["initial"], 7)
 
+    def test_ablation_runs_each_scenario_once_under_each_of_two_listings(self) -> None:
+        self.assertEqual(cost.entry_trials(entry("ablation", ids="a,b,c"), TRIALS, TRIALS), {"scenarios": 3, "initial": 6, "worst": 6})
+
     def test_canary_is_one_candidate_trial_per_positive_scenario(self) -> None:
         self.assertEqual(cost.entry_trials(entry("canary", ids="a,b"), TRIALS, TRIALS), {"scenarios": 2, "initial": 2, "worst": 2})
 

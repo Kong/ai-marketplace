@@ -1,7 +1,6 @@
 """Canary: an eval of the routing eval. Does the harness notice a destroyed skill description?
 
-    python scripts/routing_canary.py <skill> [--agent claude|codex ...] [--alias default|on|off]
-                                     [--fake-results FILE]
+    python scripts/routing_canary.py <skill> [--agent claude|codex ...] [--fake-results FILE]
 
 Builds a candidate workspace in which only <skill>'s description is replaced by CANARY_DESCRIPTION
 (off-domain marketing copy), runs the skill's OWN positive scenarios on each requested agent at one
@@ -17,12 +16,10 @@ incomplete, else canary_detected. Exit codes: 0 detected, 1 missed, 2 harness or
 3 incomplete. It never feeds the merge gate; run it after changing models, pins or the harness, and
 after enabling the gate (docs/testing.md#canary-eval-of-the-eval).
 
-`--alias` forces skill aliasing on or off for this run (default: ROUTING_ALIAS_SKILLS, else the
-repo default, which is off), so the same canary can compare real names with opaque aliases. Aliasing on
-suppresses Claude's skill selection, so a canary_detected with aliases proves nothing; a canary_missed
-with real names is the known name-driven-routing limitation (a note is printed). The result is written to
-`.tmp/routing/reports/canary-<skill>.canary.json`, records `aliased`, `listing` (ROUTING_SKILL_LISTING preset, Claude only), the damaged workspace's
-fingerprint, usage and measured cost, and the measured cost is printed.
+The canary always runs with real skill names, so a canary_missed is the known name-driven-routing
+limitation (a note is printed; see docs/testing.md). The result is written to
+`.tmp/routing/reports/canary-<skill>.canary.json`, records `listing` (ROUTING_SKILL_LISTING preset,
+Claude only), the damaged workspace's fingerprint, usage and measured cost, and the measured cost is printed.
 
 `--fake-results FILE` is the offline mode for tests: no provider call is made. FILE maps agent to
 {scenario id: routed true|false}; a scenario it omits counts as routed.
@@ -31,13 +28,11 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import sys
 from pathlib import Path
 from typing import Any
 
 import routing_agents as agents_lib
-import routing_aliases as aliasing
 import routing_listing as listing_presets
 import routing_ceilings as ceilings
 import routing_compare as compare
@@ -61,11 +56,10 @@ DETECTED, MISSED, INCOMPLETE = "canary_detected", "canary_missed", "canary_incom
 EXIT_CODES = {DETECTED: 0, MISSED: 1, INCOMPLETE: 3}
 VARIANT = "canary"  # workspace and report directory label under .tmp/routing
 NAME_DRIVEN_NOTE = (
-    "note: canary_missed with real skill names indicates the known name-driven-routing limitation: a descriptive "
+    "note: canary_missed indicates the known name-driven-routing limitation: a descriptive "
     "skill name carries routing, so the routing eval cannot detect description-only regressions "
     "(docs/testing.md#known-limitation-routing-is-name-driven)."
 )
-ALIAS_CHOICES = {"default": None, "on": "1", "off": "0"}
 
 
 def positive_scenarios(skill: str) -> list[str]:
@@ -106,8 +100,7 @@ def overall(per_agent: dict[str, dict[str, Any]]) -> str:
 def fake_runner(root: Path, fake: dict[str, dict[str, bool]], ids: list[str]) -> Any:
     """A Promptfoo runner replacement: one row per positive scenario, routed or not per `fake`."""
     def run(agent: str, skill: str, report: Path, pattern: str | None) -> tuple[str, list[dict[str, Any]]]:
-        aliases = aliasing.load(root / VARIANT / agent) or {}  # the map sits beside the workspace
-        target = aliases.get(skill, skill)
+        target = skill
         rows = []
         for sid in ids:
             routed = bool(fake.get(agent, {}).get(sid, True))
@@ -145,7 +138,6 @@ def run_canary(
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     per_agent: dict[str, dict[str, Any]] = {}
     usage: list[dict[str, Any]] = []
-    aliased = aliasing.enabled()
     listing = listing_presets.selected()
     for agent in agents:
         result = driver.evaluate_variant(
@@ -156,13 +148,12 @@ def run_canary(
             settings_lib.annotate(result, settings)
         per_agent[agent] = judge_agent(result, ids)
         usage.append(result["usage"])
-        aliased = bool(result.get("aliased"))
         listing = result.get("listing", listing)
     total = compare._total(*usage) if usage else {"trials": 0, "tokens": 0, "cost_usd": 0.0, "latency_ms": 0}
     verdict = overall(per_agent)
     return {
         "skill": skill, "mode": "canary", "verdict": verdict, "exit_code": EXIT_CODES[verdict],
-        "aliased": aliased, "listing": listing, "threshold_percent": THRESHOLD_PERCENT, "positives": ids,
+        "listing": listing, "threshold_percent": THRESHOLD_PERCENT, "positives": ids,
         "agents": per_agent, "usage": total, "offline": fake is not None,
         "settings": {a: {"model": settings[a]["model"], "effort": settings[a]["effort"]} for a in agents} if settings else {},
         "overridden": any(settings[a]["overridden"] for a in agents) if settings else False,
@@ -172,7 +163,7 @@ def run_canary(
 
 def render(doc: dict[str, Any]) -> list[str]:
     lines = [
-        f"canary {doc['skill']}: {doc['verdict']} (aliased: {str(doc['aliased']).lower()}; listing: {doc.get('listing', listing_presets.DEFAULT)}; "
+        f"canary {doc['skill']}: {doc['verdict']} (listing: {doc.get('listing', listing_presets.DEFAULT)}; "
         f"detected needs >= {doc['threshold_percent']}% of positive scenarios failing to route)"
     ]
     for agent, a in doc["agents"].items():
@@ -180,7 +171,7 @@ def render(doc: dict[str, Any]) -> list[str]:
             f"  {agent}: {a['verdict']} {len(a['failed'])}/{a['positives']} positive scenario(s) failed to route "
             f"fingerprint={a['fingerprint'] or '-'}" + (f" ({a['reason']})" if a["reason"] else "")
         )
-    if doc["verdict"] == MISSED and not doc["aliased"]:
+    if doc["verdict"] == MISSED:
         lines.append(NAME_DRIVEN_NOTE)
     use = doc["usage"]
     lines.append(f"measured cost: ${use['cost_usd']:.4f} ({use['trials']} trials, {use['tokens']} tokens)")
@@ -192,16 +183,11 @@ def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("skill")
     parser.add_argument("--agent", action="append", help="claude or codex; repeat or comma-separate (default: both)")
-    parser.add_argument("--alias", choices=sorted(ALIAS_CHOICES), default="default", help="force skill aliasing on or off")
     parser.add_argument("--fake-results", type=Path, help="offline mode: JSON {agent: {scenario id: routed}}; no provider calls")
     args = parser.parse_args(argv[1:])
-    forced = ALIAS_CHOICES[args.alias]
-    if forced is not None:
-        os.environ[aliasing.ENV_VAR] = forced
     try:
         agents = agents_lib.parse_agents(args.agent)
         settings = settings_lib.load()
-        aliasing.enabled()
         listing_presets.check_agents(listing_presets.selected(), agents)
         fake = json.loads(args.fake_results.read_text()) if args.fake_results else None
         if warning := settings_lib.warning(settings):
