@@ -45,7 +45,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_compare.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ceilings.py",
   "npm ci --ignore-scripts --no-audit --no-fund",
-  "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js evals/promptfoo/settings.test.js",
+  "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js evals/promptfoo/claude.config.test.js evals/promptfoo/settings.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_settings.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_agents.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_coverage.py",
@@ -59,6 +59,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_aliases.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_canary.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_listing.py",
   "gh skill publish --dry-run",
 ]
 

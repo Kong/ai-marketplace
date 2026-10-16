@@ -38,6 +38,7 @@ import prepare_routing_workspace as workspaces
 import routing_agents as agents_lib
 import routing_aliases as aliasing
 import routing_ceilings as ceilings
+import routing_listing as listing_presets
 import routing_results as results
 import routing_settings as settings_lib
 import validate_routing_scenarios as scenarios
@@ -123,7 +124,7 @@ def evaluate_agent(
 
     `pattern` (see `scenario_pattern`) limits every launch to some scenarios. `workspace` is the built
     workspace the agent ran in: its aliases map result names back to real skill names, and the result
-    records `aliased` and the workspace `fingerprint`.
+    records `aliased`, the skill-listing preset (`listing`) and the workspace `fingerprint`.
 
     Ceilings are checked before every Promptfoo launch and after the last run. A breach
     stops the agent (no retry) as infra_error; trials already judged stay in the result.
@@ -132,6 +133,7 @@ def evaluate_agent(
 
     def stamp(doc: dict[str, Any]) -> dict[str, Any]:
         doc["aliased"] = aliases is not None
+        doc["listing"] = workspace.listing if workspace else listing_presets.DEFAULT
         doc["fingerprint"] = workspace.fingerprint if workspace else None
         return doc
 
@@ -192,7 +194,7 @@ def summarize(result: dict[str, Any]) -> str:
     usage = f" tokens={use['tokens']} cost=${use['cost_usd']:.4f} latency={use['latency_ms'] / 1000:.1f}s retries={result['retries']}"
     note = f" ({result['reason']})" if result["reason"] else ""
     config = f" {settings_lib.describe(result['settings'])}" if "settings" in result else ""
-    config += f" aliased={str(result.get('aliased', False)).lower()} fingerprint={result.get('fingerprint') or '-'}"
+    config += f" aliased={str(result.get('aliased', False)).lower()} listing={result.get('listing', listing_presets.DEFAULT)} fingerprint={result.get('fingerprint') or '-'}"
     return f"{result['agent']}: {result['state']}{'' if result['complete'] else ' [incomplete]'}{config} trials[{detail}] kinds={kinds}{usage}{note}"
 
 
@@ -231,6 +233,7 @@ def main(argv: list[str]) -> int:
     try:
         settings = settings_lib.load()  # fail fast on invalid ROUTING_*_MODEL / _EFFORT
         aliased = aliasing.enabled()  # and on an invalid ROUTING_ALIAS_SKILLS
+        listing_presets.check_agents(listing_presets.selected(), agents)  # and on an invalid or codex-incompatible ROUTING_SKILL_LISTING
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return HARNESS_ERROR
@@ -258,7 +261,7 @@ def main(argv: list[str]) -> int:
         except (workspaces.WorkspaceIntegrityError, OSError, ValueError) as exc:
             print(f"ERROR: workspace_integrity: {exc}", file=sys.stderr)
             return HARNESS_ERROR
-        print(f"{agent}: workspace aliased={str(aliased).lower()} fingerprint={built[agent].fingerprint}")
+        print(f"{agent}: workspace aliased={str(aliased).lower()} listing={built[agent].listing} fingerprint={built[agent].fingerprint}")
     outcomes = [evaluate_agent(agent, skill, ledger=ledger, workspace=built[agent]) for agent in agents]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:

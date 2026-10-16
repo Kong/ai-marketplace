@@ -3,7 +3,7 @@
     python scripts/print_routing_config.py [--json]
 
 Per agent: effective model and effort, marked default or override (ROUTING_CODEX_MODEL,
-ROUTING_CODEX_EFFORT, ROUTING_CLAUDE_MODEL, ROUTING_CLAUDE_EFFORT), the skill aliasing setting (ROUTING_ALIAS_SKILLS), plus the fixed
+ROUTING_CODEX_EFFORT, ROUTING_CLAUDE_MODEL, ROUTING_CLAUDE_EFFORT), the skill aliasing setting (ROUTING_ALIAS_SKILLS), the skill-listing preset (ROUTING_SKILL_LISTING), plus the fixed
 discovery settings, trial policy, and ceilings (defaults and variable names) read from their owning
 modules. Invalid override values exit 2, as they do for the eval scripts.
 """
@@ -18,6 +18,7 @@ from typing import Any
 import routing_agents as agents_lib
 import routing_aliases as aliasing
 import routing_ceilings as ceilings
+import routing_listing as listing_presets
 import routing_selection as selection
 import routing_settings as settings_lib
 import validate_routing_scenarios as scenarios
@@ -48,6 +49,11 @@ def collect() -> dict[str, Any]:
             "enabled": aliasing.enabled(), "variable": aliasing.ENV_VAR, "default": aliasing.DEFAULT_ALIAS_SKILLS,
             "source": "override" if os.environ.get(aliasing.ENV_VAR, "").strip() else "default",
         },
+        "listing": {
+            "preset": listing_presets.selected(), "variable": listing_presets.ENV_VAR, "presets": list(listing_presets.PRESETS),
+            "default": listing_presets.DEFAULT,
+            "source": "override" if os.environ.get(listing_presets.ENV_VAR, "").strip() else "default",
+        },
         "ceilings": {"defaults": ceiling_defaults(), "effective": vars(ceilings.Ceilings.from_env())},
         "selectable_agents": list(agents_lib.AGENTS),
         "override_variables": list(settings_lib.OVERRIDE_VARIABLES),
@@ -66,6 +72,12 @@ def render(config: dict[str, Any]) -> str:
         "",
         f"Skill aliasing: {'on' if alias['enabled'] else 'off'} ({alias['source']}; {alias['variable']}=1|0|true|false, "
         f"default {'on' if alias['default'] else 'off'}). Opt-in, experimental: on, the agent sees opaque skill names, which suppresses Claude's skill selection (not a valid description-sensitivity detector).",
+    ]
+    listing = config["listing"]
+    lines += [
+        "",
+        f"Skill listing preset: {listing['preset']} ({listing['source']}; {listing['variable']}={'|'.join(listing['presets'])}, "
+        f"default {listing['default']}). Opt-in, experimental, Claude only: tests whether the skill-listing budget hides descriptions; for diagnosis, not the gate.",
     ]
     lines += ["", f"Selectable agents (--agent, repeatable or comma-separated; default all): {', '.join(config['selectable_agents'])}"]
     lines += ["", "Fixed discovery settings (not configurable):"]

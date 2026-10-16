@@ -6,7 +6,7 @@
 Inputs arrive only through environment variables (never interpolated into a script).
 
 select:   EVENT_NAME, BASE_SHA, HEAD_SHA (pull_request and merge_group), MODE_INPUT, SKILL_INPUT,
-          AGENTS_INPUT, ALIAS_INPUT (workflow_dispatch). Writes `skills` (matrix JSON
+          AGENTS_INPUT, ALIAS_INPUT, LISTING_INPUT (workflow_dispatch). Writes `skills` (matrix JSON
           `[{skill, mode, scenarios, new, count}]`), `has_skills`, `agents` and `skipped` (JSON `[{skill, reason}]`, for the gate summary) to $GITHUB_OUTPUT and a
           no-spend preview to $GITHUB_STEP_SUMMARY. A skill is selected only when its routing surface
           changed or its scenarios were edited (routing_selection.py); `scenarios` is the comma-separated
@@ -18,7 +18,8 @@ select:   EVENT_NAME, BASE_SHA, HEAD_SHA (pull_request and merge_group), MODE_IN
           minimums) is a warning; in the merge queue and manual runs it fails the job.
           Dispatch mode `canary` (one skill; scripts/routing_canary.py) selects that skill's own positive
           scenarios; it is the eval of the eval and never part of the merge gate.
-evaluate: SKILL, MODE, SCENARIOS, BASE_REF, REQUESTED_AGENTS, ALIAS_INPUT (canary only), plus the provider keys and ROUTING_* ceiling
+evaluate: SKILL, MODE, SCENARIOS, BASE_REF, REQUESTED_AGENTS, ALIAS_INPUT (canary only), EVENT_NAME, MODE_INPUT and
+          LISTING_INPUT (a skill-listing preset, claude only, manual skill/changed/canary runs only), plus the provider keys and ROUTING_* ceiling
           variables. Runs only the requested agents that have a key (routing_ci_agents.py), with
           the lazy-control confirmation, and writes `.tmp/routing/reports/<skill>.run.json`
           for routing_gate.py. A routing_fail or infra_error is a recorded result, not a job
@@ -41,6 +42,7 @@ import routing_canary as canary
 import routing_ceilings as ceilings
 import routing_ci_agents as ci_agents
 import routing_cost as cost
+import routing_listing as listing_presets
 import routing_selection as selection
 import routing_surface as surface
 import routing_targets as targets
@@ -53,11 +55,33 @@ RUN_MODES = (selection.GATE_MODE, "compare", "snapshot", "canary")
 ALIAS_INPUTS = {"": None, "default": None, "on": "1", "off": "0"}
 RESULT_EXIT_CODES = (0, 1, 3)
 # Variables that would change what CI measures; never let them reach the eval processes.
-SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS", "ROUTING_MIN_TRIALS", "ROUTING_SCENARIO_IDS", aliasing.ENV_VAR)
+SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS", "ROUTING_MIN_TRIALS", "ROUTING_SCENARIO_IDS", aliasing.ENV_VAR, listing_presets.ENV_VAR)
+# Dispatch modes that accept a skill-listing preset; `all` ignores it (both agents, and a full suite is not an experiment).
+LISTING_MODES = ("skill", "changed", "canary")
 
 
 class CiError(Exception):
     """Invalid CI input or selection; the job fails with exit 2."""
+
+
+def dispatch_listing(env: Mapping[str, str]) -> tuple[str, str | None]:
+    """The skill-listing preset a run applies and a notice when the input is ignored.
+
+    Only a manual dispatch in a LISTING_MODES mode applies LISTING_INPUT (an allowlisted preset name,
+    never settings content); every other event, and mode `all`, runs with the default. An invalid
+    value is a CiError.
+    """
+    if env.get("EVENT_NAME") != "workflow_dispatch":
+        return listing_presets.DEFAULT, None  # the input is not even parsed outside a manual dispatch
+    try:
+        requested = listing_presets.parse_setting(env.get("LISTING_INPUT"))
+    except ValueError as exc:
+        raise CiError(str(exc).replace(listing_presets.ENV_VAR, "listing")) from None
+    if requested == listing_presets.DEFAULT:
+        return requested, None
+    if env.get("MODE_INPUT") not in LISTING_MODES:
+        return listing_presets.DEFAULT, f"listing={requested} is ignored for mode={env.get('MODE_INPUT')}; this run uses the default listing"
+    return requested, None
 
 
 def _git_ok(repo: Path, *args: str) -> bool:
@@ -135,6 +159,13 @@ def select_matrix(env: Mapping[str, str], repo: Path = check_repo.REPO_ROOT) -> 
             matrix, warnings = [], [f"selection problem (blocks the merge queue, advisory here): {exc}"]
     else:
         raise CiError(f"unsupported event {event!r}")
+    listing, notice = dispatch_listing(env)
+    if notice:
+        notes.append(notice)
+    try:
+        listing_presets.check_agents(listing, agents)
+    except ValueError as exc:
+        raise CiError(str(exc).replace(listing_presets.ENV_VAR, "listing") + "; set agents=claude") from None
     return {"matrix": matrix, "agents": agents, "notes": notes, "warnings": warnings, "diff": diff, "event": event, "skipped": skipped}
 
 
@@ -243,6 +274,16 @@ def evaluate_main(
     child_env = {k: v for k, v in env.items() if k not in SCRUBBED}
     if ALIAS_INPUTS[alias_input] is not None:
         child_env[aliasing.ENV_VAR] = ALIAS_INPUTS[alias_input]
+    # Likewise ROUTING_SKILL_LISTING: only a manual dispatch's allowlisted preset name applies.
+    try:
+        listing, listing_notice = dispatch_listing(env)
+    except CiError as exc:
+        print(f"::error title=harness_error::{exc}")
+        return 2
+    if listing_notice:
+        print(f"::notice title=listing_ignored::{listing_notice}")
+    if listing != listing_presets.DEFAULT:
+        child_env[listing_presets.ENV_VAR] = listing
     reports = repo / ".tmp" / "routing" / "reports"
     reports.mkdir(parents=True, exist_ok=True)
     summary_path = env.get("GITHUB_STEP_SUMMARY")
@@ -252,12 +293,18 @@ def evaluate_main(
         print(f"::error title=harness_error::{exc}")
         return 2
     agents = plan["agents"]
+    try:
+        listing_presets.check_agents(listing, plan["requested"])
+    except ValueError as exc:
+        print(f"::error title=harness_error::{exc}")
+        return 2
     record: dict[str, Any] = {
         "skill": skill, "mode": mode, "requested": plan["requested"], "agents": agents,
         "skipped": plan["skipped"], "exit_code": None,
         # A re-run of failed jobs is a new attempt; the gate judges the highest attempt per skill.
         "attempt": int(env.get("GITHUB_RUN_ATTEMPT") or 1),
         "aliased": aliasing.enabled(child_env),
+        "listing": listing,
     }
     record_path = reports / f"{skill}.run.json"
 
@@ -267,7 +314,7 @@ def evaluate_main(
     write_record()  # a crash below leaves exit_code null, which the gate treats as a harness error
     for message in plan["messages"]:
         print(f"::warning title=agent_skipped::{message}")
-    heading = f"### Routing eval ({mode}): {skill}\n{plan['summary']}; skill names aliased: {'yes' if record['aliased'] else 'no'}\n"
+    heading = f"### Routing eval ({mode}): {skill}\n{plan['summary']}; skill names aliased: {'yes' if record['aliased'] else 'no'}; skill listing: {listing}\n"
     if not agents:
         print(f"::warning title=agent_skipped::{ci_agents.NO_KEYS_MESSAGE}; the gate will fail in the merge queue and manual runs")
         _append(summary_path, heading + f"{ci_agents.NO_KEYS_MESSAGE}; no provider calls were made.\n")

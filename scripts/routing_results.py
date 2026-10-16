@@ -34,6 +34,7 @@ Agent result document (`reduce_agent` / `agent_failure`)
       "agents_run": [...], "partial": bool,   # run scripts add these; partial = fewer than all agents ran
       "aliased": bool,               # skills had opaque aliases in the workspace (routing_aliases.py); every name
                                      # in this document is the REAL skill name, mapped back from the aliases
+      "listing": str,                # skill-listing preset of the workspace: default|wide|name-only (routing_listing.py)
       "fingerprint": str | None,     # hash of every description in the workspace (run scripts add it)
       "overridden": bool,            # any ROUTING_*_MODEL / _EFFORT override was active
                                      # (settings/overridden are added by the run scripts, not reduce_agent)
@@ -70,6 +71,7 @@ import math
 from typing import Any, Mapping
 
 import routing_aliases as aliasing
+import routing_listing as listing_presets
 import routing_ceilings as ceilings
 
 PASS = "pass"
@@ -255,6 +257,7 @@ def reduce_agent(
         "complete": state != INFRA_ERROR,
         "retries": max(len(attempts) - 1, 0),
         "aliased": aliases is not None,
+        "listing": listing_presets.DEFAULT,
         "failure_kinds": kinds if scenarios else [PROVIDER],
         "counts": {s: sum(t["state"] == s for t in all_trials) for s in (PASS, ROUTING_FAIL, INFRA_ERROR)},
         "usage": ceilings.usage([row for rows in attempts for row in rows]),
@@ -277,6 +280,7 @@ def agent_failure(
         "complete": False,
         "retries": retries,
         "aliased": False,
+        "listing": listing_presets.DEFAULT,
         "failure_kinds": [kind],
         "counts": {PASS: 0, ROUTING_FAIL: 0, INFRA_ERROR: 0},
         "usage": ceilings.usage([]),
@@ -284,6 +288,12 @@ def agent_failure(
         "scenarios": [],
         "reason": _clip(reason) or kind,
     }
+
+
+def combined_listing(results: list[dict[str, Any]]) -> str:
+    """The skill-listing preset shared by every result, `mixed` when they differ."""
+    presets = {r.get("listing", listing_presets.DEFAULT) for r in results}
+    return presets.pop() if len(presets) == 1 else (listing_presets.DEFAULT if not presets else "mixed")
 
 
 def combine_agents(results: list[dict[str, Any]], required: tuple[str, ...] = AGENTS) -> dict[str, Any]:
@@ -309,4 +319,5 @@ def combine_agents(results: list[dict[str, Any]], required: tuple[str, ...] = AG
         "settings": {r["agent"]: r["settings"] for r in results if "settings" in r},
         "overridden": any(r.get("overridden") for r in results),
         "aliased": bool(results) and all(r.get("aliased") for r in results),
+        "listing": combined_listing(results),
     }
