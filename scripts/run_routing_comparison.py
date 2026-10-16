@@ -43,6 +43,7 @@ import check_repo
 import routing_agents as agents_lib
 import prepare_routing_workspace as workspaces
 import routing_aliases as aliasing
+import routing_listing as listing_presets
 import routing_ceilings as ceilings
 import routing_compare as compare
 import routing_results as results
@@ -110,7 +111,7 @@ def evaluate_variant(
             workspace = workspaces.prepare_workspace(root / agent, agent, ref, description_overrides=description_overrides)
         else:
             workspace = workspaces.verify_workspace(root / agent, agent, ref, description_overrides=description_overrides)
-        print(f"{agent} {variant}: workspace aliased={str(workspace.aliases is not None).lower()} fingerprint={workspace.fingerprint}")
+        print(f"{agent} {variant}: workspace aliased={str(workspace.aliases is not None).lower()} listing={workspace.listing} fingerprint={workspace.fingerprint}")
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     env = {"ROUTING_WORKSPACE_ROOT": str(root), aliasing.ALIASES_ENV_VAR: str(aliasing.aliases_path(root / agent))}
     if scenario_ids:
@@ -194,7 +195,7 @@ def confirmation_note(doc: dict[str, Any]) -> str:
 
 def _describe(doc: dict[str, Any]) -> str:
     config = f" [{settings_lib.describe(doc['settings'])}]" if "settings" in doc else ""
-    config += f" aliased={str(doc.get('aliased', False)).lower()}"
+    config += f" aliased={str(doc.get('aliased', False)).lower()} listing={doc.get('listing', listing_presets.DEFAULT)}"
     return _describe_state(doc).replace(":", f"{config}:", 1)
 
 
@@ -275,6 +276,7 @@ def main(argv: list[str]) -> int:
         # Candidate and control inherit the same environment, so both use these effective settings.
         settings = settings_lib.load()
         aliasing.enabled()  # fail fast on an invalid ROUTING_ALIAS_SKILLS
+        listing_presets.check_agents(listing_presets.selected(), agents)  # and ROUTING_SKILL_LISTING
     except ValueError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return runner.HARNESS_ERROR

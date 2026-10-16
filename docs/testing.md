@@ -135,7 +135,8 @@ mise run eval:routing:compare -- konnect-gateway-triage --gate        # lazy con
 mise run eval:routing:canary -- konnect-gateway-triage --agent claude # eval of the eval: damage one description, see if the harness notices
 mise run eval:routing:canary -- konnect-gateway-triage --alias on     # same, with experimental opaque aliases (suppresses Claude routing; see Skill aliasing)
 ROUTING_ALIAS_SKILLS=1 mise run eval:routing -- skill konnect-gateway-triage  # opt in to experimental opaque skill aliases
-mise run eval:routing:config -- --json                               # effective settings (including aliasing), offline
+ROUTING_SKILL_LISTING=wide mise run eval:routing -- skill konnect-gateway-triage --agent claude  # experimental skill-listing preset (Claude only)
+mise run eval:routing:config -- --json                               # effective settings (including aliasing and listing), offline
 mise run eval:routing:coverage                                        # which skills have scenarios, offline (--json too)
 ROUTING_CODEX_MODEL=gpt-5.5 ROUTING_CODEX_EFFORT=high mise run eval:routing -- skill konnect-gateway-triage --agent codex
 ```
@@ -245,7 +246,7 @@ lives in `scripts/routing_ci.py` (`select`, `evaluate`) and the verdict in `scri
 | --- | --- | --- | --- |
 | Pull request push | `validate.yml`, plus a no-spend preview in the Select job summary: the selected scenarios, initial and worst-case trials per agent, a rough cost range, and the skills skipped because their routing surface did not change. A new skill below the scenario minimums only warns. | none, no secrets | passes immediately |
 | Merge queue (`merge_group`) | Only skills whose routing surface changed, or whose scenarios were edited, once for the queued commit (diff `base_sha...head_sha`), at scenario level with lazy control (see [Cost and selection](#cost-and-selection)). A queue entry is never cancelled by a later one. | yes, environment `skill-evals` | applies the policy below; fails the queue entry on `fail`, `blocked_infra`, `fail_no_agents` |
-| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), or `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)); optional `agents` (`claude`, `codex`) and, for `canary` only, `alias` (`default`, `on`, `off`). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
+| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), or `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)); optional `agents` (`claude`, `codex`) for `canary` only, `alias` (`default`, `on`, `off`); and `listing` (`default`, `wide`, `name-only`; Claude only, see [Skill listing presets](#skill-listing-presets-experiment)). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
 
 The full suite is manual only and never part of the gate. A manual `skill` run on a ref with
 nothing beyond `main` is a snapshot, not a comparison with itself. Environments restrict where
@@ -411,6 +412,38 @@ workspace and must not see the map.
   valid "no skill used" only if the output, stripped and case-insensitive, is `NONE` and there is no
   error: a positive then is `routing_fail`, a near-miss passes. Missing `skillCalls` with any other
   output stays a `telemetry` infra_error (it could be a lost Skill call). A present empty list is valid.
+
+### Skill listing presets (experiment)
+
+Claude is shown each skill's name and description up front, but the listing has a character budget
+(by default 1% of the context window, each entry capped at 1,536 characters). When it overflows,
+Claude Code keeps every name and drops descriptions, least-invoked skills first, so a skill's
+description may never reach the model ([documented behaviour](https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short)).
+These presets exist to test whether that happens in the eval workspace and whether descriptions
+matter for the scenarios (the canary misses a destroyed description with real names). They are for
+diagnosis, not the gate: off by default, Claude only, and never read in `merge_group` or
+`pull_request` runs.
+
+| `ROUTING_SKILL_LISTING` | Written to `<workspace>/.claude/settings.json` |
+| --- | --- |
+| `default` (unset) | nothing: current behaviour |
+| `wide` | `skillListingBudgetFraction: 0.25`, `skillListingMaxDescChars: 8192`: every description listed in full |
+| `name-only` | `skillOverrides` with every workspace skill (the alias when aliased) set to `"name-only"` |
+
+Presets are constants in `scripts/routing_listing.py`; nothing else can be written, so an input can
+never inject settings such as hooks. `prepare_routing_workspace.py` writes the file (it fails if one
+exists, and rejects a non-default preset for Codex with exit 2), workspace integrity re-checks it, and
+every result, summary, comparison and canary document records `listing`, as do the console summary,
+the workspace fingerprint line and `mise run eval:routing:config`. Run, for example:
+
+```bash
+ROUTING_SKILL_LISTING=wide mise run eval:routing:canary -- konnect-gateway-triage --agent claude
+gh workflow run skill-evals.yml -f mode=canary -f skill=konnect-gateway-triage -f agents=claude -f listing=wide
+```
+
+The workflow input `listing` applies to modes `skill`, `changed` and `canary` and needs `agents=claude`;
+`all` ignores it with a notice. It is part of the dispatch concurrency group, so experiments differing
+only in `listing` do not cancel each other.
 
 ### Workspace integrity
 

@@ -21,7 +21,7 @@ after enabling the gate (docs/testing.md#canary-eval-of-the-eval).
 repo default, which is off), so the same canary can compare real names with opaque aliases. Aliasing on
 suppresses Claude's skill selection, so a canary_detected with aliases proves nothing; a canary_missed
 with real names is the known name-driven-routing limitation (a note is printed). The result is written to
-`.tmp/routing/reports/canary-<skill>.canary.json`, records `aliased`, the damaged workspace's
+`.tmp/routing/reports/canary-<skill>.canary.json`, records `aliased`, `listing` (ROUTING_SKILL_LISTING preset, Claude only), the damaged workspace's
 fingerprint, usage and measured cost, and the measured cost is printed.
 
 `--fake-results FILE` is the offline mode for tests: no provider call is made. FILE maps agent to
@@ -38,6 +38,7 @@ from typing import Any
 
 import routing_agents as agents_lib
 import routing_aliases as aliasing
+import routing_listing as listing_presets
 import routing_ceilings as ceilings
 import routing_compare as compare
 import routing_results as results
@@ -145,6 +146,7 @@ def run_canary(
     per_agent: dict[str, dict[str, Any]] = {}
     usage: list[dict[str, Any]] = []
     aliased = aliasing.enabled()
+    listing = listing_presets.selected()
     for agent in agents:
         result = driver.evaluate_variant(
             VARIANT, agent, skill, None, [], fake_runner(routing_dir, fake, ids) if fake is not None else None,
@@ -155,11 +157,12 @@ def run_canary(
         per_agent[agent] = judge_agent(result, ids)
         usage.append(result["usage"])
         aliased = bool(result.get("aliased"))
+        listing = result.get("listing", listing)
     total = compare._total(*usage) if usage else {"trials": 0, "tokens": 0, "cost_usd": 0.0, "latency_ms": 0}
     verdict = overall(per_agent)
     return {
         "skill": skill, "mode": "canary", "verdict": verdict, "exit_code": EXIT_CODES[verdict],
-        "aliased": aliased, "threshold_percent": THRESHOLD_PERCENT, "positives": ids,
+        "aliased": aliased, "listing": listing, "threshold_percent": THRESHOLD_PERCENT, "positives": ids,
         "agents": per_agent, "usage": total, "offline": fake is not None,
         "settings": {a: {"model": settings[a]["model"], "effort": settings[a]["effort"]} for a in agents} if settings else {},
         "overridden": any(settings[a]["overridden"] for a in agents) if settings else False,
@@ -169,7 +172,7 @@ def run_canary(
 
 def render(doc: dict[str, Any]) -> list[str]:
     lines = [
-        f"canary {doc['skill']}: {doc['verdict']} (aliased: {str(doc['aliased']).lower()}; "
+        f"canary {doc['skill']}: {doc['verdict']} (aliased: {str(doc['aliased']).lower()}; listing: {doc.get('listing', listing_presets.DEFAULT)}; "
         f"detected needs >= {doc['threshold_percent']}% of positive scenarios failing to route)"
     ]
     for agent, a in doc["agents"].items():
@@ -199,6 +202,7 @@ def main(argv: list[str]) -> int:
         agents = agents_lib.parse_agents(args.agent)
         settings = settings_lib.load()
         aliasing.enabled()
+        listing_presets.check_agents(listing_presets.selected(), agents)
         fake = json.loads(args.fake_results.read_text()) if args.fake_results else None
         if warning := settings_lib.warning(settings):
             print(warning, file=sys.stderr)

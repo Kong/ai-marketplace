@@ -62,12 +62,21 @@ on:
           - default
           - "on"
           - "off"
+      listing:
+        description: "Claude only, diagnosis (modes skill, changed, canary; needs agents=claude): skill-listing preset. wide: raise the listing budget so every description is listed; name-only: list names without descriptions. Ignored for mode all"
+        required: false
+        type: choice
+        default: default
+        options:
+          - default
+          - wide
+          - name-only
 
 permissions: {}
 
 concurrency:
-  # Manual dispatches differing in mode, skill, alias or agents run side by side; an identical repeat cancels.
-  group: skill-evals-${{ github.event.pull_request.number || github.event.merge_group.head_ref || format('{0}-{1}-{2}-{3}', inputs.mode, inputs.skill, inputs.alias, inputs.agents) }}
+  # Manual dispatches differing in mode, skill, alias, listing or agents run side by side; an identical repeat cancels.
+  group: skill-evals-${{ github.event.pull_request.number || github.event.merge_group.head_ref || format('{0}-{1}-{2}-{3}-{4}', inputs.mode, inputs.skill, inputs.alias, inputs.listing, inputs.agents) }}
   # A queue entry is never cancelled by a later one: the queue needs every result.
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 
@@ -101,6 +110,7 @@ jobs:
           SKILL_INPUT: ${{ inputs.skill }}
           AGENTS_INPUT: ${{ inputs.agents }}
           ALIAS_INPUT: ${{ inputs.alias }}
+          LISTING_INPUT: ${{ inputs.listing }}
           ROUTING_MAX_COST_USD: ${{ vars.ROUTING_MAX_COST_USD }}
         run: uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_ci.py select
 
@@ -136,6 +146,10 @@ jobs:
           BASE_REF: ${{ github.event.merge_group.base_sha || 'origin/main' }}
           REQUESTED_AGENTS: ${{ needs.select.outputs.agents }}
           ALIAS_INPUT: ${{ inputs.alias }}
+          # An allowlisted preset name only (scripts/routing_listing.py); routing_ci.py applies it for manual skill, changed and canary runs.
+          LISTING_INPUT: ${{ inputs.listing }}
+          EVENT_NAME: ${{ github.event_name }}
+          MODE_INPUT: ${{ inputs.mode }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           # Empty values fall back to the defaults in scripts/routing_ceilings.py.
