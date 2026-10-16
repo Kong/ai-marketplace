@@ -55,6 +55,8 @@ default authoring guardrail for:
 - description budget
 - high-similarity trigger overlap between skills
 - routing scenario validation (`scripts/validate_routing_scenarios.py`)
+- the free lexical description-routing check (`scripts/check_description_routing.py`, see
+  [Description-routing check](#description-routing-check))
 
 The checked-in `pre-commit` and `pre-push` hooks both run `mise run lint`, but
 they only apply after `mise run hooks:install`. CI remains the enforcement path
@@ -378,13 +380,52 @@ description into off-domain marketing copy (29 trials, all passing); the canary 
 `konnect-gateway-triage` was `canary_missed` (all five positives still routed by name); and with every
 description removed (the `name-only` listing preset) all 43 scenarios of that skill still passed. Treat a
 passing gate as evidence about routing behavior with the current names, not as proof the descriptions
-are good; review description changes by hand.
+are good; review description changes by hand. Two tools address this: the free
+[description-routing check](#description-routing-check) runs in lint and catches gross description
+damage and near-duplicate descriptions without a model, and the name-only ablation shows which
+scenarios depend on the description at all.
 
 Opaque skill aliases were tried to isolate descriptions and removed: with aliases the agent cannot
 connect a request to an opaque name, so Claude answers `NONE` without calling the Skill tool for every
 positive and sibling, even for the undamaged skill. That measures nothing about descriptions. The
 name-only listing preset (below) is the supported way to measure how much routing depends on
 descriptions.
+
+### Description-routing check
+
+`scripts/check_description_routing.py` (part of `mise run lint`, so of CI `validate`; offline,
+deterministic, pure Python plus the PyYAML the repo already uses, under a second) asks a narrow question
+without a model: does each skill's description still share vocabulary with the scenarios that expect that
+skill? It builds a stemmed TF-IDF vector per skill from the **description only** (never the name, so it
+measures the description, not the name) and ranks all skills by cosine similarity to every scenario
+prompt in `evals/routing/`. For each skill, over the positive and sibling scenarios that expect it, it
+reports **hit@1** and **hit@3**: the share where that skill ranks first or in the top three. It also
+compares every pair of descriptions.
+
+| Result | Rule | Measured on the 22-skill corpus (330 expected-skill rows) |
+| --- | --- | --- |
+| error: collision | two descriptions with cosine similarity >= 0.70 | highest pair 0.51 (`konnect-api-catalog` / `konnect-api-publish`) |
+| error: collapse | a skill (at least 5 scenarios) with hit@3 < 20%, about chance (3 of 22 is 14%) | lowest 38% (`konnect-platform-router`) |
+| error: collapse | corpus hit@3 < 55% | 78% (hit@1 52%) |
+| warning: weak | a skill with hit@3 < 50%, named in the output | only `konnect-platform-router` (38%, a router is vague by design) |
+
+Thresholds are constants at the top of the script, set from those numbers with margin and pinned by a
+test that fails if the margin shrinks. The signal is real but weak: scenario prompts deliberately avoid
+the descriptions' wording (no shared 4-grams), so overlap is a coarse proxy, hit@1 per skill ranges from
+19% to 100%, and per-skill hit@3 from 38% to 100% (median 89%). That is why a weak skill only warns and
+only a collapse to chance errors. The test suite proves the separation on the real corpus: replacing
+`konnect-gateway-triage`'s description with the canary's brand-voice marketing copy drops its hit@3
+from 77% to 8% and fails the check, while the real description passes. Sibling-owner-outranks-target
+(73%) and near-miss-leak (19%) rates are printed as informational only; they are too noisy to gate
+because those prompts are lexically close to the target by design.
+
+Read it with `mise run eval:routing:descriptions -- --report` (or `python scripts/check_description_routing.py --report`):
+the per-skill table with `ok` / `weak` / `COLLAPSE`, hit rates by scenario tag, the rank distribution,
+the weakest skills and the most similar description pairs. To tune, edit the constants and re-run with
+`--report`: after adding scenarios or rewording descriptions the margins move, and a new skill with no
+scenarios is simply not judged yet. The check cannot tell whether a description makes a model route
+correctly, whether the description is good prose, or whether sibling skills are separable; it
+complements the model-based routing eval and does not replace it.
 
 ### `NONE` telemetry (Claude)
 

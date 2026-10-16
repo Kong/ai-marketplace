@@ -32,6 +32,7 @@ description = "Validate manifests, skills, and generated content"
 run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_repo.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/validate_routing_scenarios.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_description_routing.py",
 ]
 
 [tasks.ci]
@@ -40,6 +41,7 @@ run = [
   { task = "lint" },
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_openai_package.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_scenarios.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_description_routing.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_workspace.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_results.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_compare.py",
@@ -116,6 +118,10 @@ run = [
 [tasks."eval:routing:config"]
 description = "Print effective routing eval model/effort, fixed settings, trial policy and ceilings (offline): mise run eval:routing:config -- [--json]"
 run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/print_routing_config.py"
+
+[tasks."eval:routing:descriptions"]
+description = "Free lexical check that descriptions still carry routing signal (offline; part of lint): mise run eval:routing:descriptions -- [--report]"
+run = "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/check_description_routing.py"
 
 [tasks."eval:routing:coverage"]
 description = "List which skills have routing scenarios and their tag counts (offline, informational, never fails on gaps): mise run eval:routing:coverage -- [--json]"
