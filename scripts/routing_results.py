@@ -12,8 +12,9 @@ States
 
 Failure kinds (why a trial or agent is not `pass`)
     invocation           routing_fail: expected skill not invoked, or forbidden one was.
-    provider             infra_error: provider error, missing credentials, or no usable
-                         report from Promptfoo.
+    provider             infra_error: provider error (response.error, failureReason 2, or a row error with
+                         no failureReason), missing credentials, or no usable report from Promptfoo.
+                         A row error beside failureReason 1 is a failed assertion (invocation).
     ceiling              infra_error: a token, cost, or timeout ceiling was reached
                          (routing_ceilings.py); the run is stopped, never a routing_fail.
     telemetry            infra_error: response arrived but skill-call telemetry is malformed.
@@ -83,6 +84,7 @@ SCENARIO_VALIDATION = "scenario_validation"
 
 AGENTS = ("claude", "codex")
 # Promptfoo ResultFailureReason: 0 none, 1 assertion, 2 error.
+FAILURE_REASON_ASSERT = 1
 FAILURE_REASON_ERROR = 2
 MAX_TEXT = 300
 
@@ -159,7 +161,11 @@ def reduce_trial(row: dict[str, Any], agent: str, aliases: Mapping[str, str] | N
     calls: list[dict[str, Any]] = []
     if isinstance(response, dict) and isinstance((response.get("metadata") or {}).get("skillCalls"), list):
         calls = [c for c in response["metadata"]["skillCalls"] if isinstance(c, dict)]
-    error = row.get("error") or (response.get("error") if isinstance(response, dict) else None)
+    response_error = response.get("error") if isinstance(response, dict) else None
+    # Promptfoo also copies an assertion failure's message into the row-level `error` (failureReason 1),
+    # so `error` alone does not mean the provider failed. Without a failureReason, stay conservative.
+    row_error = row.get("error") if row.get("failureReason") != FAILURE_REASON_ASSERT else None
+    error = response_error or row_error
     grading = row.get("gradingResult") or {}
 
     if error or row.get("failureReason") == FAILURE_REASON_ERROR:
@@ -170,7 +176,7 @@ def reduce_trial(row: dict[str, Any], agent: str, aliases: Mapping[str, str] | N
         state, kind, reason = PASS, None, _clip(grading.get("reason"))
     else:
         state, kind = ROUTING_FAIL, INVOCATION
-        reason = _clip(grading.get("reason")) or "routing assertion failed"
+        reason = _clip(grading.get("reason")) or _clip(row.get("error")) or "routing assertion failed"
     reason = aliasing.to_real(reason, aliases) if reason else reason
 
     output = _clip(response.get("output") if isinstance(response, dict) else None)

@@ -67,6 +67,11 @@ class AliasTests(unittest.TestCase):
 
 
 class SettingTests(unittest.TestCase):
+    def test_default_is_off(self) -> None:
+        # Aliasing on suppressed Claude's skill selection in live runs; it is opt-in and experimental.
+        self.assertIs(aliasing.DEFAULT_ALIAS_SKILLS, False)
+        self.assertFalse(aliasing.enabled({}))
+
     def test_default_is_one_constant(self) -> None:
         self.assertIsInstance(aliasing.DEFAULT_ALIAS_SKILLS, bool)
         for value in (None, "", "  "):

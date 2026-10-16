@@ -175,6 +175,13 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("canary_missed (aliased: true;", out)
 
+    def test_missed_with_real_names_prints_the_name_driven_note(self) -> None:
+        _, out, _ = self.main(SKILL, "--agent", "claude", "--alias", "off", fake={})
+        self.assertIn("canary_missed", out)
+        self.assertIn("name-driven-routing limitation", out)
+        _, aliased_out, _ = self.main(SKILL, "--agent", "claude", "--alias", "on", fake={})
+        self.assertNotIn("name-driven-routing limitation", aliased_out)
+
     def test_invalid_alias_environment_and_unknown_skill_exit_two(self) -> None:
         with mock.patch.dict("os.environ", {"ROUTING_ALIAS_SKILLS": "maybe"}):
             code, _, err = self.main(SKILL, fake={})

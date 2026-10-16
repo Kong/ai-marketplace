@@ -18,7 +18,9 @@ incomplete, else canary_detected. Exit codes: 0 detected, 1 missed, 2 harness or
 after enabling the gate (docs/testing.md#canary-eval-of-the-eval).
 
 `--alias` forces skill aliasing on or off for this run (default: ROUTING_ALIAS_SKILLS, else the
-repo default), so the same canary can compare real names with opaque aliases. The result is written to
+repo default, which is off), so the same canary can compare real names with opaque aliases. Aliasing on
+suppresses Claude's skill selection, so a canary_detected with aliases proves nothing; a canary_missed
+with real names is the known name-driven-routing limitation (a note is printed). The result is written to
 `.tmp/routing/reports/canary-<skill>.canary.json`, records `aliased`, the damaged workspace's
 fingerprint, usage and measured cost, and the measured cost is printed.
 
@@ -57,6 +59,11 @@ THRESHOLD_PERCENT = 60
 DETECTED, MISSED, INCOMPLETE = "canary_detected", "canary_missed", "canary_incomplete"
 EXIT_CODES = {DETECTED: 0, MISSED: 1, INCOMPLETE: 3}
 VARIANT = "canary"  # workspace and report directory label under .tmp/routing
+NAME_DRIVEN_NOTE = (
+    "note: canary_missed with real skill names indicates the known name-driven-routing limitation: a descriptive "
+    "skill name carries routing, so the routing eval cannot detect description-only regressions "
+    "(docs/testing.md#known-limitation-routing-is-name-driven)."
+)
 ALIAS_CHOICES = {"default": None, "on": "1", "off": "0"}
 
 
@@ -105,15 +112,19 @@ def fake_runner(root: Path, fake: dict[str, dict[str, bool]], ids: list[str]) ->
             routed = bool(fake.get(agent, {}).get(sid, True))
             # An unrouted Claude answer is the observed shape: output NONE and no skillCalls at all.
             metadata = {"skillCalls": [{"name": target}]} if routed else {}
-            rows.append({
+            message = f"Missing required skill(s): {target}. Actual skills: (none)"
+            row = {
                 "success": routed, "failureReason": 0 if routed else 1, "latencyMs": 1, "cost": 0.0,
-                "gradingResult": {"pass": routed, "reason": "ok" if routed else f"Missing required skill(s): {target}. Actual skills: (none)"},
+                "gradingResult": {"pass": routed, "reason": "ok" if routed else message},
                 "response": {"output": "" if routed else "NONE", "metadata": metadata, "tokenUsage": {"total": 1}},
                 "testCase": {
                     "description": f"{sid} | {agent} | trial 1/1",
                     "metadata": {"scenario": sid, "trial": 1, "trials": 1, "expected": [target], "forbidden": []},
                 },
-            })
+            }
+            if not routed:
+                row["error"] = message  # Promptfoo repeats an assertion failure in the row-level error
+            rows.append(row)
         return "", rows
     return run
 
@@ -166,6 +177,8 @@ def render(doc: dict[str, Any]) -> list[str]:
             f"  {agent}: {a['verdict']} {len(a['failed'])}/{a['positives']} positive scenario(s) failed to route "
             f"fingerprint={a['fingerprint'] or '-'}" + (f" ({a['reason']})" if a["reason"] else "")
         )
+    if doc["verdict"] == MISSED and not doc["aliased"]:
+        lines.append(NAME_DRIVEN_NOTE)
     use = doc["usage"]
     lines.append(f"measured cost: ${use['cost_usd']:.4f} ({use['trials']} trials, {use['tokens']} tokens)")
     return lines

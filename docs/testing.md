@@ -133,8 +133,8 @@ mise run eval:routing:compare -- konnect-gateway-triage --agent codex # compare 
 mise run eval:routing:compare -- konnect-gateway-triage --confirm     # full compare, then re-run regressed scenarios at 3 trials
 mise run eval:routing:compare -- konnect-gateway-triage --gate        # lazy control, as the merge gate runs it (add --scenarios id,id to narrow)
 mise run eval:routing:canary -- konnect-gateway-triage --agent claude # eval of the eval: damage one description, see if the harness notices
-mise run eval:routing:canary -- konnect-gateway-triage --alias off    # same, with real skill names instead of aliases
-ROUTING_ALIAS_SKILLS=0 mise run eval:routing -- skill konnect-gateway-triage  # real skill names instead of opaque aliases
+mise run eval:routing:canary -- konnect-gateway-triage --alias on     # same, with experimental opaque aliases (suppresses Claude routing; see Skill aliasing)
+ROUTING_ALIAS_SKILLS=1 mise run eval:routing -- skill konnect-gateway-triage  # opt in to experimental opaque skill aliases
 mise run eval:routing:config -- --json                               # effective settings (including aliasing), offline
 mise run eval:routing:coverage                                        # which skills have scenarios, offline (--json too)
 ROUTING_CODEX_MODEL=gpt-5.5 ROUTING_CODEX_EFFORT=high mise run eval:routing -- skill konnect-gateway-triage --agent codex
@@ -230,6 +230,11 @@ Precedence is `fail_no_agents` > `fail` > `blocked_infra` > `pass_with_warnings`
 `--informational` (the manual full suite) reports `fail` and `blocked_infra` but exits 0.
 
 ### Merge gate workflow
+
+> **Known limitation:** the gate cannot reliably catch a description-only regression on a skill with a
+> descriptive name; routing is name-driven (see [Known limitation: routing is name-driven](#known-limitation-routing-is-name-driven)).
+> It did pass a skill whose description was replaced by marketing copy, and the real-name canary was
+> `canary_missed` 0/5.
 
 `.github/workflows/skill-evals.yml` is separate from `validate.yml`. It has no `paths:` filter, so
 its check reports on every pull request and queue entry; the `select` job decides relevance from
@@ -365,18 +370,30 @@ The repo cannot do these itself; until they are done the workflow is advisory an
 8. `release.yml` does not push to `main` (it creates a tag and release with the GitHub App token), so
    the ruleset needs no bypass for it, unless tag rules are added.
 
-### Skill aliasing
+### Known limitation: routing is name-driven
 
-A descriptive skill name (`konnect-gateway-triage`) lets an agent route without reading the
-description. A live merge-queue run proved it: a PR that rewrote a skill's description into
-off-domain marketing copy passed the gate, because all five positive scenarios still activated
-the skill by its name. So the eval workspaces (both agents, candidate and control, built the same way)
-rename every skill to a deterministic opaque alias, `s-` plus the first six hex digits of
-`sha1(real name)`: the alias depends on the name alone, so it is stable across runs, between candidate
-and control, and independent of which skills exist (a collision is an error). The skill directory and
-the frontmatter `name` become the alias, the description is kept, and whole-word occurrences of real
-skill names inside every description are replaced by aliases (longest name first) so cross-references
-stay consistent. Bodies are not touched. The map (real to alias) is written next to the workspace
+The agentic routing eval does **not** reliably detect a description-only regression on a skill with a
+descriptive name. A descriptive skill name (`konnect-gateway-triage`) lets an agent route without
+reading the description. Live evidence: a merge-queue run passed the gate for a PR that rewrote a skill's
+description into off-domain marketing copy (29 trials, all passing), and the canary with real names on
+`konnect-gateway-triage` was `canary_missed` 0/5 (all five positives still routed by name). Treat a
+passing gate as evidence about routing behavior with the current names, not as proof the descriptions
+are good; review description changes by hand.
+
+### Skill aliasing (opt-in, experimental)
+
+Aliasing was added to isolate description quality: the eval workspaces (both agents, candidate and
+control, built the same way) rename every skill to a deterministic opaque alias, `s-` plus the first six
+hex digits of `sha1(real name)`. **Observed live on Claude, it does not work as a detector: aliasing ON
+suppresses skill selection.** On a 43-trial `konnect-gateway-triage` run, real names passed 43/43; with
+aliases on, every positive and sibling trial answered `NONE` after one turn and no tool call, even for the
+undamaged skill (only the near-misses, which expect no skill, passed). The earlier "aliases on => canary
+detected" reading was a false signal of the same suppression. So aliasing is off by default, opt-in, and
+not a valid description-sensitivity detector as implemented. The alias depends on the name alone, so it is
+stable across runs, between candidate and control, and independent of which skills exist (a collision is
+an error). The skill directory and the frontmatter `name` become the alias, the description is kept, and
+whole-word occurrences of real skill names inside every description are replaced by aliases (longest name
+first). Bodies are not touched. The map (real to alias) is written next to the workspace
 (`<workspace>.aliases.json`, or `ROUTING_ALIASES_FILE`), never inside it: Codex can read files in its
 workspace and must not see the map.
 
@@ -387,16 +404,9 @@ workspace and must not see the map.
   verdict document, and the job summary, records `aliased: true|false`.
 - `ROUTING_ALIAS_SKILLS` (`1`, `0`, `true`, `false`; invalid exits 2) turns it on or off. Unset or
   empty means the repo default, `DEFAULT_ALIAS_SKILLS` in `scripts/routing_aliases.py` (currently
-  **on**), the only place to flip it. CI passes nothing and uses the default (the variable is scrubbed
+  **off**), the only place to flip it. CI passes nothing and uses the default (the variable is scrubbed
   from the evaluate job; only a canary dispatch input can force it). `mise run eval:routing:config`
   shows the effective setting.
-- **Known limitation:** aliasing measures description-driven routing, which is stricter than real use,
-  where the name also helps an agent choose. A skill can pass in practice and fail here because its
-  description is weak, and that is the point: the gate is meant to notice a description regression.
-
-- **Why it is the default (live canary):** with real names the canary on `konnect-gateway-triage` was
-  `canary_missed` (the agent still routed by name); with aliases on, all five positives on Claude
-  answered `NONE` and it was `canary_detected`.
 - **`NONE` telemetry:** when Claude selects no skill it can omit `metadata.skillCalls` entirely. That is
   valid "no skill used" only if the output, stripped and case-insensitive, is `NONE` and there is no
   error: a positive then is `routing_fail`, a near-miss passes. Missing `skillCalls` with any other
@@ -437,9 +447,12 @@ the damaged workspace's fingerprint, usage) and the measured cost is printed. A 
 per positive scenario per agent (about $0.33 for five on Claude at the measured price).
 
 Run it after changing models, pins or the harness (including the alias default), and after enabling
-the gate. To compare real names with aliases, run it twice with `alias: off` and `alias: on`: if names
-carry routing, `off` is missed and `on` is detected. Offline tests drive the same code with fake
-results (`--fake-results`).
+the gate. With the default (real names), `canary_missed` is expected for skills with descriptive names:
+it is the known name-driven-routing limitation, and the output says so. `alias: on` returns
+`canary_detected`, but only because aliasing suppresses Claude's skill selection, so that is not
+evidence the harness sees descriptions. The canary counts an assertion failure (including a `NONE`
+answer) as failed to route, with aliases on or off. Offline tests drive the same code with fake results
+(`--fake-results`).
 
 ### Model and effort settings
 

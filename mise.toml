@@ -104,7 +104,7 @@ run = [
 description = "Eval of the eval: damage one skill's description and check the routing eval notices (paid): mise run eval:routing:canary -- <name> [--agent claude] [--alias default|on|off]"
 usage = '''
 arg "<name>" help="Skill whose own positive scenarios are run against a destroyed description"
-flag "--alias <alias>" default="default" help="Force skill aliasing: default (ROUTING_ALIAS_SKILLS or repo default), on, or off" {
+flag "--alias <alias>" default="default" help="Force skill aliasing: default (ROUTING_ALIAS_SKILLS or repo default, off), on (experimental; suppresses Claude routing), or off" {
   choices "default" "on" "off"
 }
 flag "--agent <agent>" var=#true help="Run only this agent (claude or codex; repeatable or comma-separated). Default: both."
