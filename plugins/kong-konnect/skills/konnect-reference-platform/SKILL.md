@@ -60,10 +60,12 @@ Require these properties unless the user deliberately chooses another model:
 
 - no custom registry or generated orchestration format
 - one default branch with distinct development and production resources
-- a root beta OpenAPI contract plus immutable, stable versioned files
+- a root beta OpenAPI contract that advances for every contract change, plus
+  immutable, stable versioned files
 - an explicit current-production version in the production Catalog manifest
 - generated decK files committed so reviewers can inspect exact Gateway state
-- apply-only reconciliation until deletion semantics are intentionally designed
+- append-only Catalog API versions, created with a separate `kongctl apply`
+  manifest and omitted from manifests reconciled with `kongctl sync`
 
 ### 2. Draw the ownership boundary
 
@@ -100,6 +102,9 @@ the exact compatibility dependency; do not replace it with a custom registry.
 
 - The OpenAPI contract drives the Catalog API version and generated Gateway
   configuration.
+- Treat Catalog API versions as append-only. Advance `info.version` for every
+  contract change, apply the new child before selecting it, and omit the
+  versions collection from the API manifest reconciled with `kongctl sync`.
 - Link each Catalog API to its runtime implementation.
 - Keep routing configuration in decK. Keep APIs, specs, implementations, and
   Portal publications in `kongctl` manifests.
@@ -127,6 +132,8 @@ configuration to `deck-gateway`.
 Validate more than YAML syntax:
 
 - regenerate committed decK from the OpenAPI source and require a clean diff
+- verify development creates the new Catalog version before selecting it, and
+  that sync-managed manifests cannot delete prior version children
 - verify release automation opens a reviewed service PR, advances the root
   beta, and derives production generation from the manifest's stable selector
 - reject modification or deletion of stable release files already on the
@@ -156,6 +163,9 @@ that must land before the pipeline can pass.
   separate layers that must agree.
 - A service-owned Catalog does not imply service-owned production data-path
   configuration.
+- Catalog API versions need a different reconciliation policy from mutable API
+  state: use additive apply for version children and sync for the remaining
+  authoritative state.
 - An unreleased environment or workspace feature should be a documented future
   option, not a hidden dependency of the current working path.
 

@@ -26,11 +26,17 @@ can be proven. Do not represent least privilege through a custom registry.
 2. The service pipeline generates development decK from that contract, adds
    the repository-owned plugins and tags, validates the file, and commits the
    exact result.
-3. The service pipeline applies its development Catalog manifest with
-   `kongctl`.
-4. The service pipeline applies only its tagged development Gateway slice to
+3. The service pipeline additively applies the new development Catalog API
+   version. API versions are append-only and are omitted from the manifest
+   reconciled with `kongctl sync`.
+4. After the new child exists, the pipeline selects it as the API's current
+   version and synchronizes the remaining Catalog, publication, and
+   implementation state. If the installed `kongctl` needs an explicit forced
+   selector transition for an ACE-protected API, keep that workaround narrow,
+   documented, and linked to the upstream issue.
+5. The service pipeline applies only its tagged development Gateway slice to
    the team development control plane.
-5. The pipeline proves Catalog, publication, implementation linkage, routing,
+6. The pipeline proves Catalog, publication, implementation linkage, routing,
    and authorization for the changed slice.
 
 When several repositories share a team control plane, each repository must use
@@ -65,7 +71,11 @@ source of truth, but it must retain traceability to the service-authored source.
 ## Minimum Repository Guardrails
 
 - generated decK is deterministic and clean after regeneration
-- the root contract is a beta; production selects a stable retained contract
+- the root contract is a beta whose version advances for every contract
+  change; production selects a stable retained contract
+- development API versions are append-only: the pipeline applies the new
+  child before selecting it, and sync-managed manifests omit the versions
+  collection so older children are not deleted
 - stable contract filenames match `info.version`, remain declared in the
   production manifest, and cannot be modified or deleted after merge
 - release automation refuses overwrites and opens a service pull request
@@ -73,6 +83,6 @@ source of truth, but it must retain traceability to the service-authored source.
 - service-owned production files do not declare global plugins
 - production deployment requires the platform environment and review rules
 - promotion checks the copied file checksum against the recorded provenance
-- apply targets are explicit; destructive sync and delete paths are not implied
+- apply and sync targets are explicit; destructive delete paths are not implied
 - unresolved `!lookup` or `_external` behavior is reported as a `kongctl`
   compatibility dependency rather than replaced with hard-coded UUIDs
