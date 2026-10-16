@@ -86,6 +86,7 @@ def evaluate_variant(
     min_trials: int | None = None,
     prepare: bool | None = None,
     description_overrides: Mapping[str, str] | None = None,
+    listing: str | None = None,
 ) -> dict[str, Any]:
     """Materialize one variant's workspace for `agent` and reduce its routing run.
 
@@ -99,16 +100,17 @@ def evaluate_variant(
     defaults to building the workspace unless this is a confirmation; the gate builds the control's
     workspace at its first and only use. A built or reused workspace is always verified against its
     source (`WorkspaceIntegrityError`, exit 2 in the scripts) and its fingerprint is recorded
-    in the result. `description_overrides` is for the canary only.
+    in the result. `description_overrides` is for the canary only; `listing` (default: ROUTING_SKILL_LISTING)
+    selects the skill-listing preset of the workspace, which the ablation varies per variant.
     """
     routing_dir = routing_dir or ROUTING_DIR
     root = routing_dir / variant
     workspace = None
     if not validation_errors:
         if confirm is None if prepare is None else prepare:
-            workspace = workspaces.prepare_workspace(root / agent, agent, ref, description_overrides=description_overrides)
+            workspace = workspaces.prepare_workspace(root / agent, agent, ref, description_overrides=description_overrides, listing=listing)
         else:
-            workspace = workspaces.verify_workspace(root / agent, agent, ref, description_overrides=description_overrides)
+            workspace = workspaces.verify_workspace(root / agent, agent, ref, description_overrides=description_overrides, listing=listing)
         print(f"{agent} {variant}: workspace listing={workspace.listing} fingerprint={workspace.fingerprint}")
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     env = {"ROUTING_WORKSPACE_ROOT": str(root)}

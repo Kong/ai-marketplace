@@ -114,7 +114,10 @@ decisions behind them:
   approach cannot separate description from name, and it was removed with its plumbing. A wider
   skill-listing budget (every description listed in full) was also tried and changed nothing, so the
   listing budget is not the cause either; that preset was removed too. The `name-only` listing preset
-  stays as the ablation.
+  stays as the ablation (`mise run eval:routing:ablation`, workflow mode `ablation`): a skill's own
+  scenarios run under the default and name-only listings and are classified `description_dependent`,
+  `name_solvable` or `failing`. A free lexical check over descriptions (`scripts/check_description_routing.py`,
+  in lint) catches gross description damage and near-duplicates without a model.
 - **Measured cost:** Claude about $0.058-0.065 per trial on CI (43 trials, 1.07M tokens, $2.49; the
   29-trial gate profile, 682K tokens, $1.88), so `routing_cost.py` plans at $0.065; Codex remains
   the unmeasured old range of $0.05-0.10. Artifacts are kept 10 days, the repository maximum.

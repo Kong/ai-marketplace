@@ -60,6 +60,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_cost.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_targets.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_canary.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ablation.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_listing.py",
   "gh skill publish --dry-run",
 ]
@@ -113,6 +114,19 @@ run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
   # Exit codes: 0 canary_detected, 1 canary_missed, 2 harness error, 3 incomplete (see docs/testing.md).
   "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_canary.py {{usage.name}} $agent_args",
+]
+
+[tasks."eval:routing:ablation"]
+description = "Name-only ablation (paid): which of one skill's own scenarios depend on its description? mise run eval:routing:ablation -- <name> [--agent claude]"
+usage = '''
+arg "<name>" help="Skill whose own scenarios are run once under the default and once under the name-only skill listing"
+flag "--agent <agent>" var=#true help="Agent to run; only claude supports the name-only listing (default: claude)"
+'''
+env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
+run = [
+  "npm ci --ignore-scripts --no-audit --no-fund",
+  # Exit codes: 0 complete, 2 harness error (including a non-Claude agent), 3 incomplete (see docs/testing.md).
+  "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_ablation.py {{usage.name}} $agent_args",
 ]
 
 [tasks."eval:routing:config"]

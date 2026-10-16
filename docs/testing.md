@@ -135,6 +135,7 @@ mise run eval:routing:compare -- konnect-gateway-triage --agent codex # compare 
 mise run eval:routing:compare -- konnect-gateway-triage --confirm     # full compare, then re-run regressed scenarios at 3 trials
 mise run eval:routing:compare -- konnect-gateway-triage --gate        # lazy control, as the merge gate runs it (add --scenarios id,id to narrow)
 mise run eval:routing:canary -- konnect-gateway-triage --agent claude # eval of the eval: damage one description, see if the harness notices
+mise run eval:routing:ablation -- konnect-gateway-triage             # name-only ablation: which scenarios depend on the description? (Claude only, paid)
 ROUTING_SKILL_LISTING=name-only mise run eval:routing -- skill konnect-gateway-triage --agent claude  # experimental skill-listing preset (Claude only)
 mise run eval:routing:config -- --json                               # effective settings (including the listing preset), offline
 mise run eval:routing:coverage                                        # which skills have scenarios, offline (--json too)
@@ -246,7 +247,7 @@ lives in `scripts/routing_ci.py` (`select`, `evaluate`) and the verdict in `scri
 | --- | --- | --- | --- |
 | Pull request push | `validate.yml`, plus a no-spend preview in the Select job summary: the selected scenarios, initial and worst-case trials per agent, a rough cost range, and the skills skipped because their routing surface did not change. A new skill below the scenario minimums only warns. | none, no secrets | passes immediately |
 | Merge queue (`merge_group`) | Only skills whose routing surface changed, or whose scenarios were edited, once for the queued commit (diff `base_sha...head_sha`), at scenario level with lazy control (see [Cost and selection](#cost-and-selection)). A queue entry is never cancelled by a later one. | yes, environment `skill-evals` | applies the policy below; fails the queue entry on `fail`, `blocked_infra`, `fail_no_agents` |
-| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), or `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)); optional `agents` (`claude`, `codex`); and `listing` (`default`, `name-only`; Claude only, see [Skill listing presets](#skill-listing-presets-experiment)). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational |
+| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)), or `ablation` (needs `skill`, Claude only, environment `skill-evals`; see [Scenario design](#scenario-design-description-dependence)); optional `agents` (`claude`, `codex`); and `listing` (`default`, `name-only`; Claude only, see [Skill listing presets](#skill-listing-presets-experiment)). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational; `canary` and `ablation` are diagnostics (the gate job passes without applying a policy) |
 
 The full suite is manual only and never part of the gate. A manual `skill` run on a ref with
 nothing beyond `main` is a snapshot, not a comparison with itself. Environments restrict where
@@ -501,6 +502,52 @@ real skill names, so `canary_missed` is expected for skills with descriptive nam
 name-driven-routing limitation, and the output says so. The canary counts an assertion failure
 (including a `NONE` answer) as failed to route. Offline tests drive the same code with fake results
 (`--fake-results`).
+
+### Scenario design: description-dependence
+
+A scenario that passes with **no descriptions at all** says nothing about descriptions: the skill name
+alone was enough. On `konnect-gateway-triage` every scenario passed with the `name-only` listing, so the
+scenarios, and the merge gate built on them, could not see a description regression. The ablation
+measures this for one skill instead of guessing:
+
+```bash
+mise run eval:routing:ablation -- konnect-gateway-triage [--agent claude]
+gh workflow run skill-evals.yml -f mode=ablation -f skill=konnect-gateway-triage   # Claude only; environment skill-evals
+```
+
+It runs the skill's **own** scenarios (every tag) on Claude at one trial each, twice and candidate only:
+under the `default` listing and under the `name-only` listing, in separate workspaces and report
+directories (`.tmp/routing/ablation-default`, `.tmp/routing/ablation-name-only`), through the same runner,
+ceilings and reducer as every other eval. Each scenario is classified:
+
+| Class | Meaning |
+| --- | --- |
+| `description_dependent` | passes with the default listing, fails name-only: the description carries it |
+| `name_solvable` | passes both: the name alone suffices, so it says nothing about the description |
+| `failing` | fails with the default listing; fix the routing first |
+| `incomplete` | an infrastructure error or ceiling breach left it undecided (exit 3) |
+
+The result is `ablation-<skill>.ablation.json` (per-scenario classes and states, counts and percentages
+overall and per tag `positive` / `near-miss` / `sibling`, per-listing fingerprint and usage, model and
+effort) plus a table in the console and the job summary. In CI the manual `ablation` mode uses the
+`skill-evals` environment, needs `agents` empty or `claude` (Codex has no name-only listing; the
+`listing` input is ignored), uploads the reports as artifacts, previews the cost in the select summary
+(twice the skill's scenarios at the measured Claude price; about $2.7 for 21 scenarios) and the
+measured cost afterwards, and never affects the merge gate: `routing-evals-gate` passes without applying
+a policy, and `merge_group` and `pull_request` never run it. Exit codes: 0 complete, 2 harness or usage
+error (including a non-Claude agent), 3 incomplete.
+
+Design guidance (not enforced; the ablation reports, it does not gate):
+
+- Treat a high `name_solvable` share among `positive` scenarios as a gap in the scenario set, not as
+  evidence that the descriptions are good.
+- Add positive prompts that avoid the skill's own vocabulary (its name, product nouns and the words in
+  its description): describe the symptom or goal the way a user who has never seen the skill would.
+- Add sibling pairs whose skill names do not separate them: the right owner is only decidable from the
+  description (what each skill covers and excludes), not from a name that resembles the prompt.
+- After adding or rewording scenarios, re-run the ablation and check that the new scenarios land in
+  `description_dependent`. The [description-routing check](#description-routing-check) is the free
+  complement for gross description damage.
 
 ### Model and effort settings
 
