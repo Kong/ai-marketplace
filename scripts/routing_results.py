@@ -94,14 +94,27 @@ def _clip(text: Any) -> str | None:
     return first[:MAX_TEXT] or None
 
 
+def _answered_none(response: dict[str, Any]) -> bool:
+    """The agent explicitly replied NONE (no skill) and the provider reported no error."""
+    output = response.get("output")
+    return isinstance(output, str) and output.strip().upper() == "NONE" and not response.get("error")
+
+
 def telemetry_problem(response: Any, agent: str) -> str | None:
     """Return why a provider response cannot be trusted as routing telemetry, else None.
 
     Promptfoo's skill assertions silently treat missing or malformed `skillCalls` as
     "no skill used", which would turn a broken run into a false pass or routing_fail.
-    Claude always reports `skillCalls` (even when a hook ends the turn, so its output
-    is not required). Codex omits it when no SKILL.md was read, so absence is valid
-    there, but the response must still carry a string output.
+    Claude reports `skillCalls` whenever it called a skill (even when a hook ends the turn,
+    so its output is not required). When the agent selects no skill it may omit the field
+    entirely (observed live with the stop-on-activation hook provider: output `NONE`,
+    `stop_reason: end_turn`, no `metadata.skillCalls`). The prompt tells the agent to reply
+    with only the skill name or NONE, so for Claude a missing `skillCalls` is a valid "no
+    skill used" only when the stripped output equals `NONE` (case-insensitive) and no error
+    is present. Any other output with no `skillCalls` (a skill name, empty, garbage) could
+    be a lost Skill call and stays a telemetry problem. A present empty list is always valid.
+    Codex omits `skillCalls` when no SKILL.md was read, so absence is valid there, but the
+    response must still carry a string output.
     """
     if not isinstance(response, dict):
         return "provider returned no response object"
@@ -112,7 +125,7 @@ def telemetry_problem(response: Any, agent: str) -> str | None:
         return "response metadata is not an object"
     calls = (metadata or {}).get("skillCalls")
     if calls is None:
-        return "response has no skillCalls telemetry" if agent == "claude" else None
+        return None if agent != "claude" or _answered_none(response) else "response has no skillCalls telemetry"
     if not isinstance(calls, list):
         return "skillCalls is not a list"
     for call in calls:

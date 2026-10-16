@@ -128,7 +128,7 @@ class AliasedControlTests(ThrowawayRepo):
 
     def test_result_documents_record_aliased_fingerprint_and_real_names(self) -> None:
         def fake(agent, skill, report, pattern):
-            alias = json.loads((self.repo / ".tmp/routing/candidate/codex/aliases.json").read_text())["alpha"]
+            alias = json.loads((self.repo / ".tmp/routing/candidate/codex.aliases.json").read_text())["alpha"]
             return "", [fixtures.row(scenario="s1", trials=1, expected=(alias,), calls=[alias])]
 
         with mock.patch.dict("os.environ", {"ROUTING_ALIAS_SKILLS": "1"}):
@@ -182,7 +182,8 @@ class VariantWiringTests(ThrowawayRepo):
 
         with mock.patch.object(driver.runner, "run_promptfoo", fake_promptfoo):
             driver.evaluate_variant("control", "claude", "alpha", self.base, [], None, self.repo / ".tmp" / "routing")
-        self.assertEqual(seen, {"ROUTING_WORKSPACE_ROOT": str(self.repo / ".tmp" / "routing" / "control")})
+        root = self.repo / ".tmp" / "routing" / "control"
+        self.assertEqual(seen, {"ROUTING_WORKSPACE_ROOT": str(root), "ROUTING_ALIASES_FILE": str(root / "claude.aliases.json")})
 
     def test_validation_errors_skip_workspace_and_run(self) -> None:
         def boom(*args):

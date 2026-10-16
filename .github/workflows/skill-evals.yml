@@ -66,7 +66,8 @@ on:
 permissions: {}
 
 concurrency:
-  group: skill-evals-${{ github.event.pull_request.number || github.event.merge_group.head_ref || format('{0}-{1}', inputs.mode, inputs.skill) }}
+  # Manual dispatches differing in mode, skill, alias or agents run side by side; an identical repeat cancels.
+  group: skill-evals-${{ github.event.pull_request.number || github.event.merge_group.head_ref || format('{0}-{1}-{2}-{3}', inputs.mode, inputs.skill, inputs.alias, inputs.agents) }}
   # A queue entry is never cancelled by a later one: the queue needs every result.
   cancel-in-progress: ${{ github.event_name != 'merge_group' }}
 

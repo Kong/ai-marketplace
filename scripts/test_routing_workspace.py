@@ -27,7 +27,7 @@ class RoutingWorkspaceTests(WorkspaceCase):
         for name in ws.names:
             self.assertTrue((out / ".claude" / "skills" / name / "SKILL.md").is_file())
             self.assertFalse((out / ".claude" / "skills" / name).is_symlink())
-        self.assertFalse((out / "aliases.json").exists())
+        self.assertFalse(aliasing.aliases_path(out).exists())
         (out / "stale").write_text("x")
         prep.prepare_workspace(out, aliased=False)
         self.assertFalse((out / "stale").exists())
@@ -55,7 +55,9 @@ class AliasedWorkspaceTests(WorkspaceCase):
                 ws = prep.prepare_workspace(out, agent, aliased=True)
                 names = validator.known_skill_names()
                 self.assertEqual(ws.aliases, aliasing.build_aliases(names))
-                self.assertEqual(json.loads((out / "aliases.json").read_text()), ws.aliases)
+                self.assertEqual(json.loads(aliasing.aliases_path(out).read_text()), ws.aliases)
+                self.assertEqual(aliasing.aliases_path(out), out.with_name(out.name + ".aliases.json"))
+                self.assertFalse(list(out.rglob("*aliases*")))  # nothing the agent can read in its workspace
                 self.assertEqual({p.name for p in (out / skills_dir).iterdir()}, set(ws.aliases.values()))
                 by_name = {s.name: s for p in check_repo.discover_plugins() for s in check_repo.discover_skills(p)}
                 for name, alias in ws.aliases.items():
@@ -131,10 +133,17 @@ class IntegrityTests(WorkspaceCase):
         with self.assertRaises(prep.WorkspaceIntegrityError):
             prep.verify_workspace(out, "claude", aliased=True)
 
+    def test_rebuilding_without_aliases_removes_a_stale_alias_map(self) -> None:
+        out = self.workspace_root("claude")
+        prep.prepare_workspace(out, aliased=True)
+        self.assertTrue(aliasing.aliases_path(out).is_file())
+        prep.prepare_workspace(out, aliased=False)
+        self.assertFalse(aliasing.aliases_path(out).exists())
+
     def test_stale_aliases_file_is_rejected(self) -> None:
         out, ws = self.build(True)
         aliasing.write(out, {**ws.aliases, "bogus": "s-000000"})
-        with self.assertRaisesRegex(prep.WorkspaceIntegrityError, "aliases.json does not match"):
+        with self.assertRaisesRegex(prep.WorkspaceIntegrityError, "alias map .* does not match"):
             prep.verify_workspace(out, "claude", aliased=True)
 
     def test_override_is_accepted_only_when_declared(self) -> None:
