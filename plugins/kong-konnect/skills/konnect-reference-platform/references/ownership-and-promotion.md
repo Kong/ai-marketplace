@@ -32,8 +32,10 @@ can be proven. Do not represent least privilege through a custom registry.
 4. After the new child exists, the pipeline selects it as the API's current
    version and synchronizes the remaining Catalog, publication, and
    implementation state. If the installed `kongctl` needs an explicit forced
-   selector transition for an ACE-protected API, keep that workaround narrow,
-   documented, and linked to the upstream issue.
+   selector transition for an API linked to an ACE-enabled control plane, keep
+   that workaround narrow, documented, and linked to the upstream issue. The
+   guard can apply to public APIs even when they do not select an
+   application-auth strategy.
 5. The service pipeline applies only its tagged development Gateway slice to
    the team development control plane.
 6. The pipeline proves Catalog, publication, implementation linkage, routing,
