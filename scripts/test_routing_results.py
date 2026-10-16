@@ -113,6 +113,57 @@ class NoneTelemetryTests(unittest.TestCase):
         self.assertEqual((doc["state"], doc["complete"], doc["failure_kinds"]), (r.ROUTING_FAIL, True, ["invocation"]))
 
 
+def assert_row(expected=("alpha",), forbidden=(), calls=(), scenario="s1", trial=1):
+    """The observed Promptfoo shape for a failed assertion: row-level `error` repeats the grading message."""
+    message = "Missing required skill(s): s-e7f0d5. Actual skills: (none)"
+    out = row(scenario=scenario, trial=trial, expected=expected, forbidden=forbidden, calls=list(calls), success=False)
+    out.update({"score": 0, "error": message})
+    out["gradingResult"]["reason"] = message
+    out["response"] = {"output": "NONE" if not calls else calls[0], "metadata": {"skillCalls": [{"name": n} for n in calls]}}
+    return out
+
+
+class AssertionErrorTests(unittest.TestCase):
+    """Promptfoo copies an assertion failure into row.error; only error/failureReason 2 is infrastructure."""
+
+    def test_assertion_failure_with_row_error_is_routing_fail_on_a_positive(self) -> None:
+        t = r.reduce_trial(assert_row(), "claude")
+        self.assertEqual((t["state"], t["kind"]), (r.ROUTING_FAIL, r.INVOCATION))
+        self.assertIn("Missing required skill(s)", t["reason"])
+        self.assertIsNone(t["evidence"]["error"])
+
+    def test_assertion_failure_with_row_error_is_routing_fail_on_a_sibling(self) -> None:
+        sibling = assert_row(expected=("beta",), forbidden=("alpha",), calls=("alpha",))
+        sibling["error"] = sibling["gradingResult"]["reason"] = "Forbidden skill(s) invoked: alpha"
+        t = r.reduce_trial(sibling, "claude")
+        self.assertEqual((t["state"], t["kind"]), (r.ROUTING_FAIL, r.INVOCATION))
+        self.assertEqual(t["observed"], ["alpha"])
+
+    def test_failure_reason_error_is_provider_infra_error(self) -> None:
+        bad = assert_row()
+        bad["failureReason"] = 2
+        t = r.reduce_trial(bad, "claude")
+        self.assertEqual((t["state"], t["kind"]), (r.INFRA_ERROR, r.PROVIDER))
+
+    def test_response_error_is_provider_infra_error_even_with_assertion_reason(self) -> None:
+        bad = assert_row()
+        bad["response"]["error"] = "rate limited"
+        t = r.reduce_trial(bad, "claude")
+        self.assertEqual((t["state"], t["kind"], t["evidence"]["error"]), (r.INFRA_ERROR, r.PROVIDER, "rate limited"))
+
+    def test_error_without_failure_reason_is_conservatively_provider(self) -> None:
+        bad = assert_row()
+        del bad["failureReason"]
+        self.assertEqual(r.reduce_trial(bad, "claude")["kind"], r.PROVIDER)
+        bad["failureReason"] = None
+        self.assertEqual(r.reduce_trial(bad, "claude")["kind"], r.PROVIDER)
+
+    def test_agent_with_assertion_failures_is_routing_fail_not_incomplete(self) -> None:
+        doc = r.reduce_agent("claude", "alpha", [[assert_row(scenario=f"p-{i}") for i in range(5)]])
+        self.assertEqual((doc["state"], doc["complete"], doc["failure_kinds"]), (r.ROUTING_FAIL, True, ["invocation"]))
+        self.assertEqual(doc["counts"], {r.PASS: 0, r.ROUTING_FAIL: 5, r.INFRA_ERROR: 0})
+
+
 class AgentTests(unittest.TestCase):
     def test_all_pass(self) -> None:
         h = r.reduce_agent("codex", "alpha", [[row(trial=i, trials=3) for i in (1, 2, 3)]])

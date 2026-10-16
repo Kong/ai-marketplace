@@ -1,8 +1,10 @@
 """Opaque skill aliases for routing evals. Offline; no model calls.
 
-A descriptive skill name (`konnect-gateway-triage`) lets an agent route without reading the
-description, so a destroyed description goes unnoticed. In the eval workspaces every skill is
-renamed to a deterministic opaque alias, so routing can only come from the description.
+Opt-in and experimental. A descriptive skill name (`konnect-gateway-triage`) lets an agent route
+without reading the description, so a destroyed description can go unnoticed. With aliasing on, every
+skill in the eval workspaces is renamed to a deterministic opaque alias. Observed live on Claude: this
+suppresses skill selection altogether (positives and siblings answer NONE without calling the Skill
+tool, even for the undamaged skill), so it is NOT a valid description-sensitivity detector as implemented.
 
     alias = "s-" + first 6 hex of sha1(real name)
 
@@ -26,8 +28,8 @@ import re
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-# The one place the default lives. Flip it here to change what CI and local runs measure.
-DEFAULT_ALIAS_SKILLS = True
+# The one place the default lives. Off: aliasing on suppressed Claude's skill selection in live runs.
+DEFAULT_ALIAS_SKILLS = False
 ENV_VAR = "ROUTING_ALIAS_SKILLS"
 ALIASES_SUFFIX = ".aliases.json"
 ALIASES_ENV_VAR = "ROUTING_ALIASES_FILE"

@@ -94,16 +94,23 @@ decisions behind them:
   blocks (`blocked_infra`); a re-run or admin override resolves it.
 - **Keys:** a missing key warns while any agent runs; no runnable agent fails the gate in the
   queue and manual runs.
-- **Description sensitivity (live finding):** a PR that rewrote `konnect-gateway-triage`'s
-  description into off-domain marketing copy passed the queue gate (29 trials, all passing),
-  probably because descriptive names let the agent route without the description. Three
-  consequences: (1) eval workspaces use deterministic opaque skill aliases (`ROUTING_ALIAS_SKILLS`,
-  default one constant in `scripts/routing_aliases.py`), with real names restored in every report;
-  (2) every built workspace is verified against its source revision and fingerprinted; (3) a canary
-  (`mode: canary`, `mise run eval:routing:canary`) damages one description and fails unless at
-  least 60% of that skill's positive scenarios stop routing, to be run after changing models, pins
-  or the harness and after enabling the gate. Aliasing measures description-driven routing, which is
-  stricter than real use. Details: docs/testing.md.
+- **Description sensitivity (live finding, known limitation):** a PR that rewrote
+  `konnect-gateway-triage`'s description into off-domain marketing copy passed the queue gate (29
+  trials, all passing), because descriptive names let the agent route without the description; the
+  canary with real names confirmed it (`canary_missed` 0/5). Opaque skill aliases
+  (`ROUTING_ALIAS_SKILLS`, one constant in `scripts/routing_aliases.py`) were tried to isolate
+  descriptions, but a 43-trial live run showed aliasing ON suppresses Claude's skill selection: real
+  names passed 43/43, while with aliases every positive and sibling trial answered `NONE` (one turn, no
+  tool call), even for the undamaged skill. The earlier "aliases on => canary detected" reading was
+  that suppression, so the default is **off**, aliasing is opt-in/experimental and not a valid
+  description-sensitivity detector as implemented, and description-only regressions on skills with
+  descriptive names are **not** reliably detected by the agentic routing eval. Kept: every built
+  workspace is verified against its source revision and fingerprinted, and the canary
+  (`mode: canary`, `mise run eval:routing:canary`) remains, now noting `canary_missed` with real names as
+  this limitation. The same runs exposed a reducer bug: Promptfoo copies an assertion failure into the
+  row-level `error` (failureReason 1), which was misclassified as a provider `infra_error`; only
+  `response.error` or failureReason 2 (or an error with no failureReason) is infrastructure now.
+  Details: docs/testing.md.
 - **Measured cost:** Claude about $0.058-0.065 per trial on CI (43 trials, 1.07M tokens, $2.49; the
   29-trial gate profile, 682K tokens, $1.88), so `routing_cost.py` plans at $0.065; Codex remains
   the unmeasured old range of $0.05-0.10. Artifacts are kept 10 days, the repository maximum.

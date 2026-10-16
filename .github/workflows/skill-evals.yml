@@ -54,7 +54,7 @@ on:
         required: false
         type: string
       alias:
-        description: "Canary only: force opaque skill aliases on or off for this run (default: the repo default)"
+        description: "Canary only: force opaque skill aliases on or off for this run (default: the repo default, off; on suppresses Claude routing)"
         required: false
         type: choice
         default: default

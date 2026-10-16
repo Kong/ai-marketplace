@@ -65,7 +65,7 @@ def render(config: dict[str, Any]) -> str:
     lines += [
         "",
         f"Skill aliasing: {'on' if alias['enabled'] else 'off'} ({alias['source']}; {alias['variable']}=1|0|true|false, "
-        f"default {'on' if alias['default'] else 'off'}). On, the agent sees opaque skill names so routing comes from descriptions only.",
+        f"default {'on' if alias['default'] else 'off'}). Opt-in, experimental: on, the agent sees opaque skill names, which suppresses Claude's skill selection (not a valid description-sensitivity detector).",
     ]
     lines += ["", f"Selectable agents (--agent, repeatable or comma-separated; default all): {', '.join(config['selectable_agents'])}"]
     lines += ["", "Fixed discovery settings (not configurable):"]

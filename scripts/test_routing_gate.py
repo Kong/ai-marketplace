@@ -23,8 +23,11 @@ def agent_result(agent: str, scenarios: dict[str, tuple[int, int]], skill: str =
         for trial in range(1, trials + 1):
             if infra and sid == next(iter(scenarios)):
                 rows.append(fixtures.row(scenario=sid, trial=trial, trials=trials, error=infra))
-            else:
-                rows.append(fixtures.row(scenario=sid, trial=trial, trials=trials, success=trial <= passes, calls=None if trial <= passes else []))
+            elif trial <= passes:
+                rows.append(fixtures.row(scenario=sid, trial=trial, trials=trials))
+            else:  # the observed Promptfoo shape: the assertion message is also the row-level error
+                rows.append(fixtures.assert_row(scenario=sid, trial=trial))
+                rows[-1]["testCase"]["metadata"]["trials"] = trials
     return r.reduce_agent(agent, skill, [rows], breaches)
 
 
