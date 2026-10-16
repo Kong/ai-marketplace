@@ -376,8 +376,9 @@ rename every skill to a deterministic opaque alias, `s-` plus the first six hex 
 and control, and independent of which skills exist (a collision is an error). The skill directory and
 the frontmatter `name` become the alias, the description is kept, and whole-word occurrences of real
 skill names inside every description are replaced by aliases (longest name first) so cross-references
-stay consistent. Bodies are not touched. The map (real to alias) is written to `aliases.json` in the
-workspace root.
+stay consistent. Bodies are not touched. The map (real to alias) is written next to the workspace
+(`<workspace>.aliases.json`, or `ROUTING_ALIASES_FILE`), never inside it: Codex can read files in its
+workspace and must not see the map.
 
 - Scenario expectations (`expect`/`forbid`) are mapped to aliases when Promptfoo loads them; Claude's
   native Skill call name and Codex's `.agents/skills/<alias>/SKILL.md` read are compared with aliases.
@@ -393,12 +394,20 @@ workspace root.
   where the name also helps an agent choose. A skill can pass in practice and fail here because its
   description is weak, and that is the point: the gate is meant to notice a description regression.
 
+- **Why it is the default (live canary):** with real names the canary on `konnect-gateway-triage` was
+  `canary_missed` (the agent still routed by name); with aliases on, all five positives on Claude
+  answered `NONE` and it was `canary_detected`.
+- **`NONE` telemetry:** when Claude selects no skill it can omit `metadata.skillCalls` entirely. That is
+  valid "no skill used" only if the output, stripped and case-insensitive, is `NONE` and there is no
+  error: a positive then is `routing_fail`, a near-miss passes. Missing `skillCalls` with any other
+  output stays a `telemetry` infra_error (it could be a lost Skill call). A present empty list is valid.
+
 ### Workspace integrity
 
 After building each workspace the harness asserts, for every skill, that the workspace SKILL.md
 frontmatter is derived exactly from the source revision (the working tree, or the merge base for the
 control): the description (with aliases substituted) and the name (the alias, or the real name when
-aliasing is off), the directory set, and `aliases.json`. Any mismatch exits 2 with the list, before any
+aliasing is off), the directory set, and the alias map. Any mismatch exits 2 with the list, before any
 provider call, so a stale or wrong workspace can never silently feed an eval. Workspaces that were
 built earlier are re-checked before they are reused (the standalone eval, the gate's confirmation
 runs). The log and every result document carry a fingerprint, a hash of all descriptions in the

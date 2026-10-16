@@ -89,7 +89,8 @@ def evaluate_variant(
 ) -> dict[str, Any]:
     """Materialize one variant's workspace for `agent` and reduce its routing run.
 
-    The workspace root is handed to the Promptfoo configs through ROUTING_WORKSPACE_ROOT;
+    The workspace root and the alias map path (outside the workspace) are handed to the Promptfoo
+    configs through ROUTING_WORKSPACE_ROOT and ROUTING_ALIASES_FILE;
     nothing else differs between variants. `ref` None means the working tree. `confirm`
     re-runs only those scenarios in the already prepared workspace (reports under
     `<variant>-confirm/`, same ledger so ceilings still apply) at `confirm_trials` trials, or at
@@ -111,7 +112,7 @@ def evaluate_variant(
             workspace = workspaces.verify_workspace(root / agent, agent, ref, description_overrides=description_overrides)
         print(f"{agent} {variant}: workspace aliased={str(workspace.aliases is not None).lower()} fingerprint={workspace.fingerprint}")
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
-    env = {"ROUTING_WORKSPACE_ROOT": str(root)}
+    env = {"ROUTING_WORKSPACE_ROOT": str(root), aliasing.ALIASES_ENV_VAR: str(aliasing.aliases_path(root / agent))}
     if scenario_ids:
         env["ROUTING_SCENARIO_IDS"] = ",".join(scenario_ids)
     if confirm is not None:

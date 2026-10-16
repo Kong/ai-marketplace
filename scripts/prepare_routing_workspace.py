@@ -11,7 +11,8 @@ isolated from the checkout.
 With --ref, skills come from that git revision instead of the working tree (the control).
 
 Skills are renamed to opaque aliases unless ROUTING_ALIAS_SKILLS=0 (routing_aliases.py); the
-real->alias map is written to <workspace>/aliases.json. After every build the workspace is checked
+real->alias map is written next to the workspace (<workspace>.aliases.json), not inside it, so
+the agent cannot read it. After every build the workspace is checked
 against the source revision (`verify_workspace`): a mismatch exits 2, so a stale or wrong workspace
 never feeds an eval. The run prints a fingerprint, the hash of every description in the workspace.
 """
@@ -105,8 +106,8 @@ def verify_workspace(
 
     Per skill the expected description is the source description with real skill names replaced by
     aliases (or the explicit override, used verbatim: the canary), and the expected name is the
-    alias or the real name. The directory set, the directory/name pairing and aliases.json must
-    match too. Raises WorkspaceIntegrityError listing every mismatch; returns the fingerprint.
+    alias or the real name. The directory set, the directory/name pairing and the alias map (kept
+    outside the workspace) must match too. Raises WorkspaceIntegrityError listing every mismatch; returns the fingerprint.
     """
     aliased = aliasing.enabled() if aliased is None else aliased
     overrides = dict(description_overrides or {})
@@ -145,7 +146,7 @@ def verify_workspace(
         problems.append(str(exc))
         on_disk = None
     if on_disk != aliases:
-        problems.append(f"{aliasing.ALIASES_FILE} does not match the expected aliases (aliasing {'on' if aliased else 'off'})")
+        problems.append(f"alias map {aliasing.aliases_path(out).name} does not match the expected aliases (aliasing {'on' if aliased else 'off'})")
     if problems:
         shown = "; ".join(problems[:8]) + (f"; and {len(problems) - 8} more" if len(problems) > 8 else "")
         raise WorkspaceIntegrityError(f"workspace {out} does not match {ref or 'the working tree'}: {shown}")
@@ -201,8 +202,7 @@ def prepare_workspace(
         if new_description == description:
             new_description = None
         _install(dest, real, aliases, new_description)
-    if aliases:
-        aliasing.write(out, aliases)
+    aliasing.write(out, aliases)
     return verify_workspace(out, agent, ref, aliased, overrides)
 
 

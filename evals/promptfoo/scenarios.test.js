@@ -183,7 +183,7 @@ test('without aliases the real names are asserted and aliased is false', () =>
     assert.strictEqual(tests[0].metadata.aliased, false);
   }));
 
-test('a scenario naming a skill missing from aliases.json is an error', () =>
+test('a scenario naming a skill missing from the aliases file is an error', () =>
   withFixture((dir) => {
     assert.throws(
       () => buildTests({ skill: 'alpha', agent: 'claude', providerLabels: labels, dir, aliases: { alpha: 's-aaaaaa' } }),
@@ -191,17 +191,23 @@ test('a scenario naming a skill missing from aliases.json is an error', () =>
     );
   }));
 
-test('loadAliases reads aliases.json and rejects a workspace that disagrees with ROUTING_ALIAS_SKILLS', () => {
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'routing-ws-'));
+test('loadAliases reads the sibling aliases file (or ROUTING_ALIASES_FILE) and rejects a workspace that disagrees with ROUTING_ALIAS_SKILLS', () => {
+  const parent = fs.mkdtempSync(path.join(os.tmpdir(), 'routing-ws-'));
+  const dir = path.join(parent, 'claude');
+  fs.mkdirSync(dir);
   try {
     assert.strictEqual(loadAliases(dir, undefined), null);
     assert.strictEqual(loadAliases(dir, '0'), null);
     assert.throws(() => loadAliases(dir, '1'), /ROUTING_ALIAS_SKILLS=1 but .* missing/);
-    fs.writeFileSync(path.join(dir, 'aliases.json'), JSON.stringify(ALIASES));
+    fs.writeFileSync(path.join(parent, 'claude.aliases.json'), JSON.stringify(ALIASES));
+    assert.ok(!fs.existsSync(path.join(dir, 'aliases.json')));
     assert.deepStrictEqual(loadAliases(dir, undefined), ALIASES);
     assert.deepStrictEqual(loadAliases(dir, 'true'), ALIASES);
     assert.throws(() => loadAliases(dir, '0'), /ROUTING_ALIAS_SKILLS=0 but .* present/);
+    const other = path.join(parent, 'elsewhere.json');
+    fs.writeFileSync(other, JSON.stringify({ alpha: 's-cccccc' }));
+    assert.deepStrictEqual(loadAliases(dir, '1', other), { alpha: 's-cccccc' });
   } finally {
-    fs.rmSync(dir, { recursive: true });
+    fs.rmSync(parent, { recursive: true });
   }
 });

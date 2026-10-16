@@ -97,6 +97,13 @@ class OfflineRunTests(unittest.TestCase):
                 self.assertEqual(doc["agents_run"], ["claude", "codex"])
                 self.assertEqual(doc["usage"]["trials"], 2 * len(self.ids))  # one trial per scenario per agent
 
+    def test_none_answers_without_skill_calls_count_as_failed_to_route(self) -> None:
+        # the fake runner emits the live shape for an unrouted answer: output NONE, no skillCalls
+        rows = canary.fake_runner(self.dir, {"claude": {sid: False for sid in self.ids}}, self.ids)("claude", SKILL, self.dir / "x.json", None)[1]
+        self.assertTrue(all(row["response"]["output"] == "NONE" and "skillCalls" not in row["response"]["metadata"] for row in rows))
+        doc = self.run_canary({sid: False for sid in self.ids}, True)
+        self.assertEqual((doc["verdict"], doc["exit_code"], doc["agents"]["claude"]["failed"]), (canary.DETECTED, 0, sorted(self.ids)))
+
     def test_missed_when_the_damaged_skill_still_routes(self) -> None:
         doc = self.run_canary({}, True)  # every scenario routed to the skill
         self.assertEqual((doc["verdict"], doc["exit_code"]), (canary.MISSED, 1))
@@ -111,7 +118,8 @@ class OfflineRunTests(unittest.TestCase):
     def test_only_the_named_skill_is_damaged_and_the_workspace_verified(self) -> None:
         self.run_canary({}, True)
         root = self.dir / "canary" / "claude"
-        aliases = json.loads((root / "aliases.json").read_text())
+        aliases = json.loads((self.dir / "canary" / "claude.aliases.json").read_text())
+        self.assertFalse((root / "aliases.json").exists())
         damaged = check_repo.parse_frontmatter(root / ".claude/skills" / aliases[SKILL] / "SKILL.md")
         self.assertEqual(damaged["description"], canary.CANARY_DESCRIPTION)
         other = next(n for n in aliases if n != SKILL)

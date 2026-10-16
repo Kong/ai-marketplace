@@ -15,12 +15,13 @@ function scenarioFiles(dir) {
     .map((file) => path.join(dir, file));
 }
 
-// Skill aliasing (scripts/routing_aliases.py): an aliased workspace carries <workspace>/aliases.json,
-// a real->alias map, and the agent only ever sees the aliases. Returns that map, or null for a plain
+// Skill aliasing (scripts/routing_aliases.py): an aliased workspace has a real->alias map stored OUTSIDE
+// the workspace (the agent can read files in it), at ROUTING_ALIASES_FILE or by default the sibling
+// <workspace>.aliases.json; the agent only ever sees the aliases. Returns that map, or null for a plain
 // workspace. ROUTING_ALIAS_SKILLS, which the Python harness always sets for its runs, must agree with the
 // workspace; a mismatch means a stale or wrong workspace and is an error, never a silent fallback.
-function loadAliases(workspace, flag = process.env.ROUTING_ALIAS_SKILLS) {
-  const file = path.join(workspace, 'aliases.json');
+function loadAliases(workspace, flag = process.env.ROUTING_ALIAS_SKILLS, override = process.env.ROUTING_ALIASES_FILE) {
+  const file = override || `${workspace}.aliases.json`;
   const present = fs.existsSync(file);
   const wanted = flag === undefined || flag === '' ? null : ['1', 'true'].includes(flag.toLowerCase());
   if (wanted !== null && wanted !== present) {
@@ -67,7 +68,7 @@ function buildTests({ skill, agent, providerLabels, dir = SCENARIOS_DIR, maxTria
   const tests = [];
   const route = (name) => {
     if (!aliases) return name;
-    if (!aliases[name]) throw new Error(`routing scenario names unknown skill '${name}' (not in aliases.json)`);
+    if (!aliases[name]) throw new Error(`routing scenario names unknown skill '${name}' (not in the aliases file)`);
     return aliases[name];
   };
   const unseen = new Set(ids || []);

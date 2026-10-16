@@ -65,6 +65,54 @@ class TrialTests(unittest.TestCase):
         self.assertEqual((t["state"], t["observed"]), (r.PASS, []))
 
 
+def none_row(output="NONE", expected=("alpha",), forbidden=(), success=False, scenario="s1"):
+    """The observed Claude shape when no skill is selected: no skillCalls in metadata at all."""
+    out = row(scenario=scenario, expected=expected, forbidden=forbidden, success=success)
+    out["response"] = {
+        "output": output,
+        "metadata": {"sessionId": "x"},
+        "raw": '{"stop_reason":"end_turn","result":"NONE"}',
+    }
+    return out
+
+
+class NoneTelemetryTests(unittest.TestCase):
+    def test_none_without_skill_calls_is_routing_fail_on_a_positive(self) -> None:
+        t = r.reduce_trial(none_row(), "claude")
+        self.assertEqual((t["state"], t["kind"], t["observed"]), (r.ROUTING_FAIL, r.INVOCATION, []))
+
+    def test_none_without_skill_calls_passes_a_near_miss(self) -> None:
+        t = r.reduce_trial(none_row(expected=(), forbidden=("alpha",), success=True), "claude")
+        self.assertEqual((t["state"], t["observed"]), (r.PASS, []))
+
+    def test_none_is_stripped_and_case_insensitive(self) -> None:
+        for output in (" none\n", "None", "NONE "):
+            self.assertIsNone(r.telemetry_problem(none_row(output=output)["response"], "claude"), output)
+
+    def test_other_output_without_skill_calls_is_telemetry(self) -> None:
+        for output in ("alpha", "s-abc123", "", "   ", "NONE of these", "garbage"):
+            with self.subTest(output=output):
+                t = r.reduce_trial(none_row(output=output), "claude")
+                self.assertEqual((t["state"], t["kind"]), (r.INFRA_ERROR, r.TELEMETRY))
+
+    def test_missing_output_without_skill_calls_is_telemetry(self) -> None:
+        bad = none_row()
+        del bad["response"]["output"]
+        self.assertEqual(r.reduce_trial(bad, "claude")["kind"], r.TELEMETRY)
+
+    def test_none_with_an_error_is_not_valid_telemetry(self) -> None:
+        response = none_row()["response"]
+        self.assertIsNotNone(r.telemetry_problem({**response, "error": "boom"}, "claude"))
+
+    def test_present_empty_list_stays_valid(self) -> None:
+        response = {"output": "", "metadata": {"skillCalls": []}}
+        self.assertIsNone(r.telemetry_problem(response, "claude"))
+
+    def test_agent_with_every_positive_answering_none_is_routing_fail(self) -> None:
+        doc = r.reduce_agent("claude", "alpha", [[none_row(scenario=f"p-{i}") for i in range(5)]])
+        self.assertEqual((doc["state"], doc["complete"], doc["failure_kinds"]), (r.ROUTING_FAIL, True, ["invocation"]))
+
+
 class AgentTests(unittest.TestCase):
     def test_all_pass(self) -> None:
         h = r.reduce_agent("codex", "alpha", [[row(trial=i, trials=3) for i in (1, 2, 3)]])

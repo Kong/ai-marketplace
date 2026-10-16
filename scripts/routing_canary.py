@@ -98,15 +98,17 @@ def overall(per_agent: dict[str, dict[str, Any]]) -> str:
 def fake_runner(root: Path, fake: dict[str, dict[str, bool]], ids: list[str]) -> Any:
     """A Promptfoo runner replacement: one row per positive scenario, routed or not per `fake`."""
     def run(agent: str, skill: str, report: Path, pattern: str | None) -> tuple[str, list[dict[str, Any]]]:
-        aliases = aliasing.load(root / VARIANT / agent) or {}
+        aliases = aliasing.load(root / VARIANT / agent) or {}  # the map sits beside the workspace
         target = aliases.get(skill, skill)
         rows = []
         for sid in ids:
             routed = bool(fake.get(agent, {}).get(sid, True))
+            # An unrouted Claude answer is the observed shape: output NONE and no skillCalls at all.
+            metadata = {"skillCalls": [{"name": target}]} if routed else {}
             rows.append({
                 "success": routed, "failureReason": 0 if routed else 1, "latencyMs": 1, "cost": 0.0,
                 "gradingResult": {"pass": routed, "reason": "ok" if routed else f"Missing required skill(s): {target}. Actual skills: (none)"},
-                "response": {"output": "", "metadata": {"skillCalls": [{"name": target}] if routed else []}, "tokenUsage": {"total": 1}},
+                "response": {"output": "" if routed else "NONE", "metadata": metadata, "tokenUsage": {"total": 1}},
                 "testCase": {
                     "description": f"{sid} | {agent} | trial 1/1",
                     "metadata": {"scenario": sid, "trial": 1, "trials": 1, "expected": [target], "forbidden": []},

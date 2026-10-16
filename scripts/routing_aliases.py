@@ -9,6 +9,11 @@ renamed to a deterministic opaque alias, so routing can only come from the descr
 The alias depends on the name alone: stable across runs, between candidate and control, and
 independent of which other skills exist. Two names that collide raise an error.
 
+The real->alias map is stored OUTSIDE the agent's working directory, next to it
+(`<workspace>.aliases.json`), because Codex can read files in its workspace and would otherwise be
+able to read the map. The Promptfoo configs read it from ROUTING_ALIASES_FILE (set by the runner),
+defaulting to that sibling path.
+
 ROUTING_ALIAS_SKILLS (1/0/true/false) turns aliasing on or off; unset or empty means
 DEFAULT_ALIAS_SKILLS. An invalid value is an error (exit 2 in the scripts).
 """
@@ -24,7 +29,8 @@ from typing import Any, Iterable, Mapping
 # The one place the default lives. Flip it here to change what CI and local runs measure.
 DEFAULT_ALIAS_SKILLS = True
 ENV_VAR = "ROUTING_ALIAS_SKILLS"
-ALIASES_FILE = "aliases.json"
+ALIASES_SUFFIX = ".aliases.json"
+ALIASES_ENV_VAR = "ROUTING_ALIASES_FILE"
 PREFIX = "s-"
 DIGEST_LENGTH = 6
 
@@ -95,13 +101,23 @@ def to_real(text: str, aliases: Mapping[str, str] | None) -> str:
     return substitute(text, reverse(aliases)) if aliases else text
 
 
-def write(workspace: Path, aliases: Mapping[str, str]) -> None:
-    (workspace / ALIASES_FILE).write_text(json.dumps(dict(sorted(aliases.items())), indent=2) + "\n")
+def aliases_path(workspace: Path) -> Path:
+    """Where the workspace's alias map lives: a sibling of the workspace, never inside it."""
+    return workspace.with_name(workspace.name + ALIASES_SUFFIX)
+
+
+def write(workspace: Path, aliases: Mapping[str, str] | None) -> None:
+    """Write the workspace's alias map; None removes a stale one (the workspace is not aliased)."""
+    path = aliases_path(workspace)
+    if aliases is None:
+        path.unlink(missing_ok=True)
+        return
+    path.write_text(json.dumps(dict(sorted(aliases.items())), indent=2) + "\n")
 
 
 def load(workspace: Path) -> dict[str, str] | None:
     """The workspace's real->alias map, or None when the workspace is not aliased."""
-    path = workspace / ALIASES_FILE
+    path = aliases_path(workspace)
     if not path.is_file():
         return None
     data: Any = json.loads(path.read_text())
