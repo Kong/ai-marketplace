@@ -9,7 +9,7 @@ repository boundaries, CI identities, or production promotion.
 |---|---|---|
 | Organization teams, RBAC, and automation identities | Platform | Platform |
 | Control planes and Portals | Platform | Platform |
-| Application auth strategies | Platform | Platform |
+| Shared Gateway Consumers and JWT verification credentials | Platform | Platform |
 | Catalog APIs, versions, specs, and publications | Service | Service |
 | Catalog implementation links | Service | Service |
 | Gateway configuration | Service, within its owned development slice | Platform-governed copy of the service artifact |
@@ -26,11 +26,19 @@ can be proven. Do not represent least privilege through a custom registry.
 2. The service pipeline generates development decK from that contract, adds
    the repository-owned plugins and tags, validates the file, and commits the
    exact result.
-3. The service pipeline applies its development Catalog manifest with
-   `kongctl`.
-4. The service pipeline applies only its tagged development Gateway slice to
+3. The service pipeline additively applies the new development Catalog API
+   version. API versions are append-only and are omitted from the manifest
+   reconciled with `kongctl sync`.
+4. After the new child exists, the pipeline selects it as the API's current
+   version and synchronizes the remaining Catalog, publication, and
+   implementation state. If the installed `kongctl` needs an explicit forced
+   selector transition for an API linked to an ACE-enabled control plane, keep
+   that workaround narrow, documented, and linked to the upstream issue. The
+   guard can apply to public APIs even when they do not select an
+   application-auth strategy.
+5. The service pipeline applies only its tagged development Gateway slice to
    the team development control plane.
-5. The pipeline proves Catalog, publication, implementation linkage, routing,
+6. The pipeline proves Catalog, publication, implementation linkage, routing,
    and authorization for the changed slice.
 
 When several repositories share a team control plane, each repository must use
@@ -55,8 +63,14 @@ isolation.
    editing the artifact.
 6. The platform pipeline applies the combined production Gateway state to the
    single production control plane.
-7. Service-owned production Catalog resources are applied from the exact
-   service commit referenced by the promotion.
+7. After the Gateway operation succeeds, the platform pipeline reads the
+   changed provenance and uses a narrowly scoped GitHub App credential to
+   dispatch the owning service's production Catalog workflow with the exact
+   referenced commit.
+8. The service workflow verifies that commit, obtains Service Team approval
+   through its protected production environment, and applies Catalog state
+   with the service-owned Konnect identity. Keep manual dispatch as a recovery
+   path rather than the normal release flow.
 
 If platform reviewers require a Gateway change, make it in the service
 repository and promote a new artifact. The platform copy is the production
@@ -65,14 +79,24 @@ source of truth, but it must retain traceability to the service-authored source.
 ## Minimum Repository Guardrails
 
 - generated decK is deterministic and clean after regeneration
-- the root contract is a beta; production selects a stable retained contract
+- the root contract is a beta whose version advances for every contract
+  change; production selects a stable retained contract
+- development API versions are append-only: the pipeline applies the new
+  child before selecting it, and sync-managed manifests omit the versions
+  collection so older children are not deleted
 - stable contract filenames match `info.version`, remain declared in the
   production manifest, and cannot be modified or deleted after merge
 - release automation refuses overwrites and opens a service pull request
 - every entity has environment, team, owner, and repository-scope tags
 - service-owned production files do not declare global plugins
+- protected service artifacts contain their intended authentication plugin;
+  public service artifacts contain none
+- private signing keys and bearer tokens never enter declarative state, logs,
+  pull-request comments, or documentation
 - production deployment requires the platform environment and review rules
 - promotion checks the copied file checksum against the recorded provenance
-- apply targets are explicit; destructive sync and delete paths are not implied
+- cross-repository Catalog dispatch happens only after the production Gateway
+  synchronization succeeds and passes the provenance commit unchanged
+- apply and sync targets are explicit; destructive delete paths are not implied
 - unresolved `!lookup` or `_external` behavior is reported as a `kongctl`
   compatibility dependency rather than replaced with hard-coded UUIDs

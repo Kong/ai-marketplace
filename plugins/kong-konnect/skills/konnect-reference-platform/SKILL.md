@@ -60,18 +60,20 @@ Require these properties unless the user deliberately chooses another model:
 
 - no custom registry or generated orchestration format
 - one default branch with distinct development and production resources
-- a root beta OpenAPI contract plus immutable, stable versioned files
+- a root beta OpenAPI contract that advances for every contract change, plus
+  immutable, stable versioned files
 - an explicit current-production version in the production Catalog manifest
 - generated decK files committed so reviewers can inspect exact Gateway state
-- apply-only reconciliation until deletion semantics are intentionally designed
+- append-only Catalog API versions, created with a separate `kongctl apply`
+  manifest and omitted from manifests reconciled with `kongctl sync`
 
 ### 2. Draw the ownership boundary
 
 Separate organization-wide foundations from service-owned delivery:
 
 - The platform repository owns teams, RBAC, automation identities, control
-  planes, Portals, application auth strategies, and the production Gateway
-  configuration.
+  planes, Portals, shared Gateway Consumers and verification credentials, and
+  the production Gateway configuration.
 - Service repositories own their APIs, versions, specs, implementations,
   publications, and development Gateway configuration.
 - Service teams may write their owned development Gateway slice. Production
@@ -100,6 +102,9 @@ the exact compatibility dependency; do not replace it with a custom registry.
 
 - The OpenAPI contract drives the Catalog API version and generated Gateway
   configuration.
+- Treat Catalog API versions as append-only. Advance `info.version` for every
+  contract change, apply the new child before selecting it, and omit the
+  versions collection from the API manifest reconciled with `kongctl sync`.
 - Link each Catalog API to its runtime implementation.
 - Keep routing configuration in decK. Keep APIs, specs, implementations, and
   Portal publications in `kongctl` manifests.
@@ -110,23 +115,33 @@ the exact compatibility dependency; do not replace it with a custom registry.
 
 ### 5. Model consumer authorization end to end
 
-Keep publication visibility separate from runtime authorization.
+Keep publication visibility, Gateway authentication, and Portal application
+access control separate.
 
-- The platform team owns application auth strategies.
-- Service teams select the strategy on their protected API publications.
-- Configure runtime enforcement on the protected Gateway Services.
-- Verify public APIs remain public and protected APIs require registration and
-  valid application credentials.
+- The platform team owns shared Consumers and asymmetric JWT verification
+  credentials. Private signing keys remain in a secret manager.
+- Service teams configure JWT only on protected Gateway Services and declare
+  bearer authentication in their OpenAPI contracts.
+- Protected publications omit `auth_strategy_ids` when JWT is the only client
+  credential. Selecting a Portal application strategy would add a second,
+  independent credential requirement.
+- Public services omit authentication plugins and remain callable without
+  Portal registration, API keys, or JWTs.
+- If ACE is global, validate its behavior separately from JWT. A required
+  operation match must not be mistaken for application authentication.
+- Verify the authentication plugin replaces client-supplied identity headers
+  with the authenticated Consumer identity before proxying upstream.
 
-Do not assume Portal publication alone enforces runtime access. Hand off
-strategy and registration diagnosis to `konnect-app-auth`, and Gateway plugin
-configuration to `deck-gateway`.
+Hand off a deliberately chosen Portal registration flow to `konnect-app-auth`,
+and Gateway plugin configuration to `deck-gateway`.
 
 ### 6. Validate the architecture as a working example
 
 Validate more than YAML syntax:
 
 - regenerate committed decK from the OpenAPI source and require a clean diff
+- verify development creates the new Catalog version before selecting it, and
+  that sync-managed manifests cannot delete prior version children
 - verify release automation opens a reviewed service PR, advances the root
   beta, and derives production generation from the manifest's stable selector
 - reject modification or deletion of stable release files already on the
@@ -152,10 +167,14 @@ that must land before the pipeline can pass.
 - Tags can scope decK operations and conflict risk; they do not grant access.
 - Catalog implementation linkage and Gateway routing answer different
   questions. Keep both explicit.
-- Portal application auth settings and Gateway runtime authorization are
-  separate layers that must agree.
+- Portal application auth settings, ACE operation enforcement, and Gateway
+  runtime authentication are distinct layers. Add each only when its client
+  requirement is intentional.
 - A service-owned Catalog does not imply service-owned production data-path
   configuration.
+- Catalog API versions need a different reconciliation policy from mutable API
+  state: use additive apply for version children and sync for the remaining
+  authoritative state.
 - An unreleased environment or workspace feature should be a documented future
   option, not a hidden dependency of the current working path.
 
