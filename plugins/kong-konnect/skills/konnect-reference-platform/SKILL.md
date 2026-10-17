@@ -72,8 +72,8 @@ Require these properties unless the user deliberately chooses another model:
 Separate organization-wide foundations from service-owned delivery:
 
 - The platform repository owns teams, RBAC, automation identities, control
-  planes, Portals, application auth strategies, and the production Gateway
-  configuration.
+  planes, Portals, shared Gateway Consumers and verification credentials, and
+  the production Gateway configuration.
 - Service repositories own their APIs, versions, specs, implementations,
   publications, and development Gateway configuration.
 - Service teams may write their owned development Gateway slice. Production
@@ -115,17 +115,25 @@ the exact compatibility dependency; do not replace it with a custom registry.
 
 ### 5. Model consumer authorization end to end
 
-Keep publication visibility separate from runtime authorization.
+Keep publication visibility, Gateway authentication, and Portal application
+access control separate.
 
-- The platform team owns application auth strategies.
-- Service teams select the strategy on their protected API publications.
-- Configure runtime enforcement on the protected Gateway Services.
-- Verify public APIs remain public and protected APIs require registration and
-  valid application credentials.
+- The platform team owns shared Consumers and asymmetric JWT verification
+  credentials. Private signing keys remain in a secret manager.
+- Service teams configure JWT only on protected Gateway Services and declare
+  bearer authentication in their OpenAPI contracts.
+- Protected publications omit `auth_strategy_ids` when JWT is the only client
+  credential. Selecting a Portal application strategy would add a second,
+  independent credential requirement.
+- Public services omit authentication plugins and remain callable without
+  Portal registration, API keys, or JWTs.
+- If ACE is global, validate its behavior separately from JWT. A required
+  operation match must not be mistaken for application authentication.
+- Verify the authentication plugin replaces client-supplied identity headers
+  with the authenticated Consumer identity before proxying upstream.
 
-Do not assume Portal publication alone enforces runtime access. Hand off
-strategy and registration diagnosis to `konnect-app-auth`, and Gateway plugin
-configuration to `deck-gateway`.
+Hand off a deliberately chosen Portal registration flow to `konnect-app-auth`,
+and Gateway plugin configuration to `deck-gateway`.
 
 ### 6. Validate the architecture as a working example
 
@@ -159,8 +167,9 @@ that must land before the pipeline can pass.
 - Tags can scope decK operations and conflict risk; they do not grant access.
 - Catalog implementation linkage and Gateway routing answer different
   questions. Keep both explicit.
-- Portal application auth settings and Gateway runtime authorization are
-  separate layers that must agree.
+- Portal application auth settings, ACE operation enforcement, and Gateway
+  runtime authentication are distinct layers. Add each only when its client
+  requirement is intentional.
 - A service-owned Catalog does not imply service-owned production data-path
   configuration.
 - Catalog API versions need a different reconciliation policy from mutable API
