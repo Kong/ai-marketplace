@@ -63,8 +63,14 @@ isolation.
    editing the artifact.
 6. The platform pipeline applies the combined production Gateway state to the
    single production control plane.
-7. Service-owned production Catalog resources are applied from the exact
-   service commit referenced by the promotion.
+7. After the Gateway operation succeeds, the platform pipeline reads the
+   changed provenance and uses a narrowly scoped GitHub App credential to
+   dispatch the owning service's production Catalog workflow with the exact
+   referenced commit.
+8. The service workflow verifies that commit, obtains Service Team approval
+   through its protected production environment, and applies Catalog state
+   with the service-owned Konnect identity. Keep manual dispatch as a recovery
+   path rather than the normal release flow.
 
 If platform reviewers require a Gateway change, make it in the service
 repository and promote a new artifact. The platform copy is the production
@@ -85,6 +91,8 @@ source of truth, but it must retain traceability to the service-authored source.
 - service-owned production files do not declare global plugins
 - production deployment requires the platform environment and review rules
 - promotion checks the copied file checksum against the recorded provenance
+- cross-repository Catalog dispatch happens only after the production Gateway
+  synchronization succeeds and passes the provenance commit unchanged
 - apply and sync targets are explicit; destructive delete paths are not implied
 - unresolved `!lookup` or `_external` behavior is reported as a `kongctl`
   compatibility dependency rather than replaced with hard-coded UUIDs
