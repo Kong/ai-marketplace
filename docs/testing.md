@@ -239,11 +239,11 @@ Precedence is `fail_no_agents` > `fail` > `blocked_infra` > `pass_with_warnings`
 
 ### Merge gate workflow
 
-> **Known limitation:** until the explicit skills list fix, the harness hid every skill description from
-> the model, so the gate's ability to catch description-only regressions is **unverified**: the earlier
-> pass of a marketing-copy description and `canary_missed` 0/5 were measured on names alone (see
-> [Known limitation: descriptions were hidden from the model](#known-limitation-descriptions-were-hidden-from-the-model)).
-> Re-run the canary and ablation before trusting it.
+> **Known limitation:** with descriptions now visible to the model, the gate still mostly routes on skill
+> names: a description rewritten into marketing copy made only 3 of 9 positives stop routing, and removing
+> every description changed none of the scenarios that passed. It catches a skill that stops firing for its
+> own prompts or a *misleading* description, but not a description that merely loses information (see
+> [Known limitation: how much descriptions matter](#known-limitation-how-much-descriptions-matter)).
 
 `.github/workflows/skill-evals.yml` is separate from `validate.yml`. It has no `paths:` filter, so
 its check reports on every pull request and queue entry; the `select` job decides relevance from
@@ -404,26 +404,36 @@ independent of the `skills` list. Every result, summary, comparison, canary, abl
 the console line record `exposed_skills` (`{count, fingerprint}` of the listed names; `null` for Codex), so a
 run shows how many skills the model could see.
 
-Consequence: every earlier name-versus-description conclusion is **superseded**. The name-only listing
-preset, the wide-budget preset, the destroyed-description canary (`canary_missed`) and the ablation results
-(93-100% `name_solvable`) all measured a regime in which no description reached the model. They show that
-routing by name works; they say nothing about whether descriptions matter. Re-run the probe, the canary and
-the ablation after this fix (below, and [Canary](#canary-eval-of-the-eval)).
+Consequence: every earlier name-versus-description conclusion was measured in a regime where no description
+reached the model, so those runs said nothing about whether descriptions matter. After the fix the
+measurements were repeated (Claude only, 1 trial per scenario, from `main`):
+
+| Measurement | Result |
+| --- | --- |
+| Probe, `listing=default` | `descriptions_visible`: 22 of 22 skills shown with matching descriptions, 0 leaked |
+| Probe, `listing=name-only` | `names_only`: 22 of 22 names, 0 descriptions (the preset works) |
+| Canary, real names, `konnect-gateway-triage` (description replaced by marketing copy) | 3 of 9 positives (33%) stopped routing: `canary_missed` at the 60% threshold, but a real effect |
+| Ablation, 4 skills (`konnect-gateway-triage`, `konnect-observability-triage`, `kongctl-declarative`, `konnect-api-publish`; 23-25 scenarios each) | 0-1 scenarios per skill depend on the description; the rest pass with every description removed; 0 failing |
 
 Codex has its own listing budget ("2% of context with descriptions shortened first", learn.chatgpt.com/docs/build-skills)
 and is unchanged here: it has not been probed, so whether Codex sees our descriptions is unknown.
 
-### Known limitation: descriptions were hidden from the model
+### Known limitation: how much descriptions matter
 
-Until the [listing budget finding](#listing-budget-finding) was fixed, the routing eval could not be shown
-to detect a description-only regression, and the earlier claim that "names carry routing and descriptions
-cannot be detected" is an **unverified artifact** of the harness hiding descriptions: a gate pass for a PR
-that rewrote `konnect-gateway-triage` into marketing copy (29 trials), the real-name canary (`canary_missed`
-0/5) and all 43 scenarios passing under `name-only` were measured with names only. After the fix the
-probe's expected verdict is `descriptions_visible`; the canary and the ablation must be re-run to learn
-whether the eval now notices description damage. Until then treat a passing gate as evidence about routing
-by name, and review description changes by hand. The free [description-routing check](#description-routing-check)
-runs in lint and catches gross description damage and near-duplicate descriptions without a model.
+With descriptions visible (see the table above) the model still routes mostly on skill names when they
+are descriptive: even the symptom-only and name-lure scenarios pass with every description removed, and a
+description replaced by off-domain marketing copy flipped only a third of the positives. In practice:
+
+- Removing or thinning a description is not detected, because the name carries the routing. That is also
+  the behaviour users get, so it is not a harm the eval can show.
+- A *misleading* description does hurt routing (33% of positives in the canary), so the gate can catch
+  that, but only for the share of scenarios the name does not already decide. Treat a passing gate as
+  evidence that skills still fire for their own prompts, and review description edits by hand.
+- The free [description-routing check](#description-routing-check) runs in lint and catches gross
+  description damage and near-duplicate descriptions without a model.
+- The listing budget can hide descriptions again as skills are added (names are always listed;
+  descriptions are dropped when it overflows). Re-run the [listing probe](#listing-probe-diagnosis) after
+  adding skills or changing the harness; its expected verdict is `descriptions_visible`.
 
 Opaque skill aliases were tried to isolate descriptions and removed: with aliases the agent cannot
 connect a request to an opaque name, so Claude answers `NONE` without calling the Skill tool for every

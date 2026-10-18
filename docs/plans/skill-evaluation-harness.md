@@ -99,19 +99,20 @@ decisions behind them:
   descriptions: the documented listing budget drops descriptions of the least-invoked skills first, and
   `skills: 'all'` exposed the bundled skills too. Fixed by passing the workspace's skill names as an
   explicit `skills` list (`claude.provider.js`; fails on an empty workspace); runs record `exposed_skills`
-  and the probe flags non-workspace skills. Every earlier name-versus-description result (canary, name-only
-  and wide-budget presets, ablation) measured names only and is unverified. **Open:** re-run the probe
-  (expect `descriptions_visible`), the canary and the ablation; Codex has its own listing budget (2% of
-  context, descriptions shortened first) and has not been probed. Details: docs/testing.md.
-- **Description sensitivity (live finding, superseded by the listing budget finding):** a PR that rewrote
-  `konnect-gateway-triage`'s description into off-domain marketing copy passed the queue gate (29
-  trials, all passing), because descriptive names let the agent route without the description; the
-  canary with real names confirmed it (`canary_missed` 0/5), and with every description removed (the
-  `name-only` listing preset) all 43 scenarios of that skill still passed. Description-only
-  regressions on skills with descriptive names are **not** reliably detected by the agentic routing
-  eval. Kept: every built workspace is verified against its source revision and fingerprinted, and the
-  canary (`mode: canary`, `mise run eval:routing:canary`), whose `canary_missed` must be re-read after
-  the fix. The same runs exposed a reducer bug: Promptfoo copies an assertion failure into the
+  and the probe flags non-workspace skills. **Re-measured after the fix (Claude, from `main`):** the probe
+  shows `descriptions_visible` (22 of 22, 0 leaked) with the default listing and `names_only` with the
+  `name-only` preset; the canary with real names stopped 3 of 9 positives (33%, `canary_missed` at the
+  60% threshold); the ablation on four skills found 0-1 of 23-25 scenarios description-dependent and 0
+  failing. Codex has its own listing budget (2% of context, descriptions shortened first) and has not
+  been probed. Details: docs/testing.md.
+- **Description sensitivity (re-read after the fix):** with descriptions visible the model still routes
+  mostly on skill names when they are descriptive: a description rewritten into off-domain marketing copy
+  flipped only a third of the positives, and removing every description changed no passing scenario, even
+  for the symptom-only and name-lure prompts. A *misleading* description is partly detected; a thinned
+  or missing description is not, and is not a user-visible harm either. Kept: every built workspace is
+  verified against its source revision and fingerprinted, the listing probe (re-run after adding skills,
+  because the budget can hide descriptions again) and the canary (`mode: canary`,
+  `mise run eval:routing:canary`). The same runs exposed a reducer bug: Promptfoo copies an assertion failure into the
   row-level `error` (failureReason 1), which was misclassified as a provider `infra_error`; only
   `response.error` or failureReason 2 (or an error with no failureReason) is infrastructure now.
   Details: docs/testing.md.
