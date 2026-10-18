@@ -1,122 +1,141 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-event-gateway
 scenarios:
   - id: konnect-event-gateway-positive-1
-    prompt: "Kafka clients connecting through our Konnect event proxy get a TLS handshake but then 'unknown topic' errors, even though the topic exists on the MSK cluster behind it. Where in the chain is it breaking?"
+    prompt: "Kafka clients going through Kong's Kafka proxy get a clean TLS handshake, then UNKNOWN_TOPIC_OR_PARTITION for orders.v2, which definitely exists on the MSK cluster behind it. Which hop is wrong?"
     expect: [konnect-event-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-event-gateway-positive-2
-    prompt: "In Event Gateway, consumers authenticate with SASL/PLAIN fine but every produce to orders.created is rejected. Could a policy be blocking it?"
+    prompt: "Producers on the payments team authenticate with SASL/PLAIN through the Kong Kafka proxy just fine, but every produce to payments.settled fails with TOPIC_AUTHORIZATION_FAILED. Consumers with the same credentials can read it. Is something in Kong rejecting the writes?"
     expect: [konnect-event-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-event-gateway-positive-3
-    prompt: "We set up two virtual clusters, team-a and team-b, on one listener. team-b's producers are landing their messages in team-a's backend. How does that happen?"
+    prompt: "Two virtual clusters, team-a and team-b, share one listener. team-b's producers are landing their messages in team-a's backend. How can that even happen?"
     expect: [konnect-event-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-event-gateway-positive-4
-    prompt: "bootstrap server kafka.events.example.internal:9092 on our Kong event gateway times out, the per-broker hostnames resolve fine. sni mapping issue?"
+    prompt: "bootstrap kafka.streams.example.internal:9092 times out through kong but the per-broker names resolve fine. clients use SNI. mapping problem?"
     expect: [konnect-event-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-event-gateway-positive-5
-    prompt: "Our streaming team wants to know which hop is failing: clients connect to the Konnect listener, but fetches stall and the backend Confluent cluster shows no consumer group activity at all."
+    prompt: "In Konnect's Event Gateway our consumer group shows no activity on the Confluent cluster behind it, even though clients connect to the listener fine and their fetches just hang. Where do I start?"
     expect: [konnect-event-gateway]
     forbid: []
     trials: 3
     tags: [positive]
+  - id: konnect-event-gateway-positive-6
+    prompt: "The Kong data plane running our Kafka proxy shows connected and healthy in the control plane, so it's not gateway health. Yet clients that connect with the new analytics.streams.example.internal hostname end up on the staging cluster instead of prod."
+    expect: [konnect-event-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-event-gateway-positive-7
+    prompt: "Our Kafka client gets 'SASL authentication failed' through the Kong proxy, but only when it connects via the new hostname; via the old hostname the same credentials work. Is this an access problem with the credentials?"
+    expect: [konnect-event-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
   - id: konnect-event-gateway-near-miss-1
-    prompt: "Our self-hosted Kafka consumer group keeps rebalancing every few minutes. How should I tune session.timeout.ms and max.poll.interval.ms?"
+    prompt: "Our self-hosted Kafka consumer group, no proxy in between, keeps rebalancing every few minutes. How should I tune session.timeout.ms and max.poll.interval.ms?"
     expect: []
     forbid: [konnect-event-gateway]
     trials: 3
     tags: [near-miss]
   - id: konnect-event-gateway-near-miss-2
-    prompt: "Set up an AWS EventBridge rule that forwards S3 object-created events to a Lambda."
+    prompt: "Which Konnect role should our streaming team get so they can manage event gateway listeners but not touch the HTTP control planes?"
     expect: []
     forbid: [konnect-event-gateway]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-event-gateway-near-miss-3
-    prompt: "Our REST gateway route for the webhooks service returns 503 from the data plane while the upstream pod is healthy. Konnect shows the data plane connected. What's going on?"
+    prompt: "Set up an EventBridge rule that sends S3 object-created events to a Lambda, plus an API Gateway endpoint to replay them on demand."
     expect: []
     forbid: [konnect-event-gateway]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-event-gateway-near-miss-4
-    prompt: "Compare Kafka, RabbitMQ, and NATS for an order-processing pipeline that needs exactly-once semantics."
+    prompt: "We want to bill partners per message consumed from the topics we expose through Konnect: 10M messages a month included, then a fixed price per extra million. How do we model the meters and plans?"
     expect: []
     forbid: [konnect-event-gateway]
     trials: 3
     tags: [near-miss]
   - id: konnect-event-gateway-near-miss-5
-    prompt: "Which Konnect role should our Kafka platform team get so they can manage Event Gateway listeners but not touch the HTTP control planes?"
+    prompt: "We added a required field to our Avro schema and now older consumers break. How do I make the change backward compatible in Schema Registry?"
     expect: []
     forbid: [konnect-event-gateway]
     trials: 3
     tags: [near-miss]
+  - id: konnect-event-gateway-near-miss-6
+    prompt: "Partners post webhook events to an HTTP route on our Kong gateway. Since last night's config push that event-receiver route answers 404 'no Route matched', and the data plane picked up the new version."
+    expect: []
+    forbid: [konnect-event-gateway]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: konnect-event-gateway-sibling-1
-    prompt: "We run both REST APIs and Kafka through Konnect. This morning some HTTP routes broke, a stream proxy started refusing clients, and an engineer lost access. Which of these do I chase first, and who owns it?"
+    prompt: "We run REST and Kafka traffic through Konnect. This morning some HTTP routes broke, the stream proxy started refusing clients, and an engineer lost access to the org. Which do I chase first, and who owns each?"
     expect: [konnect-platform-router]
     forbid: [konnect-event-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-event-gateway-sibling-2
-    prompt: "konnect flaky for both the kafka and http teams since the reorg, and perms changed too. who looks?"
+    prompt: "konnect flaky for both the kafka and http teams since the reorg, and perms changed too. who looks at what?"
     expect: [konnect-platform-router]
     forbid: [konnect-event-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-event-gateway-sibling-3
-    prompt: "After the listener change was applied, which kongctl get should I rerun to confirm the analytics listener now points at the right virtual cluster?"
+    prompt: "The listener change is applied. Which kongctl get do I rerun to confirm the analytics listener now points at the right virtual cluster? Read-only, change nothing."
     expect: [kongctl-query]
     forbid: [konnect-event-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-event-gateway-sibling-4
-    prompt: "What's the exact kongctl get syntax to fetch child resources like listeners under one event gateway? Show me the help path, don't change anything."
+    prompt: "exact kongctl get syntax to list the listeners under one event gateway? just show me the help path, don't touch anything."
     expect: [kongctl-query]
     forbid: [konnect-event-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-event-gateway-sibling-5
-    prompt: "team-b's virtual cluster in our kongctl YAML points at the wrong backend cluster. Fix the reference and show me the plan before apply."
+    prompt: "We already proved the broken hop: team-b's virtual cluster in our kongctl YAML points at the wrong backend cluster. Fix the reference and show me the plan before apply."
     expect: [kongctl-declarative]
     forbid: [konnect-event-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-event-gateway-sibling-6
-    prompt: "Add a new listener and virtual cluster for the analytics topics to our kongctl manifests, referencing the existing backend cluster with !ref, and dry-run it."
+    prompt: "Add a listener and a virtual cluster for the analytics topics to our kongctl manifests, pointing at the existing backend cluster with !ref, and dry-run it."
     expect: [kongctl-declarative]
     forbid: [konnect-event-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-event-gateway-sibling-7
-    prompt: "Our event gateway resources are managed in HCL with the konnect provider. Add a backend cluster for the new Confluent environment and run terraform plan."
+    prompt: "Our event gateway resources are in HCL with the konnect provider. Add a backend cluster for the new Confluent environment and run terraform plan."
     expect: [terraform-konnect]
     forbid: [konnect-event-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-event-gateway-sibling-8
-    prompt: "The event gateway backend cluster address changed after the Confluent migration. It's declared in our HCL; update the attribute and check the plan only touches that resource."
+    prompt: "The backend cluster's bootstrap address changed after the Confluent migration. It's declared in our Terraform; update it and make sure the plan touches only that resource."
     expect: [terraform-konnect]
     forbid: [konnect-event-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-event-gateway-sibling-9
-    prompt: "All our Kong data planes in the hybrid control plane went disconnected after the cert rotation, HTTP and everything. Kafka users noticed first but it's not just them. What do we check?"
+    prompt: "Every Kong data plane in our hybrid control plane went disconnected after the cert rotation, HTTP and Kafka alike. The Kafka users noticed first, but it's all of them. What do we check?"
     expect: [konnect-gateway-triage]
     forbid: [konnect-event-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-event-gateway-sibling-10
-    prompt: "Our HTTP data planes in the same hybrid control plane as the event proxies stopped heartbeating after a network change; the event side is fine. What's broken?"
+    prompt: "The HTTP data planes in the same control plane as our stream proxies stopped heartbeating after a network change; the Kafka side is fine. What's broken?"
     expect: [konnect-gateway-triage]
     forbid: [konnect-event-gateway]
     trials: 1

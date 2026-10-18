@@ -1,123 +1,142 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: gateway-plugin-datakit
 scenarios:
   - id: gateway-plugin-datakit-positive-1
-    prompt: "On every request to /quote I need Kong to call the pricing API and the stock API at the same time, merge both JSON bodies, and return the combined result without hitting the upstream at all. How do I build that in DataKit?"
+    prompt: "On GET /quote I want Kong itself to hit our pricing service and our inventory service in parallel, stitch the two JSON answers into one object and send that straight back. There's no real backend behind that route. Cleanest way to set this up?"
     expect: [gateway-plugin-datakit]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: gateway-plugin-datakit-positive-2
-    prompt: "datakit debug trace shows NODE_CANCELED on my 'enrich' node. what's the usual cause"
+    prompt: "Trace from a test call against our orchestration config: FETCH_PROFILE -> NODE_ERROR (status 404), then MERGE and RESPOND both NODE_CANCELED. The team has spent an hour staring at the jq in MERGE. Are we looking in the right place?"
     expect: [gateway-plugin-datakit]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: gateway-plugin-datakit-positive-3
-    prompt: "With DataKit, I want to grab an OAuth token from our identity service, keep it cached for a few minutes, and add it as an Authorization header before the request goes upstream. Which nodes and resources do I need?"
+    prompt: "Before each request goes upstream, Kong has to get a client-credentials token from our IdP, reuse it for about five minutes instead of asking every time, and add it as a Bearer header. The client secret must not sit in plain text in the config. What do I need to put together?"
     expect: [gateway-plugin-datakit]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: gateway-plugin-datakit-positive-4
-    prompt: "Here's my flow YAML. I named one node 'response' and now Kong rejects the config. Also the jq step downstream reads a field that doesn't seem to exist. Can you check the wiring?"
+    prompt: "Old billing backend only speaks XML, the mobile app wants JSON with three renamed fields. I'd really rather not write custom Lua. Can Kong convert and reshape the body on the way back to the client?"
     expect: [gateway-plugin-datakit]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: gateway-plugin-datakit-positive-5
-    prompt: "Legacy backend speaks XML only. Our clients send JSON. Within Kong, without writing a custom Lua plugin, convert the request to XML on the way in and the answer back to JSON on the way out."
+    prompt: "datakit config rejected on save, complains about a node called 'request'. i only declared 4 nodes, one of them is named request because it builds the outgoing body. what's the problem"
     expect: [gateway-plugin-datakit]
     forbid: []
     trials: 3
     tags: [positive]
+  - id: gateway-plugin-datakit-positive-6
+    prompt: "deck sync went through without complaints, so the file is fine as far as decK is concerned. But on /orders the cache lookup -> branch-on-miss -> fetch setup calls the backend on every single request and never serves anything from cache. Is my wiring wrong?"
+    expect: [gateway-plugin-datakit]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
+  - id: gateway-plugin-datakit-positive-7
+    prompt: "Our self-managed Kong is all Terraform, but this is not a plan problem: the enrichment call node in our request flow builds its URL from a query param, and on the 3.4 data planes it always goes to the fallback URL instead. Works on our 3.9 sandbox. Version thing?"
+    expect: [gateway-plugin-datakit]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
   - id: gateway-plugin-datakit-near-miss-1
-    prompt: "Write a jq expression that flattens a nested array of orders into CSV rows with id, sku and quantity."
+    prompt: "Since Tuesday none of our changes reach the proxies: the new DataKit config on /quote, a rate limit bump, nothing. Konnect lists the newer config version but the nodes still behave the old way, and they all report connected."
     expect: []
     forbid: [gateway-plugin-datakit]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: gateway-plugin-datakit-near-miss-2
-    prompt: "Build an Apache Airflow DAG that pulls from two REST APIs, joins the results, and writes them to BigQuery nightly."
+    prompt: "The chat route sits behind the AI proxy plugin with a primary and a backup model. Every so often answers come from the backup even when the primary looks healthy. Is our fallback setting wrong?"
     expect: []
     forbid: [gateway-plugin-datakit]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: gateway-plugin-datakit-near-miss-3
-    prompt: "Add the request-transformer plugin to the users route in our kong.yaml so it strips the X-Debug header, and preview the sync."
+    prompt: "jq one-liner please: turn this array of order objects into CSV lines of id,sku,qty, skipping orders with no items."
     expect: []
     forbid: [gateway-plugin-datakit]
     trials: 3
     tags: [near-miss]
   - id: gateway-plugin-datakit-near-miss-4
-    prompt: "Write an Envoy Lua filter that calls an external auth service and adds the returned user id as a header."
+    prompt: "We're moving this one service off NGINX and it won't sit behind Kong. Our njs script calls two internal services and merges their JSON before proxying. Port it to an Envoy Lua filter."
     expect: []
     forbid: [gateway-plugin-datakit]
     trials: 3
     tags: [near-miss]
   - id: gateway-plugin-datakit-near-miss-5
-    prompt: "Our AI Proxy route sends prompts to the wrong model: it should go to the smaller one for summaries. Why is the model selection off?"
+    prompt: "I can't edit the plugin settings on the orders control plane in Konnect, everything is greyed out, while my teammate in the same team can. What's different about my account?"
     expect: []
     forbid: [gateway-plugin-datakit]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
+  - id: gateway-plugin-datakit-near-miss-6
+    prompt: "Scaffold a custom Kong Gateway plugin in Lua, handler.lua plus schema.lua, that stamps a correlation id header. We want to ship it as a LuaRocks package."
+    expect: []
+    forbid: [gateway-plugin-datakit]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: gateway-plugin-datakit-sibling-1
-    prompt: "Several things in Konnect are off and I don't know who owns them: request enrichment stopped on some routes, a partner API dropped from the portal, and our analytics look partial. Where should we start?"
-    expect: [konnect-platform-router]
+    prompt: "The DataKit flow is done and tested locally. Now put it on the quotes route in our kong.yaml for staging and show me what deck diff says before anything is synced."
+    expect: [deck-gateway]
     forbid: [gateway-plugin-datakit]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: gateway-plugin-datakit-sibling-2
-    prompt: "I manage two platform squads. After the reorg, plugin behavior changed on a few Konnect gateways and some engineers lost edit rights. I need to hand this to the right specialists; tell me how to split ownership."
-    expect: [konnect-platform-router]
+    prompt: "our kong.yaml is split per team with select_tags. where does the new pricing route's plugin entry go so a sync from the pricing folder can't wipe other teams' stuff"
+    expect: [deck-gateway]
     forbid: [gateway-plugin-datakit]
     trials: 1
     tags: [sibling]
   - id: gateway-plugin-datakit-sibling-3
-    prompt: "The DataKit flow is finished and tested. Put it on the quotes route in our decK state file and show me the diff against the staging control plane."
-    expect: [deck-gateway]
+    prompt: "terraform plan shows an in-place update on our datakit plugin resource every run, even right after apply. Self-hosted Kong, managed with the kong-gateway provider. Drift in state or in how the config attribute is written?"
+    expect: [terraform-kong-gateway]
     forbid: [gateway-plugin-datakit]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: gateway-plugin-datakit-sibling-4
-    prompt: "Our kong.yaml is split per team with select tags. Where does a new plugin entry for the pricing service go so a sync from the pricing folder doesn't touch other teams?"
-    expect: [deck-gateway]
+    prompt: "Orchestration logic is final. Our on-prem Kong keeps each service's plugins in its own HCL module; add this one to the quotes module and run validate and plan."
+    expect: [terraform-kong-gateway]
     forbid: [gateway-plugin-datakit]
     trials: 1
     tags: [sibling]
   - id: gateway-plugin-datakit-sibling-5
-    prompt: "We manage our self-hosted Kong with the kong/kong-gateway Terraform provider. terraform plan keeps showing a diff on the datakit plugin resource every run even though nothing changed. Is it state or the HCL?"
-    expect: [terraform-kong-gateway]
+    prompt: "Our Konnect control planes and their gateway plugins live in HCL with the konnect provider. Someone created the enrichment plugin by hand in the UI; import it so Terraform owns it without recreating it."
+    expect: [terraform-konnect]
     forbid: [gateway-plugin-datakit]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: gateway-plugin-datakit-sibling-6
-    prompt: "The DataKit flow is finalised. Our self-hosted gateway's plugins live in HCL modules per service; add the plugin resource to the quotes service module and run validate and plan."
-    expect: [terraform-kong-gateway]
+    prompt: "In our Konnect Terraform repo the plugins sit in a separate module from the control planes. Which module should hold the new one for invoices, and how do I pass the control plane id across?"
+    expect: [terraform-konnect]
     forbid: [gateway-plugin-datakit]
     trials: 1
     tags: [sibling]
   - id: gateway-plugin-datakit-sibling-7
-    prompt: "Our Konnect control plane resources are in HCL with the konnect provider. I need to attach an existing flow plugin to the orders service there; what does the resource block look like per the provider schema?"
-    expect: [terraform-konnect]
+    prompt: "We manage the Konnect org with kongctl YAML. Before the pricing squad attaches their request orchestration, their existing control plane needs a new owner label and description; update the manifests and show me the plan."
+    expect: [kongctl-declarative]
     forbid: [gateway-plugin-datakit]
     trials: 1
     tags: [sibling]
   - id: gateway-plugin-datakit-sibling-8
-    prompt: "In our Konnect Terraform repo, the gateway plugins live in a different module than the control planes. Which module should own a new plugin for the invoices service?"
-    expect: [terraform-konnect]
+    prompt: "kongctl apply bails because a !ref to the pricing control plane can't be resolved. Fix the manifest so the next plan comes out clean."
+    expect: [kongctl-declarative]
     forbid: [gateway-plugin-datakit]
     trials: 1
     tags: [sibling]
   - id: gateway-plugin-datakit-sibling-9
-    prompt: "Our Konnect org is described in kongctl YAML. Add the new quotes API with its spec and publish it to the partner portal, then preview the plan."
-    expect: [kongctl-declarative]
+    prompt: "Three unrelated-looking things in Konnect this week: request enrichment stopped on some routes, a partner API vanished from the portal, and analytics look patchy. Don't fix anything yet, just tell me which to chase first and who'd own each."
+    expect: [konnect-platform-router]
     forbid: [gateway-plugin-datakit]
     trials: 1
     tags: [sibling]
   - id: gateway-plugin-datakit-sibling-10
-    prompt: "kongctl apply failed saying a !ref can't be resolved for the control plane in our manifests. Fix the manifest so the next plan is clean."
-    expect: [kongctl-declarative]
+    prompt: "After the reorg, plugin behaviour changed on a few Konnect gateways, some engineers lost edit rights, and nobody knows who owns the portal now. Split this up for me before we start digging."
+    expect: [konnect-platform-router]
     forbid: [gateway-plugin-datakit]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
