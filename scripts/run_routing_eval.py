@@ -57,8 +57,11 @@ def run_promptfoo(
     pattern: str | None,
     env: dict[str, str] | None = None,
     ledger: ceilings.Ledger | None = None,
+    config: str | None = None,
 ) -> tuple[str, list[dict[str, Any]] | None]:
     """Run one Promptfoo eval and return its console text and parsed result rows.
+
+    `config` (default `evals/promptfoo/<agent>.config.js`) names another Promptfoo config, used by the listing probe.
 
     Promptfoo exits non-zero for failing or erroring tests, so success is judged by
     whether a readable report was written, not by the exit code. The run is capped by the
@@ -69,7 +72,7 @@ def run_promptfoo(
     report.parent.mkdir(parents=True, exist_ok=True)
     report.unlink(missing_ok=True)
     command = [
-        str(PROMPTFOO), "eval", "-c", f"evals/promptfoo/{agent}.config.js",
+        str(PROMPTFOO), "eval", "-c", config or f"evals/promptfoo/{agent}.config.js",
         "--no-cache", "--no-table", "--max-concurrency", str(ledger.ceilings.max_concurrency),
         "--output", str(report),  # keep last: the variadic list takes the extra report paths below
     ]

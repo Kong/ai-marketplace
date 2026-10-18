@@ -2,6 +2,11 @@ const test = require('node:test');
 const assert = require('node:assert');
 const { DEFAULTS, EFFORTS, resolve } = require('./settings');
 
+// The Claude config reads its provider settings through claude.provider.js, which caches them too.
+function clearConfigs() {
+  for (const file of ['codex.config.js', 'claude.config.js', 'claude.provider.js']) delete require.cache[require.resolve(`./${file}`)];
+}
+
 test('defaults are the pins and marked default', () => {
   const codex = resolve('codex', {});
   assert.deepStrictEqual(codex.model, { value: 'gpt-5.5', source: 'default' });
@@ -29,7 +34,7 @@ test('agent configs read the shared settings and keep fixed restrictions', () =>
   process.env.ROUTING_SKILL = 'konnect-gateway-triage';
   Object.assign(process.env, { ROUTING_CODEX_MODEL: 'gpt-x', ROUTING_CODEX_EFFORT: 'high', ROUTING_CLAUDE_MODEL: 'claude-x', ROUTING_CLAUDE_EFFORT: 'high' });
   try {
-    for (const name of ['codex', 'claude']) delete require.cache[require.resolve(`./${name}.config.js`)];
+    clearConfigs();
     const codex = require('./codex.config.js').providers[0].config;
     const [claude] = require('./claude.config.js').providers;
     assert.strictEqual(codex.model, 'gpt-x');
@@ -41,14 +46,16 @@ test('agent configs read the shared settings and keep fixed restrictions', () =>
     assert.strictEqual(claude.config.permission_mode, 'dontAsk');
   } finally {
     for (const key of ['ROUTING_CODEX_MODEL', 'ROUTING_CODEX_EFFORT', 'ROUTING_CLAUDE_MODEL', 'ROUTING_CLAUDE_EFFORT']) delete process.env[key];
-    for (const name of ['codex', 'claude']) delete require.cache[require.resolve(`./${name}.config.js`)];
+    clearConfigs();
   }
 });
 
 test('claude config omits effort by default', () => {
   process.env.ROUTING_SKILL = 'konnect-gateway-triage';
+  delete require.cache[require.resolve('./claude.provider.js')];
   delete require.cache[require.resolve('./claude.config.js')];
   const { config } = require('./claude.config.js').providers[0];
   assert.ok(!('effort' in config));
+  delete require.cache[require.resolve('./claude.provider.js')];
   delete require.cache[require.resolve('./claude.config.js')];
 });

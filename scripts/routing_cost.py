@@ -16,7 +16,7 @@ CLAUDE_USD_PER_TRIAL = 0.065
 # UNMEASURED: the old planning range, never checked against a live Codex run. Replace it once measured.
 CODEX_USD_PER_TRIAL = (0.05, 0.10)  # (low, high)
 
-GATE, COMPARE, SNAPSHOT, CANARY, ABLATION = "gate", "compare", "snapshot", "canary", "ablation"
+GATE, COMPARE, SNAPSHOT, CANARY, ABLATION, PROBE = "gate", "compare", "snapshot", "canary", "ablation", "probe"
 
 
 def usd_range(agent: str) -> tuple[float, float]:
@@ -35,6 +35,7 @@ def entry_trials(entry: Mapping[str, Any], trials_by_id: Mapping[str, int], all_
     canary:               the skill's positive scenarios at one trial each, candidate only.
     ablation:             the skill's own scenarios at one trial each under two listings (default and
                           name-only), candidate only: twice the scenarios.
+    probe:                the listing probe: one question, one trial (no scenarios of its own).
     """
     ids = [i for i in str(entry.get("scenarios") or "").split(",") if i]
     own = sum(trials_by_id.get(i, all_trials.get(i, 1)) for i in ids)
@@ -42,6 +43,8 @@ def entry_trials(entry: Mapping[str, Any], trials_by_id: Mapping[str, int], all_
     mode = entry["mode"]
     if mode == CANARY:
         return {"scenarios": len(ids), "initial": len(ids), "worst": len(ids)}
+    if mode == PROBE:
+        return {"scenarios": 1, "initial": 1, "worst": 1}
     if mode == ABLATION:
         return {"scenarios": len(ids), "initial": 2 * len(ids), "worst": 2 * len(ids)}
     if mode == GATE and not entry.get("new"):

@@ -1,25 +1,9 @@
 // Routing eval for Claude through Promptfoo's native Claude Agent SDK provider.
 // Run via `mise run eval:routing -- skill <name>`; ROUTING_SKILL selects the target.
-const path = require('node:path');
 const { buildTests, SCENARIOS_DIR } = require('./scenarios');
+const { base } = require('./claude.provider');
 
-const { resolve, FIXED } = require('./settings');
-
-const settings = resolve('claude');
 const LABELS = { positive: 'claude-stop-on-activation', negative: 'claude-complete-turn' };
-// ROUTING_WORKSPACE_ROOT lets the candidate/control comparison point each run at its own workspace.
-const workspace = process.env.ROUTING_WORKSPACE_ROOT
-  ? path.resolve(process.env.ROUTING_WORKSPACE_ROOT, 'claude')
-  : path.resolve(__dirname, '..', '..', '.tmp', 'routing', 'claude');
-
-// Discovery only: the sole tool is the native Skill tool, so the agent cannot
-// perform the domain task, read files, run commands, or reach MCP servers.
-const base = {
-  model: settings.model.value,
-  ...(settings.effort.value ? { effort: settings.effort.value } : {}),
-  working_dir: workspace,
-  ...FIXED.claude,
-};
 
 // Positive scenarios end the turn as soon as a Skill call succeeds.
 const stopAfterSkill = {

@@ -21,6 +21,8 @@ select:   EVENT_NAME, BASE_SHA, HEAD_SHA (pull_request and merge_group), MODE_IN
           `ablation` (one skill; scripts/routing_ablation.py, Claude only) selects all of that skill's own
           scenarios and runs them under the default and name-only listings (two trials per scenario);
           a diagnostic that never affects the merge gate.
+          Dispatch mode `probe` (no skill: `skill` is ignored; scripts/routing_listing_probe.py, Claude only) asks the
+          harness's Claude which skills and descriptions it sees, under the `listing` preset; one trial, no gate effect.
 evaluate: SKILL, MODE, SCENARIOS, BASE_REF, REQUESTED_AGENTS, EVENT_NAME, MODE_INPUT and
           LISTING_INPUT (a skill-listing preset, claude only, manual skill/changed/canary runs only), plus the provider keys and ROUTING_* ceiling
           variables. Runs only the requested agents that have a key (routing_ci_agents.py), with
@@ -46,6 +48,7 @@ import routing_ceilings as ceilings
 import routing_ci_agents as ci_agents
 import routing_cost as cost
 import routing_listing as listing_presets
+import routing_listing_probe as probe
 import routing_selection as selection
 import routing_surface as surface
 import routing_targets as targets
@@ -53,14 +56,14 @@ import select_changed
 import validate_routing_scenarios as scenarios
 
 SKILL_NAME = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
-MODES = ("skill", "changed", "all", "canary", "ablation")
-RUN_MODES = (selection.GATE_MODE, "compare", "snapshot", "canary", "ablation")
+MODES = ("skill", "changed", "all", "canary", "ablation", "probe")
+RUN_MODES = (selection.GATE_MODE, "compare", "snapshot", "canary", "ablation", "probe")
 RESULT_EXIT_CODES = (0, 1, 3)
 # Variables that would change what CI measures; never let them reach the eval processes.
 SCRUBBED = ("ROUTING_CODEX_MODEL", "ROUTING_CODEX_EFFORT", "ROUTING_CLAUDE_MODEL", "ROUTING_CLAUDE_EFFORT", "ROUTING_FORCE_TRIALS", "ROUTING_MAX_TRIALS", "ROUTING_MIN_TRIALS", "ROUTING_SCENARIO_IDS", listing_presets.ENV_VAR)
 # Dispatch modes that accept a skill-listing preset; `all` ignores it (both agents, and a full suite is not an experiment).
-LISTING_MODES = ("skill", "changed", "canary")
-# Dispatch modes that take a `skill` input.
+LISTING_MODES = ("skill", "changed", "canary", "probe")
+# Dispatch modes that take a `skill` input (`probe` ignores it: the probe belongs to no skill).
 SKILL_MODES = ("skill", "canary", "ablation")
 
 
@@ -119,7 +122,7 @@ def select_matrix(env: Mapping[str, str], repo: Path = check_repo.REPO_ROOT) -> 
         mode = env.get("MODE_INPUT", "")
         if mode not in MODES:
             raise CiError(f"mode must be one of {', '.join(MODES)}")
-        skill = env.get("SKILL_INPUT", "")
+        skill = "" if mode == "probe" else env.get("SKILL_INPUT", "")
         if (mode in SKILL_MODES) != bool(skill):
             raise CiError("`skill` is required for mode=skill, mode=canary and mode=ablation and not accepted otherwise")
         if skill and not SKILL_NAME.match(skill):
@@ -130,6 +133,11 @@ def select_matrix(env: Mapping[str, str], repo: Path = check_repo.REPO_ROOT) -> 
                 if not ids:
                     raise ValueError(f"skill {skill!r} has no positive scenarios of its own to run the canary on; covered: {sorted(covered)}")
                 matrix = [{"skill": skill, "mode": "canary", "scenarios": ",".join(ids), "new": False, "count": len(ids)}]
+            elif mode == "probe":
+                if env.get("AGENTS_INPUT", "").strip() and agents != [probe.AGENT]:
+                    raise ValueError("the listing probe runs on claude only; set agents=claude or leave it empty")
+                agents = [probe.AGENT]
+                matrix = [{"skill": probe.PROBE_SKILL, "mode": "probe", "scenarios": "", "new": False, "count": 1}]
             elif mode == "ablation":
                 ids = [s["id"] for s in ablation.own_scenarios(skill)] if skill in covered else []
                 if not ids:
@@ -255,6 +263,8 @@ def eval_command(skill: str, mode: str, base_ref: str, agents: list[str], scenar
         return ["mise", "run", "eval:routing:canary", "--", skill, "--agent", agent]
     if mode == "ablation":
         return ["mise", "run", "eval:routing:ablation", "--", skill, "--agent", agent]
+    if mode == "probe":
+        return ["mise", "run", "eval:routing:probe"]  # the listing preset arrives as ROUTING_SKILL_LISTING
     if mode == "snapshot":
         return ["mise", "run", "eval:routing", "--", "skill", skill, "--agent", agent]
     command = ["mise", "run", "eval:routing:compare", "--", skill, "--base", base_ref, "--agent", agent]
@@ -300,6 +310,9 @@ def evaluate_main(
     except ValueError as exc:
         print(f"::error title=harness_error::{exc}")
         return 2
+    if mode == "probe" and plan["requested"] != [probe.AGENT]:
+        print(f"::error title=harness_error::the listing probe runs on {probe.AGENT} only, requested {plan['requested']}")
+        return 2
     record: dict[str, Any] = {
         "skill": skill, "mode": mode, "requested": plan["requested"], "agents": agents,
         "skipped": plan["skipped"], "exit_code": None,
@@ -319,8 +332,11 @@ def evaluate_main(
     if not agents:
         print(f"::warning title=agent_skipped::{ci_agents.NO_KEYS_MESSAGE}; the gate will fail in the merge queue and manual runs")
         _append(summary_path, heading + f"{ci_agents.NO_KEYS_MESSAGE}; no provider calls were made.\n")
-        # A canary or ablation that ran nothing answers nothing: fail it rather than report success.
-        record["exit_code"] = canary.EXIT_CODES[canary.INCOMPLETE] if mode == "canary" else ablation.EXIT_INCOMPLETE if mode == "ablation" else 0
+        # A canary, ablation or probe that ran nothing answers nothing: fail it rather than report success.
+        record["exit_code"] = (
+            canary.EXIT_CODES[canary.INCOMPLETE] if mode == "canary" else ablation.EXIT_INCOMPLETE if mode == "ablation"
+            else probe.EXIT_INCOMPLETE if mode == "probe" else 0
+        )
         write_record()
         return record["exit_code"]
 
@@ -328,6 +344,7 @@ def evaluate_main(
     summary = reports / (
         f"canary-{skill}.canary.json" if mode == "canary"
         else f"ablation-{skill}.ablation.json" if mode == "ablation"
+        else f"probe-{listing}.json" if mode == "probe"
         else f"{skill}.summary.json" if mode == "snapshot" else f"{skill}.comparison-summary.json"
     )
     body = summary.read_text() if summary.is_file() else "no summary written"
@@ -335,6 +352,8 @@ def evaluate_main(
         _append(summary_path, heading + "\n".join(f"- {line.strip()}" for line in canary.render(json.loads(body))) + "\n")
     if mode == "ablation" and summary.is_file():
         _append(summary_path, heading + "\n".join(ablation.render(json.loads(body))) + "\n")
+    if mode == "probe" and summary.is_file():
+        _append(summary_path, heading + "\n".join(probe.render(json.loads(body))) + "\n")
     _append(summary_path, heading + f"<details><summary>summary document</summary>\n\n```json\n{body.rstrip()}\n```\n</details>\n")
     breaches: list[dict[str, Any]] = []
     if summary.is_file():
@@ -361,6 +380,9 @@ def evaluate_main(
         return rc
     if mode == "ablation" and rc == ablation.EXIT_INCOMPLETE:
         print(f"::error title=ablation_incomplete::{skill}: infrastructure error left the ablation undecided; no gate effect")
+        return rc
+    if mode == "probe" and rc == probe.EXIT_INCOMPLETE:
+        print("::error title=probe_incomplete::the listing probe got no usable answer (provider error or no skills listed); no gate effect")
         return rc
     if rc == 1:
         print(f"::warning title=routing_fail::{skill} ({mode}): routing failed on at least one agent; the gate decides (regression-only)")

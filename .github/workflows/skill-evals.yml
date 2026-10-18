@@ -22,6 +22,10 @@ name: Skill routing evals
 #                   and each scenario is classified as description-dependent or name-solvable
 #                   (scripts/routing_ablation.py). It uses the `skill-evals` environment, is a
 #                   diagnostic with artifacts and a cost preview, and never affects the merge gate.
+#                   `probe` is the listing probe: one Claude question (about $0.1) asking which skills and
+#                   descriptions the harness's model is shown, under the `listing` preset (`skill` is
+#                   ignored; scripts/routing_listing_probe.py). It uses the `skill-evals` environment, is a
+#                   diagnostic with artifacts and a cost preview, and never affects the merge gate.
 #
 # The gate is not enabled by this file. Until an admin makes the check `routing-evals-gate` required
 # in the main ruleset, every outcome here is advisory. There is deliberately no `paths:` filter: the
@@ -40,7 +44,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "skill: one skill vs origin/main; changed: skills changed vs origin/main; all: full suite (manual only, needs approval); canary: damage one skill's description and check the eval notices; ablation: one skill's own scenarios under the default and name-only listing (Claude only, diagnostic)"
+        description: "skill: one skill vs origin/main; changed: skills changed vs origin/main; all: full suite (manual only, needs approval); canary: damage one skill's description and check the eval notices; ablation: one skill's own scenarios under the default and name-only listing (Claude only, diagnostic); probe: ask Claude which skills and descriptions it sees (Claude only, diagnostic, skill ignored)"
         required: true
         type: choice
         default: changed
@@ -50,16 +54,17 @@ on:
           - all
           - canary
           - ablation
+          - probe
       skill:
-        description: Skill name (required when mode is skill, canary or ablation; must have routing scenarios)
+        description: Skill name (required when mode is skill, canary or ablation; must have routing scenarios; ignored for probe)
         required: false
         type: string
       agents:
-        description: Optional comma-separated agents to run (claude, codex); default both. mode ablation runs on claude only
+        description: Optional comma-separated agents to run (claude, codex); default both. modes ablation and probe run on claude only
         required: false
         type: string
       listing:
-        description: "Claude only, diagnosis (modes skill, changed, canary; needs agents=claude): skill-listing preset. name-only: list names without descriptions. Ignored for mode all and ablation (ablation runs both listings itself)"
+        description: "Claude only, diagnosis (modes skill, changed, canary, probe; needs agents=claude): skill-listing preset. name-only: list names without descriptions. Ignored for mode all and ablation (ablation runs both listings itself)"
         required: false
         type: choice
         default: default
@@ -139,7 +144,7 @@ jobs:
           SCENARIOS: ${{ matrix.scenarios }}
           BASE_REF: ${{ github.event.merge_group.base_sha || 'origin/main' }}
           REQUESTED_AGENTS: ${{ needs.select.outputs.agents }}
-          # An allowlisted preset name only (scripts/routing_listing.py); routing_ci.py applies it for manual skill, changed and canary runs.
+          # An allowlisted preset name only (scripts/routing_listing.py); routing_ci.py applies it for manual skill, changed, canary and probe runs.
           LISTING_INPUT: ${{ inputs.listing }}
           EVENT_NAME: ${{ github.event_name }}
           MODE_INPUT: ${{ inputs.mode }}
@@ -187,7 +192,7 @@ jobs:
           MODE_INPUT: ${{ inputs.mode }}
         run: |
           set -euo pipefail
-          if [ "$EVENT_NAME" = "workflow_dispatch" ] && { [ "$MODE_INPUT" = "canary" ] || [ "$MODE_INPUT" = "ablation" ]; }; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && { [ "$MODE_INPUT" = "canary" ] || [ "$MODE_INPUT" = "ablation" ] || [ "$MODE_INPUT" = "probe" ]; }; then
             echo "### routing-evals-gate: $MODE_INPUT run, not a gate decision
           The $MODE_INPUT result is in the evaluate job and its artifacts; it never affects the merge gate." | tee -a "$GITHUB_STEP_SUMMARY"
             echo "apply=false" >> "$GITHUB_OUTPUT"
