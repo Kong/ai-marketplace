@@ -1,122 +1,141 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-ai-gateway
 scenarios:
   - id: konnect-ai-gateway-positive-1
-    prompt: "We front OpenAI and Anthropic through Kong in Konnect. Requests meant for claude are getting answered by gpt-4o according to the response headers. How do I tell where the model choice goes wrong?"
+    prompt: "We put Kong in front of OpenAI and Anthropic so every app hits one URL. Calls that should land on Claude come back with an OpenAI model name in the response body. Where does the model pick go wrong?"
     expect: [konnect-ai-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-ai-gateway-positive-2
-    prompt: "Our prompt guard plugin was supposed to block anything mentioning internal project codenames, but test prompts sail right through to the model. The chat route itself works."
+    prompt: "We set up a deny list so prompts mentioning internal codenames like BLUEHERON get blocked before they reach the LLM. Test prompts sail through and get answered. The chat route itself works fine. What did we miss?"
     expect: [konnect-ai-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-ai-gateway-positive-3
-    prompt: "Since we added a fallback provider on the summarize route, latency tripled and token usage per request doubled. Is traffic actually landing on the backup model instead of the primary?"
+    prompt: "Finance says our LLM bill for traffic going through Kong doubled last week while request counts stayed flat. I need to know which route or model is burning the tokens, and whether the backup provider is getting more calls than we think."
     expect: [konnect-ai-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-ai-gateway-positive-4
-    prompt: "semantic cache on the support-bot route never seems to hit, even for identical questions. ai proxy advanced in front of azure openai. what should i check?"
+    prompt: "every call through our Kong LLM route gets a 401 back from Azure OpenAI, but the same key works with curl straight against Azure. is kong forwarding the key differently?"
     expect: [konnect-ai-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-ai-gateway-positive-5
-    prompt: "Every request through the AI proxy comes back with a 401 from the provider, but the same key works from my laptop with curl directly against the provider. Is Kong sending the credential differently?"
+    prompt: "The support bot route is supposed to answer near-identical questions from the similarity cache, but every one costs a fresh completion. Redis is up and reachable from the nodes. What should I look at?"
     expect: [konnect-ai-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
+  - id: konnect-ai-gateway-positive-6
+    prompt: "p95 on /summarize went from 1s to 6s since Friday, while the plain REST routes on the same data planes look normal. Gateway health seems fine. Is one provider or model dragging it down?"
+    expect: [konnect-ai-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-ai-gateway-positive-7
+    prompt: "The HR assistant route should wrap user input in our policy preamble before it goes to the model, yet the provider-side logs show only the raw user text. The config is managed with decK, deck diff is clean, and the live config on that route matches the file. Why isn't the wrapping applied?"
+    expect: [konnect-ai-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
   - id: konnect-ai-gateway-near-miss-1
-    prompt: "Rewrite this system prompt so our support chatbot stops hallucinating refund policies and stays concise."
+    prompt: "Rewrite this system prompt so our support bot stops inventing refund policies and keeps answers under 80 words."
     expect: []
     forbid: [konnect-ai-gateway]
     trials: 3
     tags: [near-miss]
   - id: konnect-ai-gateway-near-miss-2
-    prompt: "The OpenAI Python SDK throws RateLimitError on batch jobs even with tenacity retries. How do I handle backoff properly?"
+    prompt: "openai python sdk throws RateLimitError on our nightly embedding batch even with tenacity retries. what's a sane backoff pattern?"
     expect: []
     forbid: [konnect-ai-gateway]
     trials: 3
     tags: [near-miss]
   - id: konnect-ai-gateway-near-miss-3
-    prompt: "All routes on our Konnect hybrid gateway, AI ones and plain REST alike, started returning 'no Route matched' after the data planes reconnected this morning. What do I check?"
+    prompt: "All routes on our Konnect hybrid data planes, the AI chat ones and plain REST alike, started returning 'no Route matched' after the DPs reconnected this morning. What do I check?"
     expect: []
     forbid: [konnect-ai-gateway]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-ai-gateway-near-miss-4
-    prompt: "Customers on our premium plan should be billed for completions only, not embeddings calls, while both still appear in raw usage. How do we model that in Konnect?"
+    prompt: "We want to charge premium customers per completion token on our AI chat product: 1M tokens included each month, then a per-thousand overage. How do we set up the meters and plans in Konnect and check the invoice math?"
     expect: []
     forbid: [konnect-ai-gateway]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-ai-gateway-near-miss-5
-    prompt: "Benchmark Llama 3 70B versus Mistral Large on our internal summarization eval set and tell me which gives better quality per dollar."
+    prompt: "Since we moved the org to the EU region, Explorer and the dashboards are empty for every API, the AI chat routes and the ordinary REST ones alike, even though traffic is clearly flowing. Where did the data go?"
     expect: []
     forbid: [konnect-ai-gateway]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
+  - id: konnect-ai-gateway-near-miss-6
+    prompt: "A new contractor can't see the AI gateway control plane in Konnect at all, while everyone else on the team can. Wrong org, wrong team, or a role thing?"
+    expect: []
+    forbid: [konnect-ai-gateway]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: konnect-ai-gateway-sibling-1
-    prompt: "We're rolling out LLM access to internal teams through Konnect and hit several snags at once: some people can't get into the org, the portal doesn't list the AI APIs, and spend reporting is confusing. Which area should we tackle first?"
+    prompt: "We're rolling out LLM access to internal teams through Konnect and hitting several walls at once: people can't log into the org, the portal doesn't list the model APIs, and nobody trusts the spend numbers. What do we tackle first and who owns what?"
     expect: [konnect-platform-router]
     forbid: [konnect-ai-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-ai-gateway-sibling-2
-    prompt: "Our GenAI rollout on Konnect stalled: no config repo yet, half the teams can't log into the org, and nobody has decided who owns the portal. Assign the pieces."
+    prompt: "genai rollout on konnect is a mess: no config repo, half the teams locked out, portal ownership unclear. assign the pieces."
     expect: [konnect-platform-router]
     forbid: [konnect-ai-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-ai-gateway-sibling-3
-    prompt: "Swap the ai-proxy model on the chat route from gpt-4o-mini to gpt-4.1 in our decK kong.yaml and show me the diff before sync."
+    prompt: "Switch the ai-proxy model on the chat route from gpt-4o-mini to gpt-4.1 in kong.yaml and show me the deck diff before we sync."
     expect: [deck-gateway]
     forbid: [konnect-ai-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-ai-gateway-sibling-4
-    prompt: "Dump the current entities from our LLM control plane with decK, filtered to the ai-team tag, so I can commit them to the repo."
+    prompt: "Dump the entities from the LLM control plane with deck, only the ones tagged ai-team, so we can commit them to the repo."
     expect: [deck-gateway]
     forbid: [konnect-ai-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-ai-gateway-sibling-5
-    prompt: "Our Konnect setup is all Terraform with the kong/konnect provider. Add an ai-prompt-guard plugin resource on the assistant route in that module and run a plan."
+    prompt: "Our Konnect is all Terraform with the kong/konnect provider. Add a prompt-guard plugin resource on the assistant route in that module and show me the plan."
     expect: [terraform-konnect]
     forbid: [konnect-ai-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-ai-gateway-sibling-6
-    prompt: "Our Konnect HCL for the ai-proxy-advanced plugin has the targets list inline and it's 200 lines. Move the targets into a per-environment variable map without changing what plan does."
+    prompt: "The ai-proxy-advanced targets list in our Konnect HCL is 200 lines long. Move it into a per-environment variable map without changing what plan does."
     expect: [terraform-konnect]
     forbid: [konnect-ai-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-ai-gateway-sibling-7
-    prompt: "On our self-managed Kong Enterprise cluster we manage entities through the kong-gateway Terraform provider against the Admin API. Add an ai-proxy plugin on the llm route in HCL."
+    prompt: "Self-managed Kong Enterprise, entities managed through the kong-gateway Terraform provider against the Admin API. Add an LLM proxy plugin on the /llm route in HCL."
     expect: [terraform-kong-gateway]
     forbid: [konnect-ai-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-ai-gateway-sibling-8
-    prompt: "In the HCL for our self-hosted Kong, the ai-proxy plugin config repeats the provider and model in five places. Refactor it into variables and locals without changing what the plan applies."
+    prompt: "terraform plan wants to destroy and recreate the ai-proxy plugin on our on-prem Kong every run, though nothing changed in the HCL. State problem?"
     expect: [terraform-kong-gateway]
     forbid: [konnect-ai-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-ai-gateway-sibling-9
-    prompt: "Our Konnect repo uses kongctl YAML for control planes and APIs. Add a new control plane for the LLM gateway team in those manifests and show me the plan."
+    prompt: "Our Konnect repo uses kongctl YAML for control planes and APIs. The LLM platform team's existing control plane needs new labels and a description in those manifests; show me the plan."
     expect: [kongctl-declarative]
     forbid: [konnect-ai-gateway]
     trials: 1
     tags: [sibling]
   - id: konnect-ai-gateway-sibling-10
-    prompt: "Register our internal 'assistant' API, built from this OpenAPI file, as a Konnect API entry in our kongctl config folder and wire a CI plan step."
+    prompt: "Our Konnect org is managed in kongctl YAML. Register the internal 'assistant' LLM API from this OpenAPI file there and add a plan step to CI."
     expect: [kongctl-declarative]
     forbid: [konnect-ai-gateway]
     trials: 1

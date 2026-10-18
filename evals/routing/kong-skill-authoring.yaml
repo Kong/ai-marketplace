@@ -1,92 +1,111 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: kong-skill-authoring
 scenarios:
   - id: kong-skill-authoring-positive-1
-    prompt: "I want to add a skill to this marketplace repo for Kong Mesh traffic permissions. Should it be its own skill or folded into something existing, and what should its frontmatter say?"
+    prompt: "I want to add a skill to this marketplace repo for Kong Mesh traffic permissions. Its own skill, or folded into something existing? And what should the frontmatter say?"
     expect: [kong-skill-authoring]
     forbid: []
     trials: 3
     tags: [positive]
   - id: kong-skill-authoring-positive-2
-    prompt: "Review plugins/kong-konnect/skills/konnect-event-gateway against our authoring rules. I think the SKILL.md has turned into a manual."
+    prompt: "The description on our deck-gateway package keeps getting picked for Terraform questions. Rewrite that frontmatter line so agents only reach for it on the right requests."
     expect: [kong-skill-authoring]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
   - id: kong-skill-authoring-positive-3
-    prompt: "The description on our deck-gateway skill keeps triggering for Terraform questions. Help me rewrite that frontmatter line so agents pick it only for the right requests."
+    prompt: "A contributor's PR adds a new package under plugins/ for rate limiting: a 700-line root markdown with a giant flag table inline, and references named more.md and misc.md. Before I comment, what's structurally wrong and what's the smallest fix that would get it merged here?"
     expect: [kong-skill-authoring]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: kong-skill-authoring-positive-4
-    prompt: "new skill idea: Konnect Mesh Manager troubleshooting. domain or tool skill? what goes in references/ vs the root?"
+    prompt: "Review the konnect-event-gateway package against this repo's contributor rules. I suspect its root file reads like a manual and two of its references overlap."
     expect: [kong-skill-authoring]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
   - id: kong-skill-authoring-positive-5
-    prompt: "A contributor opened a PR adding a 700-line SKILL.md for rate limiting with a huge flag table inline. Before I comment, tell me what's wrong with it structurally and the smallest fix that would make it acceptable here."
+    prompt: "our router package here keeps absorbing specialist workflows, root file is 400 lines now. how do we cut it back without breaking the handoffs?"
     expect: [kong-skill-authoring]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
+  - id: kong-skill-authoring-positive-6
+    prompt: "In our routing evals the konnect-api-catalog and konnect-api-publish packages keep stealing each other's prompts. Should we merge them or tighten the boundary between them, and what would you change first?"
+    expect: [kong-skill-authoring]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
+  - id: kong-skill-authoring-positive-7
+    prompt: "The datakit package here ships a Python validator under scripts/. A reviewer asks whether it earns its place or should just be prose in the root file. How do we decide, and what does the root need to say about when to run it?"
+    expect: [kong-skill-authoring]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
   - id: kong-skill-authoring-near-miss-1
-    prompt: "Tighten the prose in our portal quickstart for the Orders API: shorter sentences, second person, and a verification step at the end."
+    prompt: "Tighten the prose in our portal quickstart for the Orders API: shorter sentences, talk to the reader as 'you', and end with a step that proves it worked."
     expect: []
     forbid: [kong-skill-authoring]
     trials: 3
     tags: [near-miss]
   - id: kong-skill-authoring-near-miss-2
-    prompt: "How do I write a custom Kong Gateway plugin in Lua that adds a request header?"
+    prompt: "In Kong Gateway, does rate limiting run before key-auth on the same route, and can I change that plugin execution order?"
     expect: []
     forbid: [kong-skill-authoring]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: kong-skill-authoring-near-miss-3
-    prompt: "Make me a resume section highlighting my API gateway skills for a platform engineer job."
-    expect: []
-    forbid: [kong-skill-authoring]
-    trials: 3
-    tags: [near-miss]
-  - id: kong-skill-authoring-near-miss-4
     prompt: "Use the deck-gateway skill to add a CORS plugin to the users route in our kong.yaml."
     expect: []
     forbid: [kong-skill-authoring]
     trials: 3
-    tags: [near-miss]
-  - id: kong-skill-authoring-near-miss-5
-    prompt: "Write a GitHub Actions workflow that lints the Markdown files in our docs folder on every pull request."
+    tags: [near-miss, name-lure]
+  - id: kong-skill-authoring-near-miss-4
+    prompt: "Update the skills section of my CV to highlight Kong and API platform work for a staff platform engineer role."
     expect: []
     forbid: [kong-skill-authoring]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
+  - id: kong-skill-authoring-near-miss-5
+    prompt: "Write a Claude Code skill for our internal Django monorepo that runs database migrations safely before deploys."
+    expect: []
+    forbid: [kong-skill-authoring]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: kong-skill-authoring-near-miss-6
+    prompt: "I'm authoring the decK config for the new orders service: generate it from our OpenAPI spec, add key-auth, and lint the result."
+    expect: []
+    forbid: [kong-skill-authoring]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: kong-skill-authoring-sibling-1
-    prompt: "I'll write up a postmortem in this repo later, but first: our Konnect org has issues across gateways, the portal, and analytics, and I can't tell which area is the root problem. Help me pick where to start."
+    prompt: "Our live Konnect org has problems across gateways, the portal, and analytics, and I can't tell which one is the root issue. Where do we start?"
     expect: [konnect-platform-router]
     forbid: [kong-skill-authoring]
     trials: 1
     tags: [sibling]
   - id: kong-skill-authoring-sibling-2
-    prompt: "Someone on my team can't see half our Konnect resources and the APIs they can see aren't on the portal. Is that an access thing, a publication thing, or both? Classify it before we dig in."
+    prompt: "Someone on my team can't see half our Konnect resources, and the APIs they can see aren't on the portal. Access thing, publication thing, or both? Classify it before we dig in."
     expect: [konnect-platform-router]
     forbid: [kong-skill-authoring]
     trials: 1
     tags: [sibling]
   - id: kong-skill-authoring-sibling-3
-    prompt: "Before anything for it lands in our repo: the claims team wants its own Konnect control plane. Share the EU one with labels or create a dedicated one, and what naming convention should we use?"
+    prompt: "The claims team wants its own Konnect control plane. Share the EU one with labels or create a dedicated one, and how should we name it?"
     expect: [konnect-control-plane-bootstrap]
     forbid: [kong-skill-authoring]
     trials: 1
     tags: [sibling]
   - id: kong-skill-authoring-sibling-4
-    prompt: "Our demo control plane was set up by hand for a hackathon. Before we turn it into the real dev environment, what should we decide about region, names, and which automation will manage it?"
+    prompt: "Our hackathon control plane was clicked together by hand. Before it becomes the real dev environment, what do we decide about region, names, and which tool will own it from now on?"
     expect: [konnect-control-plane-bootstrap]
     forbid: [kong-skill-authoring]
     trials: 1
     tags: [sibling]
   - id: kong-skill-authoring-sibling-5
-    prompt: "Help me design how our platform repo and a dozen service repos should split ownership of Konnect APIs, portals, and gateway config, with dev-to-prod promotion on one default branch."
+    prompt: "Design how our platform repo and a dozen service repos should split ownership of Konnect APIs, portals and gateway config, with dev-to-prod promotion from one default branch."
     expect: [konnect-reference-platform]
     forbid: [kong-skill-authoring]
     trials: 1
@@ -98,25 +117,25 @@ scenarios:
     trials: 1
     tags: [sibling]
   - id: kong-skill-authoring-sibling-7
-    prompt: "Review this HCL that manages services and routes on our self-hosted Kong Admin API using the official gateway Terraform provider. The plan wants to recreate a route that already exists."
+    prompt: "Review this HCL that manages services and routes on our self-hosted Kong Admin API with the official gateway provider. The plan wants to recreate a route that already exists."
     expect: [terraform-kong-gateway]
     forbid: [kong-skill-authoring]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: kong-skill-authoring-sibling-8
-    prompt: "Add a key-auth plugin to the payments service in our Terraform repo for our on-prem Kong Gateway, following the existing module layout."
+    prompt: "Add key-auth to the payments service in our Terraform repo for on-prem Kong Gateway, following the existing module layout."
     expect: [terraform-kong-gateway]
     forbid: [kong-skill-authoring]
     trials: 1
     tags: [sibling]
   - id: kong-skill-authoring-sibling-9
-    prompt: "Konnect control planes are already defined in HCL in our infra repo. Add a new one for the analytics team in the same module and show me what terraform plan would do."
+    prompt: "Konnect control planes are already in HCL in our infra repo. Update the analytics team's control plane labels and description in that module and show me the plan."
     expect: [terraform-konnect]
     forbid: [kong-skill-authoring]
     trials: 1
     tags: [sibling]
   - id: kong-skill-authoring-sibling-10
-    prompt: "Review our Terraform for Konnect: should the team and portal resources live in the same module as the control planes, and do we need the beta provider for anything?"
+    prompt: "Review our Terraform for Konnect: should the team and portal resources live in the control-plane module, and do we need the beta provider for anything?"
     expect: [terraform-konnect]
     forbid: [kong-skill-authoring]
     trials: 1
