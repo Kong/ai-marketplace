@@ -166,7 +166,7 @@ class CliTests(unittest.TestCase):
         code, out, _ = self.main(SKILL, "--agent", "claude", fake={})
         self.assertEqual(code, 1)
         self.assertIn("canary_missed", out)
-        self.assertIn("descriptions were hidden from the model", out)
+        self.assertIn("the skill name carries most of the routing", out)
 
     def test_unknown_skill_exits_two(self) -> None:
         code, _, err = self.main("no-such-skill", fake={})

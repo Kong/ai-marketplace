@@ -57,9 +57,10 @@ DETECTED, MISSED, INCOMPLETE = "canary_detected", "canary_missed", "canary_incom
 EXIT_CODES = {DETECTED: 0, MISSED: 1, INCOMPLETE: 3}
 VARIANT = "canary"  # workspace and report directory label under .tmp/routing
 MISSED_NOTE = (
-    "note: canary_missed means the eval did not notice the destroyed description. Check the run's exposed_skills "
-    "and the listing probe verdict (descriptions_visible) first: earlier misses were measured while descriptions "
-    "were hidden from the model (docs/testing.md#known-limitation-descriptions-were-hidden-from-the-model)."
+    "note: canary_missed means too few positives stopped routing after the description was destroyed. Check the "
+    "run's exposed_skills and the listing probe verdict (descriptions_visible) first; if descriptions were visible, "
+    "the skill name carries most of the routing, so a thinned or missing description is not detected "
+    "(docs/testing.md#known-limitation-how-much-descriptions-matter)."
 )
 
 
