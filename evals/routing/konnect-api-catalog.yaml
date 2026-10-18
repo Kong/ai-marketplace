@@ -1,42 +1,55 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-api-catalog
 scenarios:
   - id: konnect-api-catalog-positive-1
-    prompt: "In Konnect I created an API called Shipments but the docs tab is blank and there's no version listed. What am I missing on the API object before anyone should look at it?"
+    prompt: "We created the Shipments entry in Kong's cloud console last week. The docs tab is blank and no version is listed on it. Nobody outside the team has seen it yet. What is missing on the object itself before we show it to anyone?"
     expect: [konnect-api-catalog]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-api-catalog-positive-2
-    prompt: "We're about to ship v2 of the loyalty API with breaking changes. Should that be a second version under the same Konnect API or a separate API entirely? Slugs and existing docs links matter to us."
+    prompt: "v2 of loyalty has breaking changes, a new owning team and a different signup path for partners. Do we hang it as a second version on the existing entry or split it out into its own thing? Old docs links use the current slug, so I'd rather not break them."
     expect: [konnect-api-catalog]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-api-catalog-positive-3
-    prompt: "konnect api has a spec attached but the version field says 1.4 and the spec says 2.0.1. which one wins and how do i straighten it out"
+    prompt: "the version field in kong says 1.4 but the attached spec file says 2.0.1 and the generated reference still shows the old operations. which one is wrong and how do i line them up"
     expect: [konnect-api-catalog]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-api-catalog-positive-4
-    prompt: "Product wants to bundle a few operations from inventory and pricing into one offering for partners. Is that an API package in Konnect, and how do I decide which operations go in it versus just exposing each API on its own?"
+    prompt: "Before we publish anything to the portal, I want to be sure the tickets entry in our Kong cloud org is tied to the right gateway service. It looks unlinked right now. How do I check, and what should it point at?"
     expect: [konnect-api-catalog]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
   - id: konnect-api-catalog-positive-5
-    prompt: "Nobody has published anything yet. Before we do, I want to know whether our Konnect APIs are actually linked to the right gateway services. The tickets API looks unlinked. How do I check and what should the link point at?"
+    prompt: "Uploaded our orders spec in the Kong console and it went through, but there are 14 validation warnings next to it and the generated reference looks half empty. Fine to leave as is, or is the source file the real problem?"
+    expect: [konnect-api-catalog]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-api-catalog-positive-6
+    prompt: "konnect api catalog question: when is an api package the right call vs just listing each api on its own? the fleet team has 4 apis and partners only ever use a handful of operations across them"
     expect: [konnect-api-catalog]
     forbid: []
     trials: 3
     tags: [positive]
+  - id: konnect-api-catalog-positive-7
+    prompt: "Context: we're moving off a homegrown service registry onto Konnect. About 30 services, each with one or more OpenAPI files, some with v1, v2 and v3 side by side, and a few not behind any gateway yet. Nothing goes on the developer portal until the model is right. How should we lay these out?"
+    expect: [konnect-api-catalog]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
   - id: konnect-api-catalog-near-miss-1
-    prompt: "Set up Backstage so every microservice registers itself in the software catalog with an owner and lifecycle field."
+    prompt: "Set up Backstage so every microservice registers itself in our software catalog with an owner and a lifecycle field."
     expect: []
     forbid: [konnect-api-catalog]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-api-catalog-near-miss-2
     prompt: "Lint our OpenAPI file with Spectral and tell me which rules to turn on for consistent error responses."
     expect: []
@@ -44,61 +57,67 @@ scenarios:
     trials: 3
     tags: [near-miss]
   - id: konnect-api-catalog-near-miss-3
-    prompt: "Developers on our portal registered apps for the Orders API and got keys, but the keys stopped working after we relinked the API to a new gateway service. Where's the break?"
-    expect: []
+    prompt: "The Orders API shows up in the catalog and on the developer portal just fine, but when developers click Register they get 'no auth strategy configured'. What do I need to set so they can get credentials?"
+    expect: [konnect-app-auth]
     forbid: [konnect-api-catalog]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-api-catalog-near-miss-4
-    prompt: "Calls to /tickets through our Kong data plane return 404 even though the service exists in the control plane. Help me find where routing breaks."
-    expect: []
+    prompt: "Calls to /tickets through our DP nodes return 404 even though the service and route exist in the control plane. The nodes say they're connected. Where does the request path break?"
+    expect: [konnect-gateway-triage]
     forbid: [konnect-api-catalog]
     trials: 3
     tags: [near-miss]
   - id: konnect-api-catalog-near-miss-5
-    prompt: "Write a semantic versioning policy for our internal npm packages, including when to bump major."
-    expect: []
+    prompt: "I'm an org admin, but when I switch to the EU region the API Catalog in Konnect is empty for me, while a colleague in the same org sees all 40 APIs. What is different about my access?"
+    expect: [konnect-access-scope]
     forbid: [konnect-api-catalog]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
+  - id: konnect-api-catalog-near-miss-6
+    prompt: "Partners should pay for the Inventory API: 50k calls a month included, then $2 per thousand. How do we set up the plan and the overage in Konnect?"
+    expect: [konnect-monetization]
+    forbid: [konnect-api-catalog]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: konnect-api-catalog-sibling-1
-    prompt: "We moved a bunch of teams onto Konnect last quarter. Some APIs look half-set-up, some portals are empty, and a couple of gateways seem off. I can't tell which of those is the real problem. Where do we start?"
+    prompt: "We moved a dozen teams onto Kong's SaaS last quarter. The developer site is empty, partners can't get keys, and a couple of DP nodes keep flapping. I can't tell which to tackle first or who owns what."
     expect: [konnect-platform-router]
     forbid: [konnect-api-catalog]
     trials: 1
     tags: [sibling]
   - id: konnect-api-catalog-sibling-2
-    prompt: "Partners can't reach our new Konnect APIs. Maybe they aren't published, maybe the gateway routes are wrong, maybe the keys. Sort out who should own it."
+    prompt: "Partners can't reach our new Konnect APIs. Maybe they were never published, maybe the gateway routes are wrong, maybe it's their keys. Help me sort out which area should own this."
     expect: [konnect-platform-router]
     forbid: [konnect-api-catalog]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-catalog-sibling-3
-    prompt: "Our Konnect APIs and versions live in .tf files with the konnect provider. Add a version 3 resource for the payments API pointing at the new spec file and show me the plan."
+    prompt: "Our Konnect APIs and versions live in .tf files with the konnect provider. Add a version 3 resource for payments pointing at the new spec file and show me the plan."
     expect: [terraform-konnect]
     forbid: [konnect-api-catalog]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-catalog-sibling-4
-    prompt: "Our catalog APIs are in Terraform. Should the new Refunds API and its version resources go in the payments module or the shared catalog module? Then give me the plan."
+    prompt: "The catalog decision is made: Refunds becomes its own API with one version. Everything Konnect for us lives in HCL with remote state, so write the resources and run the plan."
     expect: [terraform-konnect]
     forbid: [konnect-api-catalog]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-catalog-sibling-5
-    prompt: "In our kongctl config folder, add a document page under the warehouse API and wire its spec with !file so the YAML stays small. Then dry-run it."
+    prompt: "In our kongctl config folder, add a document page under the warehouse API and wire its spec in with !file so the YAML stays small. Then dry-run it."
     expect: [kongctl-declarative]
     forbid: [konnect-api-catalog]
     trials: 1
     tags: [sibling]
   - id: konnect-api-catalog-sibling-6
-    prompt: "We already decided the catalog shape: one API, two versions. Now encode that in our kongctl manifests and set up the plan step for review."
+    prompt: "We already settled the catalog shape: one API, two versions. Now encode that in our kongctl manifests and set up the plan step for review."
     expect: [kongctl-declarative]
     forbid: [konnect-api-catalog]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-catalog-sibling-7
-    prompt: "The Konnect API is linked to the gateway service, but that service in our kong.yaml state file still points at the old upstream host. Fix the file and diff it."
+    prompt: "The entry in Konnect is linked to the right gateway service, but that service in our kong.yaml state file still points at the old upstream host. Fix the file and diff it."
     expect: [deck-gateway]
     forbid: [konnect-api-catalog]
     trials: 1
@@ -108,15 +127,15 @@ scenarios:
     expect: [deck-gateway]
     forbid: [konnect-api-catalog]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-catalog-sibling-9
-    prompt: "The Billing API has its spec, versions and service link all sorted in Konnect, but it still doesn't show up on the partner portal. What step am I skipping?"
+    prompt: "Billing has its spec, versions and service link all sorted, but it still doesn't show up on the partner developer site. What step am I skipping?"
     expect: [konnect-api-publish]
     forbid: [konnect-api-catalog]
     trials: 1
     tags: [sibling]
   - id: konnect-api-catalog-sibling-10
-    prompt: "Everything about the Weather API itself is done. The portal shows it only to logged-in developers, but it's supposed to be visible to anonymous visitors. What controls that?"
+    prompt: "Nothing about the Weather entry itself needs work anymore. The developer site shows it only to logged-in developers, but it's supposed to be visible to anonymous visitors too. What controls that?"
     expect: [konnect-api-publish]
     forbid: [konnect-api-catalog]
     trials: 1

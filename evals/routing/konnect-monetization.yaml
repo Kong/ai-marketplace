@@ -1,123 +1,142 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-monetization
 scenarios:
   - id: konnect-monetization-positive-1
-    prompt: "We want to charge partners $49 a month including 10,000 API calls, then $0.002 per call after that. Set that up in Konnect so invoices come out right."
+    prompt: "Our pricing page has three tiers: Starter at $49 a month with 10k requests, Growth at $199 with 100k, and Enterprise is 'contact us'. Turn that into actual metered charging in our Kong org."
     expect: [konnect-monetization]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-monetization-positive-2
-    prompt: "Here is the pricing page for our geocoding product with Starter, Growth and Enterprise tiers. Turn it into meters, plans and rate cards in our Konnect org."
+    prompt: "A customer on the plan with 150 calls included made 180 calls, and 10 of those were our own test traffic. The charge shows $680 instead of the $80 I expected at $4 per extra call. What did we set up wrong?"
     expect: [konnect-monetization]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-monetization-positive-3
-    prompt: "A customer crossed their allowance mid-month and their Konnect invoice charged every single request at the higher price, not just the ones over the limit. Is our tiering set up wrong?"
+    prompt: "why does the invoice for a customer who signed up on the 17th only show part of the $99 base fee and none of their usage? is something broken in our Kong setup"
     expect: [konnect-monetization]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-monetization-positive-4
-    prompt: "how do i make sure health-check calls don't get billed but still show up in the raw usage counts? konnect metering"
+    prompt: "Sales wants to charge per seat per month, but only for people who actually used the product, not every provisioned user. How do we count that from our events in Kong?"
     expect: [konnect-monetization]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-monetization-positive-5
-    prompt: "We plan to bill our chatbot API per conversation, not per token. What counts as one conversation for metering, and how would that map onto Konnect plans with a free trial?"
+    prompt: "Set up Konnect monetization for our weather API: what meters, features and plans do we need for a Free and a Pro tier?"
     expect: [konnect-monetization]
     forbid: []
     trials: 3
     tags: [positive]
+  - id: konnect-monetization-positive-6
+    prompt: "The LLM traffic going through our AI gateway needs to become a line item for customers: 5M tokens a month included, then $0.50 per extra million. How do we set that up so the bills come out right?"
+    expect: [konnect-monetization]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
+  - id: konnect-monetization-positive-7
+    prompt: "The partner API package already exists in the catalog. Partners on it should now pay $500 a month flat plus $1 per thousand calls above one million. How should that be modeled in Konnect?"
+    expect: [konnect-monetization]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
   - id: konnect-monetization-near-miss-1
-    prompt: "Integrate Stripe Checkout into our Next.js app for monthly subscriptions with a 14-day trial."
+    prompt: "Our own Konnect bill from Kong jumped this month. Which control planes or add-ons are driving that cost?"
     expect: []
     forbid: [konnect-monetization]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-monetization-near-miss-2
-    prompt: "Our OpenAI spend through the Kong AI Gateway jumped last week. Show me which routes and models are burning the most tokens."
+    prompt: "Set up Stripe Checkout for our SaaS app with monthly and annual subscriptions and a 14-day trial."
     expect: []
     forbid: [konnect-monetization]
     trials: 3
     tags: [near-miss]
   - id: konnect-monetization-near-miss-3
-    prompt: "Group our search and recommendations operations into one API package in Konnect for partners."
+    prompt: "Free-tier consumers should be capped at 1,000 requests per minute on the orders route. Add that limit on the gateway."
     expect: []
     forbid: [konnect-monetization]
     trials: 3
     tags: [near-miss]
   - id: konnect-monetization-near-miss-4
-    prompt: "Add a rate limit of 100 requests per minute per consumer on our Kong gateway service."
-    expect: []
+    prompt: "Request counts per consumer stopped showing up in Konnect analytics after Tuesday, even though traffic is still flowing. Finance uses that dashboard every Monday."
+    expect: [konnect-observability-triage]
     forbid: [konnect-monetization]
     trials: 3
     tags: [near-miss]
   - id: konnect-monetization-near-miss-5
-    prompt: "LLM token counts per model don't appear anywhere in the Konnect API analytics dashboard. Where should I be looking?"
-    expect: []
+    prompt: "My Konnect token gets a 403 on every billing endpoint but works fine for control planes in the same org. What role am I missing?"
+    expect: [konnect-access-scope]
+    forbid: [konnect-monetization]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: konnect-monetization-near-miss-6
+    prompt: "Paid partners should only get credentials after someone on our team approves their app on the developer portal. How do we turn on that approval step?"
+    expect: [konnect-app-auth]
     forbid: [konnect-monetization]
     trials: 3
     tags: [near-miss]
   - id: konnect-monetization-sibling-1
-    prompt: "We want to start selling API access through Konnect. That probably touches the portal, how APIs are grouped, developer keys, and charging for usage. We've done none of it. Which piece comes first and who owns it?"
+    prompt: "We're launching a paid partner program on Konnect. Pricing is settled; what isn't: the APIs aren't on the partner portal, partners can't get keys, and our EU gateway nodes keep disconnecting. I don't know which piece to start with."
     expect: [konnect-platform-router]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-2
-    prompt: "Partners say the usage reports we send don't match their own logs, and a few of them also can't find our APIs anymore. I need one person to own this; where does it go?"
+    prompt: "Partners on our paid tier say they can't find some of our APIs in Konnect, can't get keys for others, and requests from the rest time out. Charges look right. Unclear which area should own this first."
     expect: [konnect-platform-router]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-3
-    prompt: "Our whole Konnect org is managed with the kong/konnect Terraform provider. Add a new control plane for the billing team in the existing module and plan it."
+    prompt: "The paid tier needs its own control plane for premium traffic. Add it to our Konnect Terraform module next to the existing ones and run plan."
     expect: [terraform-konnect]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-4
-    prompt: "terraform plan shows a type mismatch on a nested block in our konnect portal resource. Help me work out the right HCL shape."
+    prompt: "Finance needs a read-only team and a system account in Konnect for the revenue reports. Our org is managed in HCL; add both and show the plan."
     expect: [terraform-konnect]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-5
-    prompt: "In our kongctl YAML repo, add the metered-billing team's portal and the APIs it exposes, then run a plan so I can review it."
+    prompt: "For the paid program, put the Partner API and its publication to the partner portal into our kongctl YAML, then run plan."
     expect: [kongctl-declarative]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-6
-    prompt: "Our kongctl sync wants to delete two APIs I didn't touch. Help me understand the namespace setup before anything gets applied."
+    prompt: "kongctl plan shows drift on the premium-tier portal. Bring our declarative config back in line with what's live and show the diff."
     expect: [kongctl-declarative]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-7
-    prompt: "Requests to our LLM route keep landing on the fallback model instead of the primary provider. We bill customers per completion, but I need the routing fixed first."
+    prompt: "Premium customers should get their LLM calls routed to the bigger model and free-tier customers to a cheaper one. Set that up in our gateway's AI Proxy config."
     expect: [konnect-ai-gateway]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-8
-    prompt: "Premium-plan customers are supposed to get our long system prompt injected by the prompt decorator on the assistant route, but responses show the plain default. Why isn't the decoration applied?"
+    prompt: "Our token spend per LLM provider spiked last week. Show me which models and consumers it comes from in the AI analytics so we can cut it."
     expect: [konnect-ai-gateway]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-9
-    prompt: "Before we put any price on it, I need the Mapping API in Konnect to have a proper spec, a current version, and a link to its gateway service. What's incomplete?"
+    prompt: "Before we price anything: which operations from inventory and pricing belong in the partner bundle, and should it be one bundle or separate entries?"
     expect: [konnect-api-catalog]
     forbid: [konnect-monetization]
     trials: 1
     tags: [sibling]
   - id: konnect-monetization-sibling-10
-    prompt: "Sales wants a premium bundle of the routing and traffic operations. Should that be one Konnect API package or two separate APIs?"
+    prompt: "Plans and rate cards come later. First, the Geocode entry in Kong isn't tied to any gateway service yet, so partners couldn't even sign up for it. What should it be linked to?"
     expect: [konnect-api-catalog]
     forbid: [konnect-monetization]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
