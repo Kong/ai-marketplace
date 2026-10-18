@@ -1,122 +1,147 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-observability-triage
 scenarios:
   - id: konnect-observability-triage-positive-1
-    prompt: "Requests are definitely going through our Konnect gateways, I can see them in the upstream logs, but the analytics charts for the checkout service stop at Tuesday. Where did the data go?"
+    prompt: "The requests-per-minute charts for our checkout service in Konnect flatline at Tuesday 02:00 UTC, yet our upstream access logs show steady traffic coming through Kong all week. Where did the numbers go?"
     expect: [konnect-observability-triage]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-observability-triage-positive-2
-    prompt: "Explorer shows traffic for two of our five control planes. The other three are serving production load. Is this a scope thing or are we losing telemetry?"
+    prompt: "Three of our five CPs have usage graphs in Konnect. The other two carry production load and show nothing for the last 30 days. Same org, same admin login, nodes all connected."
     expect: [konnect-observability-triage]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-observability-triage-positive-3
-    prompt: "I tried to capture a trace in Debugger for a failing request on the orders route and the session comes back with nothing, even though I reproduced the call a dozen times."
+    prompt: "I want a request-level capture of one failing call on /orders. I've reproduced it a dozen times while the capture session in Konnect was open and it still lists nothing."
     expect: [konnect-observability-triage]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-observability-triage-positive-4
-    prompt: "Explorer has data for the checkout API, but the custom report I built filtered to consumer groups shows nothing for the same week. Wrong dataset, wrong filter, or is something not being collected?"
+    prompt: "Konnect says the shipping API handled 1.2M requests yesterday; our ALB says 2.0M for what I think is the same day. Which number is off, and why would they disagree?"
     expect: [konnect-observability-triage]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-observability-triage-positive-5
-    prompt: "Request counts in Konnect run about 40 percent lower than what our load balancer reports for the same hour. Which side should I trust and why the gap?"
+    prompt: "Someone deleted the billing route yesterday afternoon. I went through the request reports for the billing service in Konnect hour by hour and there's no trace of who did it. Where would that show up?"
+    expect: [konnect-observability-triage]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-observability-triage-positive-6
+    prompt: "The gateway is fine: nodes connected, traffic flowing, customers happy. But Explorer has nothing at all for the past two days. Why is it empty?"
+    expect: [konnect-observability-triage]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-observability-triage-positive-7
+    prompt: "Not an access problem, I'm org admin. The custom report filtered to the 'partners' consumer group shows no data for last week, while the unfiltered view of the same API shows thousands of requests. Missing or just hidden?"
+    expect: [konnect-observability-triage]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-observability-triage-positive-8
+    prompt: "explorer still empty 2h after we sent test traffic. traffic definitely went through. is a delay like that normal?"
     expect: [konnect-observability-triage]
     forbid: []
     trials: 3
     tags: [positive]
   - id: konnect-observability-triage-near-miss-1
-    prompt: "My Grafana dashboard for Prometheus node metrics shows gaps every few hours. How do I find whether scraping or retention is the problem?"
+    prompt: "We scrape the Prometheus metrics endpoint on our self-hosted Kong nodes into Grafana and the graphs have gaps every few hours. Scrape timeout or retention?"
     expect: []
     forbid: [konnect-observability-triage]
     trials: 3
     tags: [near-miss]
   - id: konnect-observability-triage-near-miss-2
-    prompt: "Set up the OpenTelemetry collector to ship our Node service's traces to Datadog with tail sampling."
+    prompt: "In Konnect AI Gateway the semantic cache never hits, even for identical prompts, so our LLM spend keeps climbing. What's wrong with the cache setup?"
     expect: []
     forbid: [konnect-observability-triage]
     trials: 3
     tags: [near-miss]
   - id: konnect-observability-triage-near-miss-3
-    prompt: "Through the AI Gateway, requests that should go to our Azure model deployment are being answered by the OpenAI fallback instead. Why is the routing picking the backup?"
+    prompt: "Partner invoices this month show 10k overage calls, but the plan's included allowance should have covered them. Check whether our meter and rate card math is right."
     expect: []
     forbid: [konnect-observability-triage]
     trials: 3
     tags: [near-miss]
   - id: konnect-observability-triage-near-miss-4
-    prompt: "Write a Splunk query that shows p95 latency per endpoint from our nginx access logs over the last week."
+    prompt: "Partners can't find the Quotes API on our partner portal at all, so of course nobody is calling it. Did it ever get published there, and to which audience?"
     expect: []
     forbid: [konnect-observability-triage]
     trials: 3
     tags: [near-miss]
   - id: konnect-observability-triage-near-miss-5
-    prompt: "Our Konnect data planes keep flapping between connected and disconnected every few minutes since the firewall change. What's failing?"
+    prompt: "Write an observability page for our Dev Portal that explains to API consumers how to read our rate-limit headers and where the status page lives. Plain language, short sections."
+    expect: []
+    forbid: [konnect-observability-triage]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: konnect-observability-triage-near-miss-6
+    prompt: "Set up the OpenTelemetry collector to ship our Node service's traces to Datadog with tail sampling."
     expect: []
     forbid: [konnect-observability-triage]
     trials: 3
     tags: [near-miss]
   - id: konnect-observability-triage-sibling-1
-    prompt: "Dashboards are blank, a few people say they can't open some control planes, and the portal's API list seems shorter than last month. I don't know if this is one issue or three. Which area first?"
+    prompt: "Since the org merge our observability, access and portal all look broken: charts are thin, some engineers can't open prod, and the portal lists fewer APIs. One issue or three, and who looks first?"
     expect: [konnect-platform-router]
     forbid: [konnect-observability-triage]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-observability-triage-sibling-2
-    prompt: "I need to put names against our Konnect problems for the weekly review: quiet gateways, numbers that look off, and confusion about who owns what. Help me assign them."
+    prompt: "For the weekly review I need an owner next to each Konnect complaint: quiet nodes, usage numbers nobody trusts, and confusion over who maintains the portal. Help me assign them."
     expect: [konnect-platform-router]
     forbid: [konnect-observability-triage]
     trials: 1
     tags: [sibling]
   - id: konnect-observability-triage-sibling-3
-    prompt: "Just give me the kongctl command that lists our control planes with their IDs and regions as JSON so I can match them against the dashboard filter."
+    prompt: "Give me the kongctl command that lists our control planes with ID and region as JSON, read-only, so I can match them to the report filter."
     expect: [kongctl-query]
     forbid: [konnect-observability-triage]
     trials: 1
     tags: [sibling]
   - id: konnect-observability-triage-sibling-4
-    prompt: "kongctl get control-planes returns [] in my CI job but works on my laptop. Which kongctl flags or env var names should I print to see what profile and region the CI run used?"
+    prompt: "kongctl get control-planes returns [] in my CI job but works on my laptop. Which kongctl flags or env var names should I print to see which profile and region the CI run used?"
     expect: [kongctl-query]
     forbid: [konnect-observability-triage]
     trials: 1
     tags: [sibling]
   - id: konnect-observability-triage-sibling-5
-    prompt: "An analyst on the finance team gets a permissions message when opening Explorer, though my admin account shows the reports fine. What role are they missing?"
+    prompt: "An analyst on the finance team gets a 'not authorized' message when opening the usage reports in Konnect. My admin account sees them fine. What are they missing?"
     expect: [konnect-access-scope]
     forbid: [konnect-observability-triage]
     trials: 1
     tags: [sibling]
   - id: konnect-observability-triage-sibling-6
-    prompt: "The new SRE can't see the analytics menu at all after we switched Konnect sign-in to Azure AD. Is their group mapping wrong?"
+    prompt: "The new SRE can't see the analytics menu at all since we switched Konnect sign-in to Azure AD. Is their group mapping wrong?"
     expect: [konnect-access-scope]
     forbid: [konnect-observability-triage]
     trials: 1
     tags: [sibling]
   - id: konnect-observability-triage-sibling-7
-    prompt: "Analytics shows zero requests for the billing service and, honestly, so do our client logs: everything times out before reaching the gateway. Data plane status says disconnected. Help."
+    prompt: "Triage this please: our Kong nodes flap between connected and disconnected every few minutes since the firewall change, and the request charts have matching holes."
     expect: [konnect-gateway-triage]
     forbid: [konnect-observability-triage]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-observability-triage-sibling-8
-    prompt: "We pushed new routes to the staging control plane but the data planes are still serving the old config, so the dashboard naturally shows nothing on the new paths. Why didn't the rollout land?"
+    prompt: "Zero requests in Konnect for the billing service, and our client logs agree: everything times out before reaching Kong. The node status says disconnected. Help."
     expect: [konnect-gateway-triage]
     forbid: [konnect-observability-triage]
     trials: 1
     tags: [sibling]
   - id: konnect-observability-triage-sibling-9
-    prompt: "Before we worry about usage stats: our Loyalty API in Catalog has no version and no spec attached yet. What's missing to make it a complete API entry?"
+    prompt: "Before we worry about usage stats: our Loyalty API in Catalog has no version and no spec attached. What does it still need to be a complete entry?"
     expect: [konnect-api-catalog]
     forbid: [konnect-observability-triage]
     trials: 1
     tags: [sibling]
   - id: konnect-observability-triage-sibling-10
-    prompt: "Should the v1 and v2 of our Claims API be one Catalog API with two versions or two separate APIs? We also want to link each to its gateway service."
+    prompt: "We'll want per-version usage numbers later. First: should v1 and v2 of our Claims API be one Catalog API with two versions or two separate APIs, each linked to its own service?"
     expect: [konnect-api-catalog]
     forbid: [konnect-observability-triage]
     trials: 1

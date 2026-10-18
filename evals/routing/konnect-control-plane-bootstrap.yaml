@@ -1,92 +1,117 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-control-plane-bootstrap
 scenarios:
   - id: konnect-control-plane-bootstrap-positive-1
-    prompt: "We're about to set up our very first gateway environment in Konnect for the logistics team. Should the data planes run in our EKS cluster or should we let Kong host them?"
+    prompt: "The logistics team gets its first Kong environment in Konnect next sprint. Should the nodes run in our EKS cluster, or should we let Kong host them?"
     expect: [konnect-control-plane-bootstrap]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-control-plane-bootstrap-positive-2
-    prompt: "I followed the getting-started guide and have a docker gateway connected to a control plane named 'default'. How do we turn this into something the whole org can rely on for staging and prod?"
+    prompt: "I followed the getting-started guide and now have a Docker Kong connected to something called 'default' in Konnect. How do we turn that into staging and prod the whole org can rely on?"
     expect: [konnect-control-plane-bootstrap]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-control-plane-bootstrap-positive-3
-    prompt: "Naming question before we create anything: one Konnect control plane per environment, or per team per environment? We'll have about six teams. Also which region should we pick, our users are mostly in Germany."
+    prompt: "Before we create anything in Konnect: one environment per stage, or one per team per stage? We'll have about six teams. And EU or US, given most of our users are in Germany?"
     expect: [konnect-control-plane-bootstrap]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-control-plane-bootstrap-positive-4
-    prompt: "new konnect org, empty. what do we create first and in what order to get one gateway serving traffic?"
+    prompt: "brand new konnect org, totally empty. what do we make first, and in what order, to get one kong proxy serving traffic?"
     expect: [konnect-control-plane-bootstrap]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-control-plane-bootstrap-positive-5
     prompt: "Leadership wants a dedicated cloud gateway for the payments group, separate from the shared one. Before anyone clicks Create, help me decide its labels, who owns it, and how it's named next to the existing ones."
     expect: [konnect-control-plane-bootstrap]
     forbid: []
     trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-control-plane-bootstrap-positive-6
+    prompt: "Not a triage question, nothing is broken yet. We're about to stand up prod in Konnect: are serverless gateways enough, or do we need Dedicated Cloud Gateways or our own VMs?"
+    expect: [konnect-control-plane-bootstrap]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-control-plane-bootstrap-positive-7
+    prompt: "Our infra is all Terraform, but nothing about the new Konnect prod setup is decided yet: region, naming, hosted versus our own nodes. Help us decide those before anyone writes HCL."
+    expect: [konnect-control-plane-bootstrap]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-control-plane-bootstrap-positive-8
+    prompt: "We created a control plane in the US region by mistake; it's meant for EU-only customer data and nothing is attached to it yet. Do we recreate it in the EU, and what should we settle before attaching any nodes?"
+    expect: [konnect-control-plane-bootstrap]
+    forbid: []
+    trials: 3
     tags: [positive]
   - id: konnect-control-plane-bootstrap-near-miss-1
-    prompt: "Bootstrap a new EKS cluster with Karpenter and the AWS load balancer controller using eksctl."
+    prompt: "Bootstrap Kong Gateway OSS on a single VM with Postgres and expose the Admin API only on localhost. No Konnect involved."
     expect: []
     forbid: [konnect-control-plane-bootstrap]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-control-plane-bootstrap-near-miss-2
-    prompt: "Our Kubernetes control plane nodes keep losing etcd quorum after upgrades. How do we stabilize it?"
+    prompt: "Our Kubernetes control plane nodes keep losing etcd quorum after minor version upgrades. How do we stabilize it?"
     expect: []
     forbid: [konnect-control-plane-bootstrap]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-control-plane-bootstrap-near-miss-3
-    prompt: "The control plane we created last quarter shows two of its three data planes as out of sync on config version. What's broken?"
+    prompt: "We have 14 product teams, each with its own repo. Design how their Konnect config gets promoted from dev through prod with a central team owning the guardrails and shared conventions."
     expect: []
     forbid: [konnect-control-plane-bootstrap]
     trials: 3
     tags: [near-miss]
   - id: konnect-control-plane-bootstrap-near-miss-4
-    prompt: "Install Kong Gateway OSS on a single VM with Postgres and expose the Admin API only on localhost."
+    prompt: "I created the prod-eu control plane yesterday with my admin login. Our deploy bot's system account gets 403 whenever it lists resources inside it. What is the bot missing?"
     expect: []
     forbid: [konnect-control-plane-bootstrap]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-control-plane-bootstrap-near-miss-5
-    prompt: "I created the prod-eu control plane yesterday with my admin login. Our deploy bot's system account gets 403 whenever it tries to list resources inside it. Which role is the bot lacking?"
+    prompt: "Read-only: which kongctl command shows the labels on our existing prod-eu control plane, as YAML?"
+    expect: []
+    forbid: [konnect-control-plane-bootstrap]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: konnect-control-plane-bootstrap-near-miss-6
+    prompt: "Our new hosted Kong has been serving real traffic for a week, but the usage charts in Konnect have never shown a single request for it."
     expect: []
     forbid: [konnect-control-plane-bootstrap]
     trials: 3
     tags: [near-miss]
   - id: konnect-control-plane-bootstrap-sibling-1
-    prompt: "We have a few control planes already, a half-configured portal, and nobody agrees whether to start fresh or fix what's there. Gateway, portal, access all feel shaky. Where should we begin?"
+    prompt: "Our Konnect org has a few environments with stale-looking nodes, a half-configured portal partners complain about, and people who suddenly can't edit things. All of it feels shaky and I can't tell which area is actually broken. Where should we begin?"
     expect: [konnect-platform-router]
     forbid: [konnect-control-plane-bootstrap]
     trials: 1
     tags: [sibling]
   - id: konnect-control-plane-bootstrap-sibling-2
-    prompt: "New job, I own our Konnect org now. No docs, some control planes, a portal nobody maintains, and complaints I can't place. Give me a triage plan that names the owner for each piece."
+    prompt: "Quarterly review of our shared Konnect org: config pushes to two control planes feel slow, partners can't find one API on the portal, and a team lost edit rights. Which owner takes which complaint first?"
     expect: [konnect-platform-router]
     forbid: [konnect-control-plane-bootstrap]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-control-plane-bootstrap-sibling-3
-    prompt: "Set up a control plane for staging last week, started the data plane container with the generated certs, and it has never shown up as connected. What's blocking the join?"
+    prompt: "Bootstrapped a staging control plane last month and its node was connected until we redeployed the container with regenerated certificates yesterday. Now it won't reconnect. What's blocking it?"
     expect: [konnect-gateway-triage]
     forbid: [konnect-control-plane-bootstrap]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-control-plane-bootstrap-sibling-4
-    prompt: "Our brand new hosted gateway is up and Konnect shows it healthy, but the first route we added returns no route matched. Why isn't it serving?"
+    prompt: "Our hosted gateway went live last week and served traffic fine. Since this morning Konnect shows it disconnected and requests time out. What changed?"
     expect: [konnect-gateway-triage]
     forbid: [konnect-control-plane-bootstrap]
     trials: 1
     tags: [sibling]
   - id: konnect-control-plane-bootstrap-sibling-5
-    prompt: "We've decided the topology. Our infra repo uses the kong/konnect Terraform provider; write the HCL for a prod control plane with cloud gateway networking and show the plan."
+    prompt: "Topology is decided. Our infra repo uses the kong/konnect Terraform provider; write the HCL for a prod control plane with cloud gateway networking and show the plan."
     expect: [terraform-konnect]
     forbid: [konnect-control-plane-bootstrap]
     trials: 1
@@ -104,13 +129,13 @@ scenarios:
     trials: 1
     tags: [sibling]
   - id: konnect-control-plane-bootstrap-sibling-8
-    prompt: "Our kongctl manifests repeat the same labels on the dev and prod control planes. Move the shared labels into _defaults and confirm the plan shows no changes."
+    prompt: "Our kongctl manifests repeat the same namespace on the dev and prod control planes. Move it into _defaults.kongctl and confirm the plan shows no changes."
     expect: [kongctl-declarative]
     forbid: [konnect-control-plane-bootstrap]
     trials: 1
     tags: [sibling]
   - id: konnect-control-plane-bootstrap-sibling-9
-    prompt: "Control plane exists and the data plane is connected. Now write the first kong.yaml with a service and route for the tracking API and diff it before syncing."
+    prompt: "The new environment exists and its node is connected. Now write the first kong.yaml with a service and route for the tracking API and diff it before syncing."
     expect: [deck-gateway]
     forbid: [konnect-control-plane-bootstrap]
     trials: 1

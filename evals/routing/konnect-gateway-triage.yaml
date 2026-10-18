@@ -1,129 +1,153 @@
-# Pilot scenarios plus a baseline top-up suggested by an agent; the top-up is pending skill-owner review.
-# Top-up: gateway-triage-positive-5, sibling-4..12; near-miss-5..6 (were sibling-1..2) retagged; positive-3 reworded.
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-gateway-triage
 scenarios:
-  - id: gateway-triage-positive-1
-    prompt: "Our hybrid data plane nodes in Konnect have been showing as disconnected since yesterday. Nothing changed on our side that we know of. What do we check?"
+  - id: konnect-gateway-triage-positive-1
+    prompt: "Since Friday's firewall change our Kong pods in the ap-south cluster are listed as offline in Konnect. The pods themselves are running and pass their liveness checks. What am I missing?"
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-gateway-triage-positive-2
+    prompt: "Kong container logs on our new VMs repeat this every few seconds:\n\n  [clustering] failed to connect to wss://k7f2.cluster.example.invalid:443: x509: certificate signed by unknown authority\n\nWe sit behind a TLS-inspecting corporate proxy. Konnect still lists the node as never seen."
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-gateway-triage-positive-3
+    prompt: "I raised the upstream timeout on the orders service in Konnect at 9am. It's 2pm, the UI shows my new value, and the nodes are still cutting requests off at the old 60 seconds. Where is it stuck?"
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-gateway-triage-positive-4
+    prompt: "We have three things in Konnect called prod, prod-eu and production. Everyone is an org admin, yet half the team says the /v2/quotes route exists and half can't find it. Which one are our live Kong nodes actually pulling their config from?"
+    expect: [konnect-gateway-triage]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-gateway-triage-positive-5
+    prompt: "dp says connected but the rollout never landed: config hash hasn't moved in 3h, cp has a newer version. why"
     expect: [konnect-gateway-triage]
     forbid: []
     trials: 3
     tags: [positive]
-  - id: gateway-triage-positive-2
-    prompt: "I pushed a new route and plugin to our Konnect control plane an hour ago but the gateway pods in staging are still behaving the old way. Why isn't the change landing?"
+  - id: konnect-gateway-triage-positive-6
+    prompt: "Is this an observability problem or something else? Since 14:00 the request charts are flat, but our load balancer also logs connection refused when forwarding to the Kong nodes, and Konnect shows those data plane nodes last seen at 13:58."
     expect: [konnect-gateway-triage]
     forbid: []
     trials: 3
-    tags: [positive]
-  - id: gateway-triage-positive-3
-    prompt: "Konnect shows the CP healthy and every node green, but requests to our service return 404 through the gateway. Where is the break?"
+    tags: [positive, name-lure]
+  - id: konnect-gateway-triage-positive-7
+    prompt: "We bootstrapped the staging control plane two weeks ago and it was fine. Since Monday's certificate rotation none of its nodes will reconnect. What do we look at first?"
     expect: [konnect-gateway-triage]
     forbid: []
     trials: 3
-    tags: [positive]
-  - id: gateway-triage-positive-4
-    prompt: "I think we edited the production control plane when we meant to edit the staging one, and now live gateways don't match what's in our repo. Help me work out what is actually deployed."
+    tags: [positive, name-lure]
+  - id: konnect-gateway-triage-positive-8
+    prompt: "Not an access thing, I'm an org admin and I can see the /payments route in Konnect with the right path and host. The data planes are connected. Every client's traffic still gets 404 'no Route matched with those values' on /payments while /orders works."
     expect: [konnect-gateway-triage]
     forbid: []
     trials: 3
-    tags: [positive]
-  - id: gateway-triage-positive-5
-    prompt: "dp nodes on 3.4 show connected but they're ignoring the rate limit we set on the cp two hours ago. why"
+    tags: [positive, name-lure]
+  - id: konnect-gateway-triage-positive-9
+    prompt: "During last night's incident someone hand-edited the rate limit on the checkout plugin in the Konnect UI. Our kong.yaml in git still has the old number and nobody is sure which value prod is enforcing right now. Before anyone syncs anything, help me work out what is really live."
     expect: [konnect-gateway-triage]
     forbid: []
     trials: 3
-    tags: [positive]
-  - id: gateway-triage-near-miss-1
-    prompt: "My Express app returns 500 when the request body has a null field. Help me find the bug in the handler."
+    tags: [positive, symptom-only]
+  - id: konnect-gateway-triage-near-miss-1
+    prompt: "In our Kong AI Gateway, the token-based rate limit on the chat route trips after about a fifth of the budget we configured per consumer. Why is it counting so fast?"
+    expect: []
+    forbid: [konnect-gateway-triage]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: konnect-gateway-triage-near-miss-2
+    prompt: "Kafka clients connecting through our Konnect Event Gateway listener get 'SASL authentication failed' on the virtual cluster, but connecting straight to the backend brokers with the same user works."
+    expect: []
+    forbid: [konnect-gateway-triage]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: konnect-gateway-triage-near-miss-3
+    prompt: "Kong nodes are connected and customers are happy, but every Debugger session I start in Konnect for the search route comes back with zero captured requests."
     expect: []
     forbid: [konnect-gateway-triage]
     trials: 3
     tags: [near-miss]
-  - id: gateway-triage-near-miss-2
-    prompt: "A Kubernetes pod for our payments service keeps getting OOMKilled. How do I size its memory limits?"
+  - id: konnect-gateway-triage-near-miss-4
+    prompt: "My personal token gets 403 from the Konnect API when listing nodes of the prod-us control plane, while the same call against the staging control plane works. Did someone change my team?"
     expect: []
     forbid: [konnect-gateway-triage]
     trials: 3
-    tags: [near-miss]
-  - id: gateway-triage-near-miss-3
-    prompt: "Explain the difference between a layer 4 and a layer 7 load balancer."
+    tags: [near-miss, name-lure]
+  - id: konnect-gateway-triage-near-miss-5
+    prompt: "Nothing exists yet. For our first Konnect setup, should the gateways run on our own Kubernetes or be Kong-hosted, and how should we name things per environment so nobody edits prod by mistake?"
     expect: []
     forbid: [konnect-gateway-triage]
     trials: 3
-    tags: [near-miss]
-  - id: gateway-triage-near-miss-4
-    prompt: "Our nginx reverse proxy returns 502 intermittently to the upstream Node service. The cluster has nothing to do with Kong. How do I debug it?"
+    tags: [near-miss, name-lure]
+  - id: konnect-gateway-triage-near-miss-6
+    prompt: "Kong gateway logs show the /search route matching fine with upstream latency around 4 seconds, so the gateway is not the problem. Help me profile our Spring Boot search service to find where those 4 seconds go."
     expect: []
     forbid: [konnect-gateway-triage]
     trials: 3
-    tags: [near-miss]
-  - id: gateway-triage-near-miss-5
-    prompt: "Traffic is flowing through our Konnect gateway fine, but the Explorer dashboard shows no data for the last two days. Why is the analytics view empty?"
-    expect: []
-    forbid: [konnect-gateway-triage]
-    trials: 3
-    tags: [near-miss]
-  - id: gateway-triage-near-miss-6
-    prompt: "A teammate can't open our production control plane in Konnect at all, while I can. They're in the same org. What's different about their access?"
-    expect: []
-    forbid: [konnect-gateway-triage]
-    trials: 3
-    tags: [near-miss]
-  - id: gateway-triage-sibling-3
-    prompt: "We already know the cause: a service entity in our decK state file has the wrong upstream host. Update the file and show me how to preview the sync."
-    expect: [deck-gateway]
-    forbid: [konnect-gateway-triage]
-    trials: 1
-    tags: [sibling]
-  - id: gateway-triage-sibling-4
-    prompt: "Monday after the migration: some routes 502, the portal lost two APIs, and Explorer is blank for the billing control plane. Before anyone starts poking at gateways, which of these is the real problem area?"
+    tags: [near-miss, name-lure]
+  - id: konnect-gateway-triage-sibling-1
+    prompt: "Three tickets this morning: nodes for payments look stale in Konnect, two partners say the portal lost the Quotes API, and finance can't open their usage reports. Same cause or three? I need to know who picks up what before anyone starts digging."
     expect: [konnect-platform-router]
     forbid: [konnect-gateway-triage]
     trials: 1
     tags: [sibling]
-  - id: gateway-triage-sibling-5
-    prompt: "Leadership wants one owner for 'Konnect is unreliable'. Complaints are a mix of slow config pushes, people locked out of prod, and dashboards that lag by hours. How do we split this up and who looks first?"
+  - id: konnect-gateway-triage-sibling-2
+    prompt: "Is the gateway even the problem? Usage numbers halved overnight, the portal search lost two APIs, and partners call our new AI route slow. Who should own the first look? It's unclear."
     expect: [konnect-platform-router]
     forbid: [konnect-gateway-triage]
     trials: 1
-    tags: [sibling]
-  - id: gateway-triage-sibling-6
-    prompt: "Give me the read-only kongctl command that lists the nodes registered to our edge-prod control plane, JSON output, so I can paste it into the incident doc."
+    tags: [sibling, name-lure]
+  - id: konnect-gateway-triage-sibling-3
+    prompt: "Just looking, not changing anything: what's the kongctl command to list the nodes attached to our edge-prod control plane with their version and last ping, as JSON for the incident doc?"
     expect: [kongctl-query]
     forbid: [konnect-gateway-triage]
     trials: 1
     tags: [sibling]
-  - id: gateway-triage-sibling-7
-    prompt: "What's the kongctl syntax to pull one service by name from a specific control plane and print only its host and port?"
+  - id: konnect-gateway-triage-sibling-4
+    prompt: "Mid-incident, read-only: how do I get kongctl to print the plugins on the checkout route of our prod control plane, trimmed with --jq to name and enabled?"
     expect: [kongctl-query]
     forbid: [konnect-gateway-triage]
     trials: 1
     tags: [sibling]
-  - id: gateway-triage-sibling-8
-    prompt: "We decided git is the truth after last week's drift. Our kong.yaml is authoritative; preview what a sync would change on the prod control plane, scoped to the team-payments tag only."
+  - id: konnect-gateway-triage-sibling-5
+    prompt: "Root cause found: a hotfix request-size plugin was added through the UI and our kong.yaml never got it. Add it to the decK file with the team-checkout tag and show me the diff before we sync."
     expect: [deck-gateway]
     forbid: [konnect-gateway-triage]
     trials: 1
     tags: [sibling]
-  - id: gateway-triage-sibling-9
-    prompt: "Root cause was a label typo on the control plane resource itself. It's defined in HCL with the kong/konnect provider, so fix the .tf and show me the plan output."
+  - id: konnect-gateway-triage-sibling-6
+    prompt: "Git is the source of truth from now on. Scope deck gateway diff against prod to the payments select tag and tell me what a sync would revert."
+    expect: [deck-gateway]
+    forbid: [konnect-gateway-triage]
+    trials: 1
+    tags: [sibling]
+  - id: konnect-gateway-triage-sibling-7
+    prompt: "We know why the nodes fell off: the cloud gateway network in our kong/konnect Terraform points at the wrong CIDR. Fix the .tf and show me the plan."
     expect: [terraform-konnect]
     forbid: [konnect-gateway-triage]
     trials: 1
     tags: [sibling]
-  - id: gateway-triage-sibling-10
-    prompt: "We already know why nodes dropped: the client certificate we register through our Terraform konnect module expired. Rotate it in the module and plan the change."
+  - id: konnect-gateway-triage-sibling-8
+    prompt: "terraform plan on our Konnect repo shows the prod-eu control plane labels drifted after someone's UI edit. Put the HCL back in charge without recreating the control plane."
     expect: [terraform-konnect]
     forbid: [konnect-gateway-triage]
     trials: 1
     tags: [sibling]
-  - id: gateway-triage-sibling-11
-    prompt: "Our gateways are self-hosted and their entities live in Terraform using the kong-gateway provider. The checkout upstream targets still point at the old pool; update the HCL and run a plan."
+  - id: konnect-gateway-triage-sibling-9
+    prompt: "Our on-prem Kong cluster's upstreams live in Terraform with the kong-gateway provider. Tighten the active health checks on the inventory upstream in the HCL and run a plan."
     expect: [terraform-kong-gateway]
     forbid: [konnect-gateway-triage]
     trials: 1
     tags: [sibling]
-  - id: gateway-triage-sibling-12
-    prompt: "Review this terraform plan for our on-prem Kong cluster. After a provider version bump it wants to destroy and recreate three routes. Is that safe to apply?"
+  - id: konnect-gateway-triage-sibling-10
+    prompt: "Bring the services and routes that already exist on our self-managed Kong Admin API under Terraform state without recreating them."
     expect: [terraform-kong-gateway]
     forbid: [konnect-gateway-triage]
     trials: 1
