@@ -1,122 +1,141 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: portal-page-design
 scenarios:
   - id: portal-page-design-positive-1
-    prompt: "Build a landing page for our Konnect dev portal: a hero with a title and two buttons, then a row of four cards for our main APIs that wraps nicely on phones."
+    prompt: "The home of our Kong developer hub is one long wall of markdown. I want a big header with a title and two buttons, then a row of three cards for Quickstart, Reference and Support that stack on phones."
     expect: [portal-page-design]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: portal-page-design-positive-2
-    prompt: "What's the right MDC component for collapsible FAQ entries on a portal page, and how do I nest it inside a section?"
+    prompt: "Which MDC component should hold request and response samples so they sit side by side on desktop but stack on mobile?"
     expect: [portal-page-design]
     forbid: []
     trials: 3
     tags: [positive]
   - id: portal-page-design-positive-3
-    prompt: "Our portal docs page for the Orders API is one giant wall of markdown. Split it into a hero, tabbed request and response panels, and an expandable troubleshooting block using proper components. Keep every sentence as it is."
+    prompt: "the cards on our konnect dev hub landing overflow the screen on phones and the buttons touch each other. how should that section be built so it reflows"
     expect: [portal-page-design]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: portal-page-design-positive-4
-    prompt: "the cards on our dev portal home overflow on tablet. fix the layout"
+    prompt: "We paste the same 'Need help?' block with a contact button into 12 docs on our Kong developer hub. Every change means editing all 12. How should that be structured instead?"
+    expect: [portal-page-design]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: portal-page-design-positive-5
+    prompt: "Design a Konnect Dev Portal page for the Payments API with sections for getting started, auth, request and response, and troubleshooting."
     expect: [portal-page-design]
     forbid: []
     trials: 3
     tags: [positive]
-  - id: portal-page-design-positive-5
-    prompt: "We have the same hero and footer CTA copied across eight Konnect portal pages. Refactor so the repeated blocks are shared, and add a tabbed panel to the SDK page showing Python and Go side by side."
+  - id: portal-page-design-positive-6
+    prompt: "Brand colours are already set in the theme, so don't touch those. I need the structure: tabbed panels for the SDK languages and collapsible FAQ entries on the Ledger guide in our Kong developer hub."
+    expect: [portal-page-design]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
+  - id: portal-page-design-positive-7
+    prompt: "I tried <div class=\"grid\"> on a page in the new Konnect portal and it renders as literal text. How should a grid of items be written there?"
     expect: [portal-page-design]
     forbid: []
     trials: 3
     tags: [positive]
   - id: portal-page-design-near-miss-1
-    prompt: "Lay out a pricing page in Webflow with three tiers and a comparison table."
+    prompt: "Our Kong Gateway Enterprise 2.8 workspace portal still uses the old Lua-templated layouts. Fix the partial that renders the sidebar."
     expect: []
     forbid: [portal-page-design]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: portal-page-design-near-miss-2
-    prompt: "Write a Vue 3 component that renders an accordion with keyboard navigation and ARIA attributes."
+    prompt: "Make the pricing page on our Next.js marketing site responsive with Tailwind; the plan cards squash together on tablets."
     expect: []
     forbid: [portal-page-design]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: portal-page-design-near-miss-3
-    prompt: "Our old Kong Gateway Enterprise developer portal uses Handlebars templates. How do I add a new partial to the legacy theme?"
-    expect: []
+    prompt: "We built a new landing page for the partner portal, but partner developers don't see the Orders API in its list at all, while internal developers see it on the other portal."
+    expect: [konnect-api-publish]
     forbid: [portal-page-design]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: portal-page-design-near-miss-4
-    prompt: "Developers on the portal see the Inventory API but key-auth credentials they generate are rejected at the gateway. Why?"
+    prompt: "Restrict the Partners page on our portal so only signed-in developers can see it, and hide it from the navigation for everyone else."
     expect: []
     forbid: [portal-page-design]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: portal-page-design-near-miss-5
-    prompt: "Generate API reference docs from our OpenAPI file with Redoc and host them on GitHub Pages."
+    prompt: "Draft a design doc for moving our internal auth service from session cookies to OAuth 2.1, with alternatives considered."
     expect: []
     forbid: [portal-page-design]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
+  - id: portal-page-design-near-miss-6
+    prompt: "Developers on our portal click Register on the Claims API page, the form submits, but no application ever shows up in their account."
+    expect: [konnect-app-auth]
+    forbid: [portal-page-design]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: portal-page-design-sibling-1
-    prompt: "Our Konnect portal is a mess: pages render oddly, a couple of APIs vanished from the listing, and developers report login trouble. Where do I start, and which part owns each symptom?"
+    prompt: "Our Konnect developer portal pages are laid out fine, but partners still complain: some APIs are missing and keys never arrive. Which part do we look at first?"
     expect: [konnect-platform-router]
     forbid: [portal-page-design]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-page-design-sibling-2
-    prompt: "Developers say our Konnect portal 'doesn't work'. That's all the detail I have. Could be login, missing APIs, broken pages, or keys. How do I narrow it to the right team?"
+    prompt: "Leadership says our Konnect developer experience is poor, even after the page redesign. Is it APIs that are missing, credentials, or the gateway itself? It's unclear to me who owns the investigation."
     expect: [konnect-platform-router]
     forbid: [portal-page-design]
     trials: 1
     tags: [sibling]
   - id: portal-page-design-sibling-3
-    prompt: "The portal page structure is done. Now write the getting-started text inside it: prerequisites, three steps to the first call, and a check that it worked."
+    prompt: "The layout is settled: hero, three cards, FAQ. Now fill in the words for the Ledger guide, plain and in second person, with a quick check at the end of getting started."
     expect: [technical-writing]
     forbid: [portal-page-design]
     trials: 1
     tags: [sibling]
   - id: portal-page-design-sibling-4
-    prompt: "Proofread the troubleshooting section on our portal page. Headings should be the reader's question, cause then fix, and get rid of the em-dashes."
+    prompt: "The page design is fine, but the getting-started section reads like a robot wrote it. Rework just the text, leave the components alone."
     expect: [technical-writing]
     forbid: [portal-page-design]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-page-design-sibling-5
-    prompt: "Make our portal home look like halcyonbank.example: their teal, their serif headings, and their hero photo. Match it as closely as you can."
+    prompt: "Structure is done. Make the home look like orchidlabs.example: their violet, their serif headings, their rounded buttons."
     expect: [portal-branding]
     forbid: [portal-page-design]
     trials: 1
     tags: [sibling]
   - id: portal-page-design-sibling-6
-    prompt: "Reskin our developer portal pages so they're visually indistinguishable from our main website, and confirm with side-by-side screenshots."
+    prompt: "Page design is approved. What's left is visual parity with our corporate site: colours, fonts and logo, compared side by side at desktop and mobile widths."
     expect: [portal-branding]
     forbid: [portal-page-design]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-page-design-sibling-7
-    prompt: "I've designed the new hero and card sections for the portal. Our Konnect resources are Terraform-managed, so add the page to the existing module and run a plan."
+    prompt: "We keep our portal pages in HCL with the konnect provider. Add the new quickstart page from pages/quickstart.md as a resource and plan it."
     expect: [terraform-konnect]
     forbid: [portal-page-design]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-page-design-sibling-8
-    prompt: "terraform plan wants to replace our konnect portal page resource every run even though the content is unchanged. Help me sort out the HCL."
+    prompt: "Someone created three pages by hand in the editor. Import them into our Terraform state so the next apply doesn't fight them."
     expect: [terraform-konnect]
     forbid: [portal-page-design]
     trials: 1
     tags: [sibling]
   - id: portal-page-design-sibling-9
-    prompt: "Our portal pages are declared in kongctl YAML and the content is loaded with !file. Add the new partners page to that config and show me the plan."
+    prompt: "Our dev portal is managed with kongctl. Add the new landing page MDC file and a snippet for the help block to the config, then run plan."
     expect: [kongctl-declarative]
     forbid: [portal-page-design]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-page-design-sibling-10
-    prompt: "Our portal page files sit in the same directory as the kongctl resource YAML and the recursive plan chokes on them. Reorganise so the plan only reads resources."
+    prompt: "kongctl plan shows the getting-started content drifted from what's live. Reconcile our declarative config with the editor's version."
     expect: [kongctl-declarative]
     forbid: [portal-page-design]
     trials: 1

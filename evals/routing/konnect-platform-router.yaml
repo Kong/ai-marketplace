@@ -1,129 +1,129 @@
-# Pilot scenarios plus a baseline top-up suggested by an agent; the top-up is pending skill-owner review.
-# Top-up: platform-router-positive-4..5, near-miss-5..6, sibling-3..11; near-miss-4 (was sibling-2) retagged.
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-platform-router
 scenarios:
-  - id: platform-router-positive-1
-    prompt: "Our Konnect setup is a mess after the reorg. APIs aren't showing up for partners, some of our gateways look off, and nobody knows which team's config is authoritative. Where should I even start?"
+  - id: konnect-platform-router-positive-1
+    prompt: "Since we moved to the new Kong org: some partners say the shipping API vanished from the developer site, others still see it but get 403s, and ops claims last week's release never reached the nodes. I don't want three parallel investigations. Which thread do we pull first?"
+    expect: [konnect-platform-router]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-platform-router-positive-2
+    prompt: "inherited our kong cloud setup with zero docs. usage charts empty, a couple of environments look gone, devs complaining about the developer site. no idea who owns what, help me sort out where to look first"
+    expect: [konnect-platform-router]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-platform-router-positive-3
+    prompt: "Something is broken in our Kong SaaS account and I honestly can't tell whether it's people's permissions, the proxies, or the developer site. Help me figure out which area to look at before we dig in."
+    expect: [konnect-platform-router]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-platform-router-positive-4
+    prompt: "Is this a gateway problem or an observability problem? Since Tuesday some partners can't call the Quotes API, Explorer looks thin, and two engineers lost edit rights on prod. Pick who looks first."
+    expect: [konnect-platform-router]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-platform-router-positive-5
+    prompt: "Access, portal, gateways: everything in our Konnect org feels shaky after the reorg, and nobody can tell which part is actually broken. Where should I start?"
+    expect: [konnect-platform-router]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-platform-router-positive-7
+    prompt: "A partner reports 403s from one of our Konnect-hosted APIs since Tuesday. Could be on their side, could be a plugin change on ours, and the same partner also says the API's docs page disappeared from the portal. I don't know which area this belongs to; tell me who should look first."
     expect: [konnect-platform-router]
     forbid: []
     trials: 3
     tags: [positive]
-  - id: platform-router-positive-2
-    prompt: "Something in our Konnect environment is broken but I can't tell if it's access, the gateway, or the portal. Can you figure out which area owns this before we dig in?"
-    expect: [konnect-platform-router]
-    forbid: []
+  - id: konnect-platform-router-near-miss-1
+    prompt: "Our platform group wants a reference setup other teams can copy for Konnect: one repo per team, shared conventions, and promotion between environments. How should we design it?"
+    expect: []
+    forbid: [konnect-platform-router]
     trials: 3
-    tags: [positive]
-  - id: platform-router-positive-3
-    prompt: "I inherited a Konnect org with control planes, a dev portal, and some analytics dashboards. The team says things are flaky. Who handles what, and what's the first thing to check?"
-    expect: [konnect-platform-router]
-    forbid: []
+    tags: [near-miss, name-lure]
+  - id: konnect-platform-router-near-miss-2
+    prompt: "Kong AI Gateway model routing keeps sending every chat request to the fallback provider, even when the primary Azure deployment is healthy. Why?"
+    expect: []
+    forbid: [konnect-platform-router]
     trials: 3
-    tags: [positive]
-  - id: platform-router-positive-4
-    prompt: "Half our partners say the new shipping API is missing from the portal, the other half see it but get 403s, and the ops channel claims last week's gateway release never landed. I don't want three parallel investigations. Which thread do we pull first?"
-    expect: [konnect-platform-router]
-    forbid: []
-    trials: 3
-    tags: [positive]
-  - id: platform-router-positive-5
-    prompt: "konnect is acting weird across the board since we moved orgs. dashboards empty, a couple of control planes look gone, devs complaining about the portal. not sure who owns what, triage please"
-    expect: [konnect-platform-router]
-    forbid: []
-    trials: 3
-    tags: [positive]
-  - id: platform-router-near-miss-1
-    prompt: "Write a Python function that retries an HTTP request with exponential backoff and jitter."
+    tags: [near-miss, name-lure]
+  - id: konnect-platform-router-near-miss-3
+    prompt: "In our repo that manages Konnect with kongctl YAML, add a new API from this OpenAPI file and plan the change."
     expect: []
     forbid: [konnect-platform-router]
     trials: 3
     tags: [near-miss]
-  - id: platform-router-near-miss-2
-    prompt: "Our Postgres replica in AWS is lagging by about ten minutes during the nightly batch. How should I tune it?"
+  - id: konnect-platform-router-near-miss-4
+    prompt: "In Event Gateway, clients connecting to tenant-b.events.example.invalid end up on tenant A's virtual cluster. Which listener or hostname mapping is wrong?"
     expect: []
     forbid: [konnect-platform-router]
     trials: 3
     tags: [near-miss]
-  - id: platform-router-near-miss-3
-    prompt: "Help me write a README for my React component library, including install and usage sections."
+  - id: konnect-platform-router-near-miss-5
+    prompt: "Draft a procurement memo comparing Kong Konnect, Apigee and AWS API Gateway on pricing model, hybrid deployment support and developer portal features."
     expect: []
     forbid: [konnect-platform-router]
     trials: 3
     tags: [near-miss]
-  - id: platform-router-near-miss-4
-    prompt: "In our repo that manages Konnect with kongctl YAML, I want to add a new API from this OpenAPI file and plan the change."
-    expect: []
+  - id: konnect-platform-router-sibling-1
+    prompt: "A day after the rollout, half our data planes enforce the new rate limit on /v2/orders and the other half still don't. Same control plane, all nodes report connected. Which part of the routing chain is lagging?"
+    expect: [konnect-gateway-triage]
     forbid: [konnect-platform-router]
-    trials: 3
-    tags: [near-miss]
-  - id: platform-router-near-miss-5
-    prompt: "Our self-hosted Kong Gateway sits behind an AWS NLB. Is it better to terminate TLS at the load balancer or at Kong, and what are the tradeoffs for client IP preservation?"
-    expect: []
-    forbid: [konnect-platform-router]
-    trials: 3
-    tags: [near-miss]
-  - id: platform-router-near-miss-6
-    prompt: "Draft a procurement memo comparing Kong Konnect, Apigee, and AWS API Gateway on pricing model, hybrid deployment support, and developer portal features."
-    expect: []
-    forbid: [konnect-platform-router]
-    trials: 3
-    tags: [near-miss]
-  - id: platform-router-sibling-1
-    prompt: "Two of our data planes show as disconnected in Konnect since last night's network change. Walk me through what's failing."
+    trials: 1
+    tags: [sibling, name-lure]
+  - id: konnect-platform-router-sibling-2
+    prompt: "Since the network team changed egress rules, the data planes in our Frankfurt cluster show disconnected in Konnect, though traffic still flows on their cached config."
     expect: [konnect-gateway-triage]
     forbid: [konnect-platform-router]
     trials: 1
     tags: [sibling]
-  - id: platform-router-sibling-3
-    prompt: "After the certificate rotation this morning every data plane attached to our EU control plane dropped off and won't reconnect."
-    expect: [konnect-gateway-triage]
-    forbid: [konnect-platform-router]
-    trials: 1
-    tags: [sibling]
-  - id: platform-router-sibling-4
+  - id: konnect-platform-router-sibling-3
     prompt: "What's the kongctl command to fetch one portal by name and show only its custom domain fields? I don't want to change anything, just look."
     expect: [kongctl-query]
     forbid: [konnect-platform-router]
     trials: 1
     tags: [sibling]
-  - id: platform-router-sibling-5
+  - id: konnect-platform-router-sibling-4
     prompt: "Give me a kongctl get for every API in the org that prints just name and current version, one per line, using --jq."
     expect: [kongctl-query]
     forbid: [konnect-platform-router]
     trials: 1
     tags: [sibling]
-  - id: platform-router-sibling-6
+  - id: konnect-platform-router-sibling-5
+    prompt: "Our konnect-platform-router skill keeps grabbing requests that obviously belong to the gateway triage skill. Rework its frontmatter in this repo so it stops doing that."
+    expect: [kong-skill-authoring]
+    forbid: [konnect-platform-router]
+    trials: 1
+    tags: [sibling, name-lure]
+  - id: konnect-platform-router-sibling-6
     prompt: "I want to add guidance for Event Gateway schema registry problems to this repo. Should that be a brand new skill folder or an extension of the existing event gateway one?"
     expect: [kong-skill-authoring]
     forbid: [konnect-platform-router]
     trials: 1
     tags: [sibling]
-  - id: platform-router-sibling-7
-    prompt: "The frontmatter on our observability triage skill keeps matching gateway outage questions. Rework it so it stops stealing those from the gateway one."
-    expect: [kong-skill-authoring]
-    forbid: [konnect-platform-router]
-    trials: 1
-    tags: [sibling]
-  - id: platform-router-sibling-8
-    prompt: "Since our SSO moved to Okta groups, two platform engineers can list control planes but get forbidden whenever they edit plugins on prod. What changed for them?"
+  - id: konnect-platform-router-sibling-7
+    prompt: "Since our SSO moved to Okta groups, two engineers can still list everything in prod but get forbidden whenever they edit plugins there. What changed for them?"
     expect: [konnect-access-scope]
     forbid: [konnect-platform-router]
     trials: 1
     tags: [sibling]
-  - id: platform-router-sibling-9
-    prompt: "A new contractor accepted their invite, logs into Konnect, and sees an empty org: no control planes, no APIs, nothing. Everyone else sees everything. Wrong region?"
+  - id: konnect-platform-router-sibling-8
+    prompt: "A colleague in our Sydney office signs into Konnect and the org looks empty, while the London team sees every control plane and API. Are they pointed at a different region?"
     expect: [konnect-access-scope]
     forbid: [konnect-platform-router]
     trials: 1
     tags: [sibling]
-  - id: platform-router-sibling-10
-    prompt: "We're adding Konnect for a second business unit with its own latency needs in APAC. Before creating its first control plane: Kong-hosted gateways or our own nodes, and does it belong in a separate region?"
+  - id: konnect-platform-router-sibling-9
+    prompt: "We're adding a second business unit with its own latency needs in APAC. Before creating anything for it: Kong-hosted nodes or our own, and does it belong in a separate region?"
     expect: [konnect-control-plane-bootstrap]
     forbid: [konnect-platform-router]
     trials: 1
     tags: [sibling]
-  - id: platform-router-sibling-11
-    prompt: "The proof-of-concept gateway from the vendor workshop is still attached to a control plane called 'poc'. Do we promote it to staging or start clean, and what has to be decided before that?"
+  - id: konnect-platform-router-sibling-10
+    prompt: "The proof-of-concept Kong from the vendor workshop is still attached to something called 'poc'. Do we promote it to staging or start clean, and what has to be decided before that?"
     expect: [konnect-control-plane-bootstrap]
     forbid: [konnect-platform-router]
     trials: 1

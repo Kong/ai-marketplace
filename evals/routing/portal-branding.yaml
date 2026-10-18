@@ -1,122 +1,141 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: portal-branding
 scenarios:
   - id: portal-branding-positive-1
-    prompt: "Our developer portal home page looks nothing like northwind-freight.example. Make it use the same purple, the Inter headings, and the airy spacing from that site."
+    prompt: "Make the home of our Kong developer site look like acme-robotics.example: same purple, same rounded buttons, same Inter headings, light background. The MDC files are in site/pages."
     expect: [portal-branding]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: portal-branding-positive-2
-    prompt: "Marketing sent a brand sheet: primary #0B6E4F, accent #F2A541, headings in Poppins, rounded 12px corners. Apply that to the getting-started page in our Konnect portal so it feels on-brand."
+    prompt: "Marketing redid the company website (dark navy, coral accents, a geometric sans). Our Kong developer hub still looks like the default template next to it. Get it to match. Exact colours matter, spacing can be close enough."
     expect: [portal-branding]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: portal-branding-positive-3
-    prompt: "make the portal landing page match our corporate site's look"
+    prompt: "Our corporate coral (#FF6F61) on the buttons of the Kong docs hub fails contrast on white. How do we keep the look without failing accessibility?"
     expect: [portal-branding]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: portal-branding-positive-4
-    prompt: "The hero on our dev portal uses the default blue. Our brand is a dark navy base with a coral accent and our logo is an SVG on the CDN. Restyle that page and check the button text stays readable against the background."
+    prompt: "our main site is northwind-tools.example and the target is the getting-started page on our konnect dev hub. make the second one look like the first, side by side at desktop and phone widths. don't change the wording."
+    expect: [portal-branding]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: portal-branding-positive-5
+    prompt: "Brand our Konnect Dev Portal home page so it matches our website: colours, fonts and logo."
     expect: [portal-branding]
     forbid: []
     trials: 3
     tags: [positive]
-  - id: portal-branding-positive-5
-    prompt: "Leadership wants visual parity between the Konnect portal pages and the public website at bluefinch.example before the launch. Screenshot both at phone and desktop widths and close the gaps in palette, fonts, and imagery."
+  - id: portal-branding-positive-6
+    prompt: "Design question, sort of. The layout of the page is fine as is. I just need the hero and cards to use our teal and Montserrat so the Konnect docs hub feels like part of example-bank.example."
+    expect: [portal-branding]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
+  - id: portal-branding-positive-7
+    prompt: "How do I get our SVG logo onto the dev portal, and can I put a hero image on one page that isn't hosted anywhere yet? We're trying to make it look like our marketing site."
     expect: [portal-branding]
     forbid: []
     trials: 3
     tags: [positive]
   - id: portal-branding-near-miss-1
-    prompt: "Set up a Tailwind theme for our Next.js marketing site with our brand colors and a custom font."
+    prompt: "Write a brand voice guide for our marketing team: tone, words to avoid, and a few sample taglines."
     expect: []
     forbid: [portal-branding]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: portal-branding-near-miss-2
-    prompt: "Design a new logo and color palette for our startup. We sell bike parts and want something playful."
+    prompt: "Our portal's sitemap still lists pages we deleted months ago and search engines keep indexing them. How do we get them dropped?"
     expect: []
     forbid: [portal-branding]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: portal-branding-near-miss-3
-    prompt: "Partners want sign-up on our portal to need approval before they can create apps. How do we turn on developer approval for application registration?"
+    prompt: "Point developers.example.com at our dev portal as a custom domain and sort out the TLS certificate for it."
     expect: []
     forbid: [portal-branding]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: portal-branding-near-miss-4
-    prompt: "Convert this Figma frame into a React component using styled-components."
+    prompt: "Our corporate site's colours live in a Tailwind config. Port them into design tokens for our new React component library."
     expect: []
     forbid: [portal-branding]
     trials: 3
     tags: [near-miss]
   - id: portal-branding-near-miss-5
-    prompt: "Our Shipping API should be on the partner dev portal by now but it isn't listed anywhere. Did the publication step get missed?"
+    prompt: "We restyled the portal last week and now the Orders API isn't listed there anymore. Did the theme change unpublish it?"
+    expect: [konnect-api-publish]
+    forbid: [portal-branding]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: portal-branding-near-miss-6
+    prompt: "Add a Status link to the top navigation of our portal and hide the Blog page from anonymous visitors."
     expect: []
     forbid: [portal-branding]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: portal-branding-sibling-1
-    prompt: "In Konnect, partners say the portal looks off-brand, half the APIs they expect aren't there, and some can't sign in at all. I don't know which of these to chase first or who owns each."
+    prompt: "Our Konnect developer portal looks great since the rebrand, but two APIs never show up, partners can't get keys, and analytics went blank. Where do we even start?"
     expect: [konnect-platform-router]
     forbid: [portal-branding]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-branding-sibling-2
-    prompt: "Our Konnect developer portal look half finished, and also the API list and dashboards are not complete after reorganisation. Who is first owner to check this?"
+    prompt: "Partners complain about our Konnect developer experience, and it isn't the look, that was just redone. It could be missing APIs, credentials, or timeouts. Which Konnect area owns this first?"
     expect: [konnect-platform-router]
     forbid: [portal-branding]
     trials: 1
     tags: [sibling]
   - id: portal-branding-sibling-3
-    prompt: "I need the dev portal home page reorganised: a hero up top, three entry-point cards side by side that stack on mobile, then a section listing the APIs."
+    prompt: "Colours and fonts already match the company site. Now restructure the landing page: a hero with two buttons, a three-column grid of entry cards that wraps on phones, and an expandable FAQ."
     expect: [portal-page-design]
     forbid: [portal-branding]
     trials: 1
     tags: [sibling]
   - id: portal-branding-sibling-4
-    prompt: "Which MDC components should I use to build a tabbed quickstart section with a callout for prerequisites on our Konnect portal page? Keep the default theme as it is."
+    prompt: "Brand team signed off the look. What I need now is the section order and which MDC components to use for the Payments guide so it reads top to bottom on mobile."
     expect: [portal-page-design]
     forbid: [portal-branding]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-branding-sibling-5
-    prompt: "The portal page already looks exactly like our brand. The problem is the text: it's wordy, passive, and full of marketing fluff. Rewrite the copy so developers can follow it."
+    prompt: "Our dev portal homepage finally looks like the company site. The copy, though, is full of 'leverage' and 'seamless'. Rework it into plain second person."
     expect: [technical-writing]
     forbid: [portal-branding]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-branding-sibling-6
-    prompt: "Edit the wording on our onboarding page: shorter sentences, second person, and a verification step at the end. Don't change the styling."
+    prompt: "Our brand guidelines say we sound friendly and direct. Edit the getting-started guide on our portal to follow that: active voice, short numbered steps, and a check at the end."
     expect: [technical-writing]
     forbid: [portal-branding]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-branding-sibling-7
-    prompt: "We've finished the styled MDC for our portal pages. Our infra repo manages Konnect with HCL and the konnect provider, so add the pages there and show me the plan."
+    prompt: "Our portal pages and theme are managed in Terraform. Add the new branded landing page as a resource and plan it."
     expect: [terraform-konnect]
     forbid: [portal-branding]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: portal-branding-sibling-8
-    prompt: "Our portal's custom pages are Terraform resources with the MDC content inline in the .tf files. Move the content into separate files loaded with file() and make sure plan shows no diff."
+    prompt: "We styled the pages by hand in the editor. Capture those page files in our konnect provider HCL so they stop drifting, then show the plan."
     expect: [terraform-konnect]
     forbid: [portal-branding]
     trials: 1
     tags: [sibling]
   - id: portal-branding-sibling-9
-    prompt: "The rebranded portal pages are ready as MDC files. Our Konnect config lives in kongctl YAML in git; wire the pages into the portal manifest and preview the change before applying."
+    prompt: "Put the restyled home page MDC under our kongctl config, load it with !file, then dry-run."
     expect: [kongctl-declarative]
     forbid: [portal-branding]
     trials: 1
     tags: [sibling]
   - id: portal-branding-sibling-10
-    prompt: "Someone made our dev portal by hand in the Konnect UI. Bring it and its pages under our kongctl-managed config without rebuilding it."
+    prompt: "kongctl manages our portal. Add the new about page from pages/about.md to the config and run plan."
     expect: [kongctl-declarative]
     forbid: [portal-branding]
     trials: 1

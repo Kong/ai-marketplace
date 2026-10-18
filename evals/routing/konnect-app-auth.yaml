@@ -1,38 +1,57 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-app-auth
 scenarios:
   - id: konnect-app-auth-positive-1
-    prompt: "Our Payments API shows up on the Konnect portal and developers can create applications, but the registration just stays pending. Nobody on our side ever sees an approval request. What's going on?"
+    prompt: "Partners can see our Payments API on the Konnect portal and click 'Request access', but it just stays pending. Nobody on our side ever gets anything to approve. What's going on?"
     expect: [konnect-app-auth]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
   - id: konnect-app-auth-positive-2
-    prompt: "Partners already run their own Okta and want to bring their own OAuth clients to call our APIs from the portal. Key auth, self-managed OIDC, or DCR in Konnect? Which fits?"
+    prompt: "Our partners run their own Okta and want to use the OIDC clients they already have when they sign up for our APIs on the Konnect portal, instead of us handing out keys. Which setup fits that?"
     expect: [konnect-app-auth]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-app-auth-positive-3
-    prompt: "devs got an api key from the portal for the inventory api but every call through the gateway still returns 401. publication looks fine"
+    prompt: "devs got a key from the portal for the inventory api but every call through kong still comes back 401. the api shows up on the portal fine"
     expect: [konnect-app-auth]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-app-auth-positive-4
-    prompt: "We published the Claims API with a key-auth strategy selected, yet anonymous requests still go straight through to the backend. I suspect the strategy isn't being enforced on the actual service. How do I confirm?"
+    prompt: "We picked key-based protection when we put the Claims API on the portal, yet anonymous curl calls still reach the backend. Is that choice not being enforced on the actual service?"
     expect: [konnect-app-auth]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-app-auth-positive-5
-    prompt: "One developer wants the same application to call both the Rates API, which uses keys, and the Ledger API, which uses OIDC. The portal won't let them. Is that expected, and how should we set this up instead?"
+    prompt: "Our IdP allows dynamic client registration, and we'd like the portal to create the IdP client for each developer automatically when they sign up for an API. What has to be configured in Konnect for that?"
+    expect: [konnect-app-auth]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-app-auth-positive-6
+    prompt: "One developer wants a single application to call both the Rates API, which uses keys, and the Ledger API, which uses OIDC. The portal refuses. Is that expected, and how should we set this up?"
     expect: [konnect-app-auth]
     forbid: []
     trials: 3
     tags: [positive]
+  - id: konnect-app-auth-positive-7
+    prompt: "Devs say they have no access to the Ledger API even though they sign into the portal fine and the API is listed. Their registration shows 'rejected' and nobody here remembers rejecting anything."
+    expect: [konnect-app-auth]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-app-auth-positive-8
+    prompt: "The Rates API is published and partners can see it, but when they try to register it the portal says no credentials can be issued for this API. Why can't the portal issue them a credential?"
+    expect: [konnect-app-auth]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
   - id: konnect-app-auth-near-miss-1
-    prompt: "Developers can't sign in to our Konnect developer portal through our corporate SSO; they get bounced back to the login page. Fix the login."
+    prompt: "Developers can't sign in to our Konnect developer portal through corporate SSO; they get bounced straight back to the login page. Fix the login."
     expect: []
     forbid: [konnect-app-auth]
     trials: 3
@@ -42,63 +61,69 @@ scenarios:
     expect: []
     forbid: [konnect-app-auth]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-app-auth-near-miss-3
-    prompt: "A platform engineer can't edit the auth strategies page in Konnect at all, though a colleague on another team can. What role are they missing?"
+    prompt: "A platform engineer gets a 'you don't have permission' banner on the application auth strategies page in Konnect, while a colleague on another team can edit it. What's different between them?"
     expect: []
     forbid: [konnect-app-auth]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-app-auth-near-miss-4
-    prompt: "Configure the JWT plugin on a self-hosted Kong Gateway so mobile clients signed by our issuer get through."
+    prompt: "Configure the JWT plugin on a self-hosted Kong Gateway so mobile clients holding tokens signed by our own issuer get through and everyone else gets 401."
     expect: []
     forbid: [konnect-app-auth]
     trials: 3
     tags: [near-miss]
   - id: konnect-app-auth-near-miss-5
-    prompt: "Rotate the AWS IAM access keys our CI uses and store the new ones in Secrets Manager."
+    prompt: "Our Freight API entry in Catalog has no spec and no documentation pages yet. What does it need before it counts as ready?"
+    expect: []
+    forbid: [konnect-app-auth]
+    trials: 3
+    tags: [near-miss]
+  - id: konnect-app-auth-near-miss-6
+    prompt: "Developers on the Pro plan should get 10k calls a month included and pay per call above that. Model the meters, plan and rate card for it in Konnect."
     expect: []
     forbid: [konnect-app-auth]
     trials: 3
     tags: [near-miss]
   - id: konnect-app-auth-sibling-1
-    prompt: "Developers outside the company tell us the Konnect portal is not good: some APIs not there, login fails for some, keys not working for others. We need to know who in the team takes which problem."
+    prompt: "Outside developers say our Konnect portal is a mess: some APIs aren't there, sign-in fails for a few, keys don't work for others. We need to know who on the team takes which problem."
     expect: [konnect-platform-router]
     forbid: [konnect-app-auth]
     trials: 1
     tags: [sibling]
   - id: konnect-app-auth-sibling-2
-    prompt: "After our Konnect reorg nobody knows who owns developer access, the portal, or the gateway config anymore, and partner onboarding is stalled. Which area is the first owner?"
+    prompt: "After our Konnect reorg partner app onboarding has stalled: some partners can't find APIs on the portal, others get errors calling them, and nobody can tell which part is broken. Which area should take the first step?"
     expect: [konnect-platform-router]
     forbid: [konnect-app-auth]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-app-auth-sibling-3
-    prompt: "We settled on DCR with our IdP. Our Konnect config is all Terraform; add the application auth strategy resource and attach it to the existing publication, then plan."
+    prompt: "We settled on DCR with our IdP. Our Konnect config is all Terraform; add the auth strategy resource and attach it to the existing portal publication, then plan."
     expect: [terraform-konnect]
     forbid: [konnect-app-auth]
     trials: 1
     tags: [sibling]
   - id: konnect-app-auth-sibling-4
-    prompt: "terraform plan in our konnect repo wants to destroy and recreate the partner key-auth strategy because someone renamed it in the HCL. How do I rename it without a replacement?"
+    prompt: "terraform plan in our Konnect repo wants to destroy and recreate the partner key strategy because someone renamed it in the HCL. How do I rename it without a replacement?"
     expect: [terraform-konnect]
     forbid: [konnect-app-auth]
     trials: 1
     tags: [sibling]
   - id: konnect-app-auth-sibling-5
-    prompt: "In our kongctl-managed repo, add an OIDC application auth strategy and reference it from the Rates API publication with !ref. Show me the plan."
+    prompt: "In our kongctl-managed repo, add an OIDC strategy and reference it from the Rates API publication with !ref. Show me the plan."
     expect: [kongctl-declarative]
     forbid: [konnect-app-auth]
     trials: 1
     tags: [sibling]
   - id: konnect-app-auth-sibling-6
-    prompt: "Our kongctl manifests reference the OIDC strategy by a hard-coded UUID. Switch it to a !ref and confirm the diff is empty afterwards."
+    prompt: "Our kongctl manifests point at the OIDC strategy by a hard-coded UUID. Switch it to a !ref and confirm the diff is empty afterwards."
     expect: [kongctl-declarative]
     forbid: [konnect-app-auth]
     trials: 1
     tags: [sibling]
   - id: konnect-app-auth-sibling-7
-    prompt: "We've confirmed portal auth is fine; the gap is that the Rates service in our kong.yaml needs a rate-limiting plugin per consumer. Edit the decK file and diff it."
+    prompt: "We've confirmed the portal side is fine; the gap is that the Rates service in our kong.yaml needs per-consumer rate limiting. Edit the decK file and diff it."
     expect: [deck-gateway]
     forbid: [konnect-app-auth]
     trials: 1
@@ -108,15 +133,15 @@ scenarios:
     expect: [deck-gateway]
     forbid: [konnect-app-auth]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-app-auth-sibling-9
-    prompt: "Developers say they can't register for the Freight API, but when I look at the portal it isn't listed at all. Did it ever get published there?"
+    prompt: "Developers say they can't register an app for the Freight API, but when I look at the portal it isn't listed at all. Did it ever get published there?"
     expect: [konnect-api-publish]
     forbid: [konnect-app-auth]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-app-auth-sibling-10
-    prompt: "We renamed our partner portal last week and since then the Quotes API page is gone from it, though it's still on the public one. Registration questions can wait; where did the publication go?"
+    prompt: "We renamed our partner portal last week and since then the Quotes API page is gone from it, though it's still on the public one. Where did that publication go?"
     expect: [konnect-api-publish]
     forbid: [konnect-app-auth]
     trials: 1

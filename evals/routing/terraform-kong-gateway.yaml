@@ -1,123 +1,142 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: terraform-kong-gateway
 scenarios:
   - id: terraform-kong-gateway-positive-1
-    prompt: "We run Kong Enterprise in our own data center and manage it from HCL with the kong-gateway provider. Add a service and route for the new tracking backend in the existing module."
+    prompt: "We run our API proxy in our own data center, and its services and routes live in HCL that talks to the admin API. Add a service and route for the new tracking backend in the existing module."
     expect: [terraform-kong-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: terraform-kong-gateway-positive-2
-    prompt: "terraform plan wants to create a jwt plugin that already exists on our on-prem admin API. How do I import it into state so it doesn't get duplicated?"
+    prompt: "plan wants to create a jwt plugin that already exists on our on-prem admin API (port 8001). how do i adopt it into state so it doesn't get duplicated?"
     expect: [terraform-kong-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: terraform-kong-gateway-positive-3
-    prompt: "Review my .tf change: it adds consumers and ACL groups to the self-hosted Kong cluster at admin.internal:8001. Anything risky before I run apply?"
+    prompt: "Review my .tf change: it adds consumers and ACL groups to the self-hosted Kong cluster at admin.internal.example:8001. Anything risky before I run apply?"
     expect: [terraform-kong-gateway]
     forbid: []
     trials: 3
     tags: [positive]
   - id: terraform-kong-gateway-positive-4
-    prompt: "kong_plugin with name cors keeps failing validate because config.origins type is wrong. what does the provider schema actually expect"
+    prompt: "The cors plugin resource in our HCL for the self-hosted proxy fails validate with 'Inappropriate value for attribute origins: list of string required'. Which shape does the provider really want?"
     expect: [terraform-kong-gateway]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: terraform-kong-gateway-positive-5
-    prompt: "Our platform team uses Terraform for everything, including the Kong nodes we host on EKS without Konnect. We need upstreams with two targets for the ledger service. Write it the way the rest of our gateway modules are written."
+    prompt: "We moved off Konnect last year; the self-hosted cluster's upstreams and targets are now managed in HCL through the admin API. Add an upstream with two targets for the ledger service, matching how the other modules are written."
+    expect: [terraform-kong-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
+  - id: terraform-kong-gateway-positive-6
+    prompt: "Our deck files were retired; the on-prem cluster's routes are now Terraform-managed with the kong-gateway provider. Someone hand-added a route with curl. Bring it into state without recreating it."
+    expect: [terraform-kong-gateway]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: terraform-kong-gateway-positive-7
+    prompt: "Which provider block and variables do I need so the kong-gateway Terraform provider reaches our Enterprise admin API over mTLS with an RBAC token pulled from Vault? Nothing secret may land in the repo."
     expect: [terraform-kong-gateway]
     forbid: []
     trials: 3
     tags: [positive]
   - id: terraform-kong-gateway-near-miss-1
-    prompt: "Write Terraform for an AWS Application Load Balancer with path-based rules to three target groups."
+    prompt: "Our self-hosted Kong Gateway, configured from Terraform, returns 503 on /orders even though the upstream pods are healthy. Help me work out where the request fails."
     expect: []
     forbid: [terraform-kong-gateway]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: terraform-kong-gateway-near-miss-2
-    prompt: "Deploy Kong Gateway on Kubernetes with the Helm chart; I need the values file for two replicas with Postgres."
+    prompt: "Deploy Kong Gateway on Kubernetes with the Helm chart; I need the values file for two replicas backed by Postgres."
     expect: []
     forbid: [terraform-kong-gateway]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: terraform-kong-gateway-near-miss-3
-    prompt: "My Terraform state file got corrupted after a crashed apply. How do I recover it from the S3 backend's versioning?"
+    prompt: "On our self-hosted Kong, the rate-limiting plugin counts requests per node instead of across the cluster. Which policy setting should it use?"
     expect: []
     forbid: [terraform-kong-gateway]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: terraform-kong-gateway-near-miss-4
-    prompt: "Requests through our Kong route to the orders service return 503 even though the upstream pods are up. Help me work out where it's failing."
+    prompt: "The control plane is declared in our HCL, but since Tuesday its data planes in Konnect stopped picking up new config. Before we touch the code, which layer is failing?"
     expect: []
     forbid: [terraform-kong-gateway]
     trials: 3
     tags: [near-miss]
   - id: terraform-kong-gateway-near-miss-5
-    prompt: "On our self-hosted Kong, the rate-limiting plugin counts requests per node instead of across the cluster. Which policy setting should it use?"
+    prompt: "In hybrid mode with our own control plane, the data plane nodes keep logging 'failed to connect to control plane: certificate verify failed'. What's misconfigured?"
     expect: []
     forbid: [terraform-kong-gateway]
     trials: 3
     tags: [near-miss]
+  - id: terraform-kong-gateway-near-miss-6
+    prompt: "Write Terraform for an AWS Application Load Balancer with path-based rules to three target groups."
+    expect: []
+    forbid: [terraform-kong-gateway]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: terraform-kong-gateway-sibling-1
-    prompt: "We're moving gateway config into code but haven't decided where: some gateways are in Konnect, some portal content is stale, and access is a mess. What should we tackle first, and who owns each piece?"
+    prompt: "We're moving gateway config into code but haven't picked a tool: some proxies are in Konnect, the portal content is stale, and access is a mess. What do we tackle first, and who owns each piece?"
     expect: [konnect-platform-router]
     forbid: [terraform-kong-gateway]
     trials: 1
     tags: [sibling]
   - id: terraform-kong-gateway-sibling-2
-    prompt: "Konnect problems everywhere: stale gateways, missing analytics, an API partners can't find. We also want all of it in code eventually, tool not chosen. What should happen first?"
+    prompt: "Konnect problems everywhere: stale nodes, missing analytics, an API partners can't find. We want all of it in code eventually, tool not chosen. What should happen first?"
     expect: [konnect-platform-router]
     forbid: [terraform-kong-gateway]
     trials: 1
     tags: [sibling]
   - id: terraform-kong-gateway-sibling-3
-    prompt: "Our self-managed gateway's entities are in a kong.yaml that CI syncs with deck. Add a proxy-cache plugin to the catalog route and show the diff first."
+    prompt: "We use Terraform for the VMs, but the Kong services and routes on those VMs are kept as deck files. Rename the inventory route's path to /api/inventory and show the diff."
     expect: [deck-gateway]
     forbid: [terraform-kong-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: terraform-kong-gateway-sibling-4
-    prompt: "We use Terraform for the VMs, but the Kong services and routes on those VMs are kept as deck files. Rename the inventory route's path to /api/inventory."
+    prompt: "Our self-managed proxy's entities are in a kong.yaml that CI syncs. Add a proxy-cache plugin to the catalog route and show the diff first."
     expect: [deck-gateway]
     forbid: [terraform-kong-gateway]
     trials: 1
     tags: [sibling]
   - id: terraform-kong-gateway-sibling-5
-    prompt: "Our services are in a Konnect hybrid control plane, managed in HCL with the konnect provider. Add a route for /status to the notifications service."
+    prompt: "We're retiring our on-prem admin API and moving to Konnect. Write the HCL for the new cloud control plane and its first service, using the provider meant for the SaaS side."
     expect: [terraform-konnect]
     forbid: [terraform-kong-gateway]
     trials: 1
     tags: [sibling]
   - id: terraform-kong-gateway-sibling-6
-    prompt: "We're retiring our on-prem admin API and moving to Konnect. Write Terraform for the new control plane and its first service using the provider meant for the SaaS side."
+    prompt: "The admin API we used to point Terraform at is gone; our Kong nodes are now hybrid data planes of a Konnect control plane. Rework the provider and resources in our HCL so the routes are managed there."
     expect: [terraform-konnect]
     forbid: [terraform-kong-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: terraform-kong-gateway-sibling-7
-    prompt: "The DataKit plugin I declared in our HCL applies fine, but at runtime the second call node never runs because its URL comes from the first call's body. How should the nodes be wired?"
+    prompt: "The DataKit plugin I declared in our Terraform HCL applies fine, but at runtime the second call node never runs because its URL comes from the first call's body. How should the nodes be wired?"
     expect: [gateway-plugin-datakit]
     forbid: [terraform-kong-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: terraform-kong-gateway-sibling-8
-    prompt: "Design a DataKit flow that reads the tenant from a header, calls the tenant service for its region, and rewrites the upstream URL based on the answer."
+    prompt: "Terraform will deploy it later, but first I need the DataKit node graph: read the tenant header, call the tenant service for its region, and rewrite the upstream URL from the answer."
     expect: [gateway-plugin-datakit]
     forbid: [terraform-kong-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: terraform-kong-gateway-sibling-9
-    prompt: "Rework our Dev Portal home into a feature row that alternates text and screenshots, then a two-column section for guides and SDKs."
+    prompt: "Rework our Dev Portal home into a hero, a feature row that alternates text and screenshots, and then two columns for guides and SDKs."
     expect: [portal-page-design]
     forbid: [terraform-kong-gateway]
     trials: 1
     tags: [sibling]
   - id: terraform-kong-gateway-sibling-10
-    prompt: "Restructure the getting-started page on our developer portal into sections with a callout and tabbed code samples using MDC components."
+    prompt: "Our portal pages ship through a Terraform pipeline, but that part is fine. The getting-started page needs a callout and tabbed code samples, laid out with MDC components."
     expect: [portal-page-design]
     forbid: [terraform-kong-gateway]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
