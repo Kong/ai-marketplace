@@ -96,11 +96,16 @@ scenarios:
     expect: [my-skill]           # skills that must activate
     forbid: []                   # skills that must not activate
     trials: 3                    # 1-5; confirmation and new-skill trials per agent (the gate's first pass runs it once); passes with >= 2/3
-    tags: [positive]             # positive | near-miss | sibling
+    tags: [positive]             # positive | near-miss | sibling, optionally + symptom-only | name-lure
 ```
 
 - `positive`: expects the skill. `near-miss`: plausible but out of scope, so it forbids the
-  skill. `sibling`: expects a neighbouring skill and forbids this one.
+  skill. `sibling`: expects a neighbouring skill and forbids this one. Exactly one of these kind
+  tags is required and must be listed first.
+- Optional design tags say how the prompt was written, so reports (and the ablation) can break them
+  out: `symptom-only` describes the situation or symptom without the skill's domain words, and
+  `name-lure` contains words from another skill's name while the intent belongs elsewhere, so the
+  name alone cannot decide it. Example: `tags: [positive, name-lure]`.
 - A **new** skill needs at least 5 positive and 5 near-miss scenarios (`trials: 3`) and at least 2
   sibling scenarios for each adjacent skill (up to 5 adjacent skills). Write prompts as a user
   would, not by copying the skill description's wording (guidance; not machine-checked).

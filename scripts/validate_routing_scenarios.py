@@ -30,7 +30,13 @@ import check_repo
 import select_changed
 
 SCENARIOS_DIR = check_repo.REPO_ROOT / "evals" / "routing"
-ALLOWED_TAGS = {"positive", "near-miss", "sibling"}
+# Every scenario has exactly one kind tag (listed first) and may add design tags that say how the prompt
+# was written: `symptom-only` (describes the situation without the skill's domain words) and `name-lure`
+# (contains words from another skill's name while the intent belongs elsewhere), so the name alone
+# cannot decide it. See docs/testing.md, "Scenario design: description-dependence".
+KIND_TAGS = {"positive", "near-miss", "sibling"}
+DESIGN_TAGS = {"symptom-only", "name-lure"}
+ALLOWED_TAGS = KIND_TAGS | DESIGN_TAGS
 MIN_TRIALS = 1
 MAX_TRIALS = 5
 ID_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
@@ -108,6 +114,8 @@ def validate_scenario(
         else:
             for tag in sorted(set(tags) - ALLOWED_TAGS):
                 errors.append(f"{label}: unknown tag {tag!r}; allowed: {sorted(ALLOWED_TAGS)}")
+            if sum(tag in KIND_TAGS for tag in tags) != 1 or tags[0] not in KIND_TAGS:
+                errors.append(f"{label}: tags need exactly one kind tag {sorted(KIND_TAGS)}, listed first")
     return errors
 
 

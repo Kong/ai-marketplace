@@ -16,7 +16,8 @@ from typing import Any
 
 import validate_routing_scenarios as scenarios
 
-TAGS = sorted(scenarios.ALLOWED_TAGS)
+TAGS = sorted(scenarios.KIND_TAGS)
+DESIGN_TAGS = sorted(scenarios.DESIGN_TAGS)
 
 
 def skill_entry(name: str) -> dict[str, Any]:
@@ -30,6 +31,7 @@ def skill_entry(name: str) -> dict[str, Any]:
         "covered": True,
         "scenarios": len(found),
         "tags": counts,
+        "design_tags": {tag: sum(tag in (s.get("tags") or []) for s in found) for tag in DESIGN_TAGS},
         "meets_new_skill_minimums": not gaps,
         "new_skill_gaps": gaps,
     }
@@ -53,6 +55,8 @@ def render(report: dict[str, Any]) -> str:
             lines.append(f"uncovered  {entry['skill']}")
             continue
         mix = ", ".join(f"{entry['tags'][tag]} {tag}" for tag in TAGS)
+        design = ", ".join(f"{count} {tag}" for tag, count in entry["design_tags"].items() if count)
+        mix = f"{mix}; design: {design}" if design else mix
         minimums = "meets" if entry["meets_new_skill_minimums"] else "below"
         lines.append(f"covered    {entry['skill']}: {entry['scenarios']} scenarios ({mix}); {minimums} new-skill minimums")
     return "\n".join(lines)

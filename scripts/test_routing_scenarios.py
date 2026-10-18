@@ -93,6 +93,13 @@ class RoutingScenarioTests(unittest.TestCase):
         self.assertRejects(GOOD.replace("[positive]", "[bogus]"), "unknown tag 'bogus'")
         self.assertRejects(GOOD.replace("[positive]", "[]"), "tags must be")
 
+    def test_design_tags_follow_exactly_one_kind_tag(self) -> None:
+        self.assertEqual(self.validate(GOOD.replace("[positive]", "[positive, symptom-only]")), [])
+        self.assertEqual(self.validate(GOOD.replace("[positive]", "[positive, symptom-only, name-lure]")), [])
+        self.assertRejects(GOOD.replace("[positive]", "[symptom-only]"), "exactly one kind tag")
+        self.assertRejects(GOOD.replace("[positive]", "[name-lure, positive]"), "listed first")
+        self.assertRejects(GOOD.replace("[positive]", "[positive, sibling]"), "exactly one kind tag")
+
     def test_bad_id_and_prompt(self) -> None:
         self.assertRejects(GOOD.replace("alpha-positive-1", "Bad_ID"), "kebab-case")
         self.assertRejects(GOOD.replace("Do the alpha thing.", "'  '"), "prompt must be")
