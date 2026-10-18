@@ -1,122 +1,147 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-api-publish
 scenarios:
   - id: konnect-api-publish-positive-1
-    prompt: "The Loyalty API is fully set up in Konnect with a spec and versions, but our external developer portal still doesn't list it. What's missing between the API and the portal?"
+    prompt: "Partners tell me Refunds isn't on our developer site. Internally it's live and traffic flows through the gateway fine. Where along the way does it drop off before reaching them?"
     expect: [konnect-api-publish]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-api-publish-positive-2
-    prompt: "partners can't see the shipping api on the dev portal. internal folks can. same portal? not sure. help"
+    prompt: "Our portal admins can see the Claims reference page, but external developers browsing the same portal don't see it at all. Nothing else is different that I know of."
     expect: [konnect-api-publish]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
   - id: konnect-api-publish-positive-3
-    prompt: "My manager says 'just publish the Claims API'. The gateway route works fine in prod. What actually has to happen in Konnect for developers to find it, and in what order should I check things?"
+    prompt: "We run two developer sites in the same Kong org, one internal and one for partners. Inventory is listed on the internal one but not the partner one. Did it just get attached to the wrong site?"
     expect: [konnect-api-publish]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-api-publish-positive-4
-    prompt: "We have two Konnect portals, one for partners and one for the public. The Inventory API shows up on the public one, which it absolutely should not, and is missing from the partner one. How do I trace where it got attached?"
+    prompt: "search on our dev site doesn't find Payments at all, but if I paste the direct link the page loads fine. what's going on there?"
+    expect: [konnect-api-publish]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only]
+  - id: konnect-api-publish-positive-5
+    prompt: "Konnect: I published the Loyalty API yesterday but it's not showing up on the portal. Walk me through what to check."
     expect: [konnect-api-publish]
     forbid: []
     trials: 3
     tags: [positive]
-  - id: konnect-api-publish-positive-5
-    prompt: "A teammate claims the Quotes API went live on the portal last week, but when I log in as a test developer I don't see it in the list at all. How do I prove whether it was ever pushed to that portal?"
+  - id: konnect-api-publish-positive-6
+    prompt: "Product thinks this is a portal page design bug: the Fleet card never appears in the portal's list at all, although Fleet exists in Konnect with a spec and a version. Before anyone touches the layout, where should I look?"
+    expect: [konnect-api-publish]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: konnect-api-publish-positive-7
+    prompt: "ok long story. we created the Inventory API months ago, added v1 and v2, spec uploaded, linked to the service in prod-cp. product launched the new partner portal last week and inventory is just... not there. the old portal still has it. devs keep pinging me. I don't want to touch app registration until I know it's actually visible where it should be."
     expect: [konnect-api-publish]
     forbid: []
     trials: 3
     tags: [positive]
   - id: konnect-api-publish-near-miss-1
-    prompt: "Publish our TypeScript SDK to npm with provenance from a GitHub Actions release job."
+    prompt: "Publish our TypeScript SDK to npm with provenance from a GitHub Action whenever we push a version tag."
     expect: []
     forbid: [konnect-api-publish]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-api-publish-near-miss-2
-    prompt: "Developers can find the Orders API on our Konnect portal, but when they create an application the key auth credential never gets issued. What's blocking credentials?"
-    expect: []
+    prompt: "Orders is visible on the portal and developers can find it, but when they hit Register they sit at 'pending' forever and nobody on our side gets an approval request."
+    expect: [konnect-app-auth]
     forbid: [konnect-api-publish]
     trials: 3
     tags: [near-miss]
   - id: konnect-api-publish-near-miss-3
-    prompt: "Make our portal's API pages use the brand teal for headings and buttons, matching the style guide PDF from design."
-    expect: []
+    prompt: "The API is published and shows on the portal. Developers get a key, but every call they make returns 401 from the gateway. Which part of the auth setup is wrong?"
+    expect: [konnect-app-auth]
     forbid: [konnect-api-publish]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-api-publish-near-miss-4
-    prompt: "Our SwaggerHub instance shows an old version of the docs after we pushed a new definition. How do I force it to refresh?"
-    expect: []
+    prompt: "Before we publish anything: should Fleet v2 be a new version on the existing API or its own API? The owning team and the signup flow both change in v2."
+    expect: [konnect-api-catalog]
     forbid: [konnect-api-publish]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-api-publish-near-miss-5
-    prompt: "Should the v2 of our tracking API be a new Konnect API object or a version of the existing one? We haven't exposed either to developers yet."
-    expect: []
+    prompt: "Nothing is going live yet. The Claims spec has a dozen validation warnings, and a few doc pages under it have the wrong parent and slug. Is that source good enough, or do we fix it first?"
+    expect: [konnect-api-catalog]
     forbid: [konnect-api-publish]
     trials: 3
     tags: [near-miss]
+  - id: konnect-api-publish-near-miss-6
+    prompt: "The Payments guide is published on our portal, but the hero and the card grid overflow on phones and the buttons touch. Fix the layout."
+    expect: [portal-page-design]
+    forbid: [konnect-api-publish]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: konnect-api-publish-near-miss-7
+    prompt: "In Konnect I get a 403 when I open the list of published APIs, but teammates in the same org see it fine. I think my team membership changed last week."
+    expect: [konnect-access-scope]
+    forbid: [konnect-api-publish]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: konnect-api-publish-sibling-1
-    prompt: "our konnect stuff is broken since friday's release, portal and staging gateway both weird. help me triage"
+    prompt: "Our developer program is a mess: some specs look outdated, approvals stall, and one gateway keeps timing out. I can't tell which part is broken first."
     expect: [konnect-platform-router]
     forbid: [konnect-api-publish]
     trials: 1
     tags: [sibling]
   - id: konnect-api-publish-sibling-2
-    prompt: "Developer onboarding on Konnect is broken in some way: people either can't find APIs, can't sign in, or can't get keys, depending on who you ask. Help me figure out which part of the platform owns this before we chase it."
+    prompt: "Something is off across our Konnect org: one partner can't get credentials, another says requests time out, and a third team lost access to its control plane. Who owns which piece?"
     expect: [konnect-platform-router]
     forbid: [konnect-api-publish]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-publish-sibling-3
-    prompt: "Give me the kongctl command that lists the portals in our org as JSON, read only. I just want to see their names and IDs."
+    prompt: "Give me the exact kongctl command to list which portals the Ledger API is published to, with JSON output. Read-only, I'm not changing anything."
     expect: [kongctl-query]
     forbid: [konnect-api-publish]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-publish-sibling-4
-    prompt: "What's the kongctl path to list the publications under one specific portal? I keep getting unknown command for the nested form."
+    prompt: "What kongctl get command shows every portal in the org and the APIs attached to each, as a table? Just reading."
     expect: [kongctl-query]
     forbid: [konnect-api-publish]
     trials: 1
     tags: [sibling]
   - id: konnect-api-publish-sibling-5
-    prompt: "Add a publication of the Payments API to the partner portal in our kongctl YAML and show the plan before applying."
+    prompt: "We already know the fix: Ledger needs to go on the partner portal. Add that to our kongctl YAML and run plan so I can review it."
     expect: [kongctl-declarative]
     forbid: [konnect-api-publish]
     trials: 1
     tags: [sibling]
   - id: konnect-api-publish-sibling-6
-    prompt: "Our kongctl portal manifests point at spec files with !file, and the plan fails with a path outside the base dir. Fix the layout so the plan resolves."
+    prompt: "In our konnect/ folder with _defaults.kongctl, change the Fleet API's publication visibility to public and show me the diff before apply."
     expect: [kongctl-declarative]
     forbid: [konnect-api-publish]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-publish-sibling-7
-    prompt: "Our portals and API publications are defined in HCL with the kong/konnect provider. Add a publication of the Fleet API to the developer portal and run terraform plan."
+    prompt: "Our portals are in Terraform with the konnect provider. Add the resource that puts Ledger on the partner portal and run terraform plan."
     expect: [terraform-konnect]
     forbid: [konnect-api-publish]
     trials: 1
     tags: [sibling]
   - id: konnect-api-publish-sibling-8
-    prompt: "Terraform plan wants to destroy and recreate our portal resource after a provider upgrade. Help me read the plan and keep the existing portal."
+    prompt: "Someone published Weather to the internal portal by hand. Import that publication into our TF state so the next apply stops trying to recreate it."
     expect: [terraform-konnect]
     forbid: [konnect-api-publish]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-api-publish-sibling-9
-    prompt: "The API page on the portal is fine, but the route behind it was never added to our decK state file for that control plane. Add the route and validate the file."
+    prompt: "Portal side is fine. The problem is the gateway Service behind Ledger in our kong.yaml still points at a retired host. Update it and run deck gateway diff."
     expect: [deck-gateway]
     forbid: [konnect-api-publish]
     trials: 1
     tags: [sibling]
   - id: konnect-api-publish-sibling-10
-    prompt: "Dump the services and routes from the staging control plane with deck so I can compare them to what's committed, scoped to the tag team-catalog."
+    prompt: "The /ledger route is missing from our decK state file. Add it to the Ledger service with strip_path off, then diff against the control plane."
     expect: [deck-gateway]
     forbid: [konnect-api-publish]
     trials: 1
