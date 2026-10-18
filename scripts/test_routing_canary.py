@@ -162,11 +162,11 @@ class CliTests(unittest.TestCase):
         self.assertEqual(doc["settings"]["claude"]["model"]["source"], "default")
         self.assertFalse(doc["overridden"])
 
-    def test_missed_exits_one_and_prints_the_name_driven_note(self) -> None:
+    def test_missed_exits_one_and_prints_the_listing_note(self) -> None:
         code, out, _ = self.main(SKILL, "--agent", "claude", fake={})
         self.assertEqual(code, 1)
         self.assertIn("canary_missed", out)
-        self.assertIn("name-driven-routing limitation", out)
+        self.assertIn("descriptions were hidden from the model", out)
 
     def test_unknown_skill_exits_two(self) -> None:
         code, _, err = self.main("no-such-skill", fake={})

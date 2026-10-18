@@ -239,10 +239,11 @@ Precedence is `fail_no_agents` > `fail` > `blocked_infra` > `pass_with_warnings`
 
 ### Merge gate workflow
 
-> **Known limitation:** the gate cannot reliably catch a description-only regression on a skill with a
-> descriptive name; routing is name-driven (see [Known limitation: routing is name-driven](#known-limitation-routing-is-name-driven)).
-> It did pass a skill whose description was replaced by marketing copy, and the real-name canary was
-> `canary_missed` 0/5.
+> **Known limitation:** until the explicit skills list fix, the harness hid every skill description from
+> the model, so the gate's ability to catch description-only regressions is **unverified**: the earlier
+> pass of a marketing-copy description and `canary_missed` 0/5 were measured on names alone (see
+> [Known limitation: descriptions were hidden from the model](#known-limitation-descriptions-were-hidden-from-the-model)).
+> Re-run the canary and ablation before trusting it.
 
 `.github/workflows/skill-evals.yml` is separate from `validate.yml`. It has no `paths:` filter, so
 its check reports on every pull request and queue entry; the `select` job decides relevance from
@@ -378,25 +379,57 @@ The repo cannot do these itself; until they are done the workflow is advisory an
 8. `release.yml` does not push to `main` (it creates a tag and release with the GitHub App token), so
    the ruleset needs no bypass for it, unless tag rules are added.
 
-### Known limitation: routing is name-driven
+### Listing budget finding
 
-The agentic routing eval does **not** reliably detect a description-only regression on a skill with a
-descriptive name. A descriptive skill name (`konnect-gateway-triage`) lets an agent route without
-reading the description. Live evidence: a merge-queue run passed the gate for a PR that rewrote a skill's
-description into off-domain marketing copy (29 trials, all passing); the canary with real names on
-`konnect-gateway-triage` was `canary_missed` (all five positives still routed by name); and with every
-description removed (the `name-only` listing preset) all 43 scenarios of that skill still passed. Treat a
-passing gate as evidence about routing behavior with the current names, not as proof the descriptions
-are good; review description changes by hand. Two tools address this: the free
-[description-routing check](#description-routing-check) runs in lint and catches gross description
-damage and near-duplicate descriptions without a model, and the name-only ablation shows which
-scenarios depend on the description at all.
+The listing probe ([Listing probe](#listing-probe-diagnosis)), run on GitHub with `listing=default` and
+`listing=name-only`, showed that Claude saw our 22 project skills by **name only** (`<name> | NAME ONLY` for
+each) while the roughly 12 skills bundled with Claude Code in that environment (`dataviz`, `update-config`,
+`code-review`, `simplify`, `loop`, `claude-api`, `run`, `init`, `security-review` and others) were shown
+**with** full descriptions.
+
+Cause, per the Claude Code docs ("Skill descriptions are cut short"): "The listing always contains every skill
+name, but if you have many skills, Claude Code drops some descriptions to fit the listing's character budget
+... The budget scales at 1% of the model's context window. When the listing overflows, Claude Code drops
+descriptions starting with the skills you invoke least." Our skills had never been invoked, so they lost
+their descriptions first, and the bundled skills kept theirs. The provider used `skills: 'all'`, which
+exposes every discovered skill, bundled ones included.
+
+Fix: `evals/promptfoo/claude.provider.js` now passes `skills: [<every directory in
+<workspace>/.claude/skills>]` (sorted, read at config load; an empty or unreadable workspace fails with an
+error). The Agent SDK docs state "The model doesn't see unlisted skills and the Skill tool rejects them", so
+only the workspace's skills compete for the listing budget. Everything else is unchanged (model,
+`setting_sources: ['project']`, tool restrictions, permission mode, turns, budgets, hooks), and the
+`name-only` preset still works: `skillOverrides` lives in the workspace's project settings and is
+independent of the `skills` list. Every result, summary, comparison, canary, ablation and probe document and
+the console line record `exposed_skills` (`{count, fingerprint}` of the listed names; `null` for Codex), so a
+run shows how many skills the model could see.
+
+Consequence: every earlier name-versus-description conclusion is **superseded**. The name-only listing
+preset, the wide-budget preset, the destroyed-description canary (`canary_missed`) and the ablation results
+(93-100% `name_solvable`) all measured a regime in which no description reached the model. They show that
+routing by name works; they say nothing about whether descriptions matter. Re-run the probe, the canary and
+the ablation after this fix (below, and [Canary](#canary-eval-of-the-eval)).
+
+Codex has its own listing budget ("2% of context with descriptions shortened first", learn.chatgpt.com/docs/build-skills)
+and is unchanged here: it has not been probed, so whether Codex sees our descriptions is unknown.
+
+### Known limitation: descriptions were hidden from the model
+
+Until the [listing budget finding](#listing-budget-finding) was fixed, the routing eval could not be shown
+to detect a description-only regression, and the earlier claim that "names carry routing and descriptions
+cannot be detected" is an **unverified artifact** of the harness hiding descriptions: a gate pass for a PR
+that rewrote `konnect-gateway-triage` into marketing copy (29 trials), the real-name canary (`canary_missed`
+0/5) and all 43 scenarios passing under `name-only` were measured with names only. After the fix the
+probe's expected verdict is `descriptions_visible`; the canary and the ablation must be re-run to learn
+whether the eval now notices description damage. Until then treat a passing gate as evidence about routing
+by name, and review description changes by hand. The free [description-routing check](#description-routing-check)
+runs in lint and catches gross description damage and near-duplicate descriptions without a model.
 
 Opaque skill aliases were tried to isolate descriptions and removed: with aliases the agent cannot
 connect a request to an opaque name, so Claude answers `NONE` without calling the Skill tool for every
 positive and sibling, even for the undamaged skill. That measures nothing about descriptions. The
 name-only listing preset (below) is the supported way to measure how much routing depends on
-descriptions.
+descriptions, once re-run with descriptions visible.
 
 ### Description-routing check
 
@@ -444,12 +477,13 @@ infra_error (it could be a lost Skill call). A present empty list is valid.
 
 ### Skill listing presets (experiment)
 
-Claude is shown each skill's name and description up front. The `name-only` preset lists names without
-descriptions, to measure how much routing depends on the descriptions: a scenario that still passes
-under `name-only` says nothing about description quality. A wider listing budget (every description
-listed in full) was tried and changed nothing, so the listing budget is not the cause of name-driven
-routing and that preset was removed. The preset is for diagnosis, not the gate: off by default, Claude
-only, and never read in `merge_group` or `pull_request` runs.
+Claude is shown each skill's name and, budget permitting, its description up front; the provider
+exposes only the workspace's skills so the listing budget is theirs alone ([Listing budget finding](#listing-budget-finding)).
+The `name-only` preset lists names without descriptions, to measure how much routing depends on the
+descriptions: a scenario that still passes under `name-only` says nothing about description quality. The
+earlier wide-budget experiment ("no change") ran while descriptions were hidden and is superseded. The
+preset is for diagnosis, not the gate: off by default, Claude only, and never read in `merge_group` or
+`pull_request` runs.
 
 | `ROUTING_SKILL_LISTING` | Written to `<workspace>/.claude/settings.json` |
 | --- | --- |
@@ -504,18 +538,19 @@ In CI `canary_missed` and `canary_incomplete` fail the evaluate job; the canary 
 the damaged workspace's fingerprint, usage) and the measured cost is printed. A canary costs one trial
 per positive scenario per agent (about $0.33 for five on Claude at the measured price).
 
-Run it after changing models, pins or the harness, and after enabling the gate. The canary always uses
-real skill names, so `canary_missed` is expected for skills with descriptive names: it is the known
-name-driven-routing limitation, and the output says so. The canary counts an assertion failure
+Run it after changing models, pins or the harness, and after enabling the gate. Every `canary_missed`
+recorded before the explicit skills list fix was measured while the harness hid descriptions from the model,
+so it is an unverified artifact: **re-run the canary** and read a miss as a real blind spot only when the
+probe verdict is `descriptions_visible` and `exposed_skills` shows the workspace's skills. The canary counts an assertion failure
 (including a `NONE` answer) as failed to route. Offline tests drive the same code with fake results
 (`--fake-results`).
 
 ### Scenario design: description-dependence
 
 A scenario that passes with **no descriptions at all** says nothing about descriptions: the skill name
-alone was enough. On `konnect-gateway-triage` every scenario passed with the `name-only` listing, so the
-scenarios, and the merge gate built on them, could not see a description regression. The ablation
-measures this for one skill instead of guessing:
+alone was enough. The earlier ablation results (93-100% `name_solvable`) were measured while the harness
+hid descriptions, so they are superseded: **re-run the ablation** after the explicit skills list fix. The
+ablation measures this for one skill instead of guessing:
 
 ```bash
 mise run eval:routing:ablation -- konnect-gateway-triage [--agent claude]
@@ -560,10 +595,9 @@ Design guidance (not enforced; the ablation reports, it does not gate):
 
 The routing evals never verified what the model is actually shown: whether the skill **descriptions**
 reach it (or only the names), and whether the workspace `.claude/settings.json` of a
-[skill-listing preset](#skill-listing-presets-experiment) is honoured by the SDK run. Several experiments
-(marketing-copy descriptions still routing, name-only and default both passing, descriptions removed with
-most scenarios still passing) point to the hypothesis that the harness shows names only. The probe asks the
-same configured Claude directly:
+[skill-listing preset](#skill-listing-presets-experiment) is honoured by the SDK run. It found that the
+harness showed names only for our skills ([Listing budget finding](#listing-budget-finding)). The probe asks
+the same configured Claude directly:
 
 ```bash
 mise run eval:routing:probe -- --listing default       # about $0.1, Claude only
@@ -590,6 +624,15 @@ requested, model and effort, the raw model output and the response metadata):
 | `partial` | between 10% and 90% do |
 | `names_only` | under 10% do: the model sees the names and (almost) no descriptions |
 | `inconclusive` | the reply listed none of the skills (exit 3): repeat it |
+
+**Expected verdict after the explicit skills list fix: `descriptions_visible`** for `listing=default`, and
+`names_only` for `listing=name-only`. The probe also checks the model's view for leaks: every listed skill
+that is not in the workspace (bundled Claude Code or user skills) is counted (`counts.leaked`,
+`leaked_skills`), flagged `scope: leaking` and shown as `[LEAK: n listed skill(s) ...]` in the verdict line
+and summary. A leak does not change the verdict; it means other skills share the listing budget again (the list is the model's own report, so an invented name also shows up as a leak: repeat the run before acting). The
+document and console also show `exposed_skills`, the count and fingerprint of the explicit list the model
+was given. Codex has not been probed (it has its own listing budget, 2% of context with descriptions
+shortened first, learn.chatgpt.com/docs/build-skills).
 
 The probe cannot by itself prove that the settings were honoured: it only shows what the model reports
 seeing. Run both listings and `--compare` them: if default and name-only show the same descriptions,

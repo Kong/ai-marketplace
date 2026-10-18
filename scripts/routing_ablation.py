@@ -159,7 +159,7 @@ def run_ablation(
         "listings": {
             name: {
                 "state": r["state"], "complete": r["complete"], "reason": r["reason"] if not r["complete"] else None,
-                "fingerprint": r.get("fingerprint"), "usage": r["usage"],
+                "fingerprint": r.get("fingerprint"), "exposed_skills": r.get("exposed_skills"), "usage": r["usage"],
             }
             for name, r in by_listing.items()
         },

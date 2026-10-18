@@ -134,6 +134,8 @@ class ControlWorkspaceTests(ThrowawayRepo):
         self.assertEqual(lazy["fingerprints"], {"candidate": doc["fingerprint"], "control": None})
         both = compare.compare_agent(doc, doc)
         self.assertEqual(both["fingerprints"]["control"], doc["fingerprint"])
+        self.assertEqual(both["exposed_skills"], {"candidate": None, "control": None})  # codex has no explicit list
+        self.assertEqual(lazy["exposed_skills"], {"candidate": None, "control": None})
 
     def test_a_stale_reused_workspace_is_refused(self) -> None:
         root = self.repo / ".tmp" / "routing"

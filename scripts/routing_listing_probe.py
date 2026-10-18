@@ -20,6 +20,14 @@ description matches (similarity >= MATCH_THRESHOLD):
     names_only            < 10%
     inconclusive          the reply listed none of the workspace skills (refusal or unparseable): no verdict
 
+Claude's provider passes the workspace skill names as an explicit `skills` list (claude.provider.js), so the
+model should see only workspace skills, with descriptions: the expected verdict is descriptions_visible. Any
+listed skill that is not in the workspace (bundled Claude Code skills, user skills) is a leak: it is counted
+(`counts.leaked`, `leaked_skills`), flagged `scope: leaking` and shown in the verdict line. A leak does not change
+the verdict, but it means those skills share the listing budget and the description-visibility result may be
+the budget's doing. Before the explicit list the probe showed NAME ONLY for every workspace skill next to
+described bundled skills (docs/testing.md, "Listing budget finding").
+
 `--listing` defaults to ROUTING_SKILL_LISTING. The report `.tmp/routing/reports/probe-<listing>.json` holds the
 verdict, counts, per-skill rows, workspace fingerprint, the settings that were REQUESTED (the settings.json
 written), the provider model and effort, the raw model output and the response metadata.
@@ -62,6 +70,7 @@ PROMPT = (
 )
 
 DESCRIPTIONS_VISIBLE, PARTIAL, NAMES_ONLY, INCONCLUSIVE = "descriptions_visible", "partial", "names_only", "inconclusive"
+WORKSPACE_ONLY, LEAKING = "workspace_only", "leaking"  # whether the model's listing held skills outside the workspace
 VISIBLE_SHARE, NAMES_ONLY_SHARE = 0.9, 0.1
 PARTLY_HONOURED_DROP = 0.25  # share of skills by which name-only must lower the matching count to count as an effect (run-to-run noise is below it)
 MATCH_THRESHOLD = 0.85  # similarity at which a shown description counts as the real one
@@ -148,7 +157,7 @@ def judge(real: dict[str, str], parsed: dict[str, Any]) -> dict[str, Any]:
     counts = {
         "skills": total, "listed": sum(r["listed"] for r in rows),
         "description_shown": sum(r["description_shown"] for r in rows), "matching": sum(r["matches"] for r in rows),
-        "unknown": len(parsed["unknown"]), "ignored_lines": parsed["ignored"],
+        "unknown": len(parsed["unknown"]), "leaked": len(parsed["unknown"]), "ignored_lines": parsed["ignored"],
     }
     share = counts["matching"] / total if total else 0.0
     if not counts["listed"]:
@@ -159,7 +168,10 @@ def judge(real: dict[str, str], parsed: dict[str, Any]) -> dict[str, Any]:
         verdict = NAMES_ONLY
     else:
         verdict = PARTIAL
-    return {"verdict": verdict, "matching_share": round(share, 3), "counts": counts, "skills": rows, "unknown_listed": parsed["unknown"]}
+    return {
+        "verdict": verdict, "matching_share": round(share, 3), "counts": counts, "skills": rows, "unknown_listed": parsed["unknown"],
+        "leaked_skills": list(parsed["unknown"]), "scope": LEAKING if parsed["unknown"] else WORKSPACE_ONLY,
+    }
 
 
 def compare(default: dict[str, Any], name_only: dict[str, Any]) -> dict[str, Any]:
@@ -240,6 +252,7 @@ def run_probe(
     return {
         "mode": "probe", "agent": AGENT, "listing": listing, "fingerprint": workspace.fingerprint,
         "complete": complete, "reason": reason, "exit_code": EXIT_OK if complete else EXIT_INCOMPLETE, **body,
+        "exposed_skills": workspaces.exposed_skills(AGENT, real),
         "settings_requested": {"file": str(listing_presets.SETTINGS_FILE) if requested is not None else None, "content": requested},
         "provider": {"model": settings[AGENT]["model"]["value"], "effort": settings[AGENT]["effort"]["value"], "overridden": settings[AGENT]["overridden"]} if settings else {},
         "prompt": PROMPT, "raw_output": output, "response": detail, "usage": usage, "offline": fake_output is not None,
@@ -251,7 +264,9 @@ def render(doc: dict[str, Any]) -> list[str]:
     c = doc["counts"]
     lines = [
         f"listing probe ({doc['agent']}, listing={doc['listing']}, fingerprint {doc['fingerprint']}): {doc['verdict']}"
-        f"{'' if doc['complete'] else ' [INCOMPLETE: ' + str(doc['reason']) + ']'}",
+        f"{'' if doc['complete'] else ' [INCOMPLETE: ' + str(doc['reason']) + ']'}"
+        f"{' [LEAK: ' + str(c['leaked']) + ' listed skill(s) not in the workspace: ' + ', '.join(doc.get('leaked_skills') or []) + ']' if doc.get('leaked_skills') else ''}",
+        f"exposed skills (explicit list given to the model): {workspaces.describe_exposure(doc.get('exposed_skills'))}",
         f"{c['matching']}/{c['skills']} skills show a matching description; {c['description_shown']} show any description; "
         f"{c['listed']} listed; {c['unknown']} unknown names; {c['ignored_lines']} ignored lines",
         "",

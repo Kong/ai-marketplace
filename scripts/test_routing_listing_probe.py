@@ -100,6 +100,12 @@ class JudgeTests(unittest.TestCase):
         self.assertEqual(self.verdict(real, 18)["verdict"], "descriptions_visible")  # exactly 90%
         self.assertEqual(self.verdict(real, 17)["verdict"], "partial")
 
+    def test_judge_flags_leaked_skills(self) -> None:
+        real = self.real(2)
+        parsed = {"listed": dict(real), "unknown": ["dataviz"], "ignored": 0}
+        doc = probe.judge(real, parsed)
+        self.assertEqual((doc["verdict"], doc["scope"], doc["leaked_skills"], doc["counts"]["leaked"]), ("descriptions_visible", "leaking", ["dataviz"], 1))
+
     def test_unlisted_skills_count_against_the_share_and_nothing_listed_is_inconclusive(self) -> None:
         real = self.real(10)
         self.assertEqual(self.verdict(real, 5, listed=5)["verdict"], "partial")
@@ -181,6 +187,22 @@ class RunProbeTests(unittest.TestCase):
         self.assertEqual(sorted(r["skill"] for r in doc["skills"]), sorted(self.descriptions))
         self.assertEqual(doc["counts"]["skills"], len(self.descriptions))
         json.dumps(doc)  # serialisable
+
+    def test_workspace_only_listing_is_not_flagged_and_records_the_exposed_skills(self) -> None:
+        doc = probe.run_probe("default", fake_output=self.output(), routing_dir=self.dir)
+        self.assertEqual((doc["scope"], doc["leaked_skills"], doc["counts"]["leaked"]), ("workspace_only", [], 0))
+        self.assertEqual(doc["exposed_skills"]["count"], len(self.descriptions))
+        self.assertRegex(doc["exposed_skills"]["fingerprint"], r"^[0-9a-f]{12}$")
+        self.assertNotIn("LEAK", "\n".join(probe.render(doc)))
+
+    def test_bundled_skills_in_the_listing_are_flagged_as_leaks_without_changing_the_verdict(self) -> None:
+        output = self.output() + "\ndataviz | Use whenever you create a chart\nupdate-config | Configure the harness"
+        doc = probe.run_probe("default", fake_output=output, routing_dir=self.dir)
+        self.assertEqual(doc["verdict"], "descriptions_visible")
+        self.assertEqual((doc["scope"], doc["leaked_skills"], doc["counts"]["leaked"]), ("leaking", ["dataviz", "update-config"], 2))
+        text = "\n".join(probe.render(doc))
+        self.assertIn("[LEAK: 2 listed skill(s) not in the workspace: dataviz, update-config]", text)
+        self.assertIn("exposed skills", text)
 
     def test_name_only_listing_records_the_settings_written_into_the_workspace(self) -> None:
         doc = probe.run_probe("name-only", fake_output=self.output(show=0), routing_dir=self.dir)

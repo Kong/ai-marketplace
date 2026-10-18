@@ -111,7 +111,7 @@ def evaluate_variant(
             workspace = workspaces.prepare_workspace(root / agent, agent, ref, description_overrides=description_overrides, listing=listing)
         else:
             workspace = workspaces.verify_workspace(root / agent, agent, ref, description_overrides=description_overrides, listing=listing)
-        print(f"{agent} {variant}: workspace listing={workspace.listing} fingerprint={workspace.fingerprint}")
+        print(f"{agent} {variant}: workspace listing={workspace.listing} fingerprint={workspace.fingerprint} exposed_skills={workspaces.describe_exposure(workspaces.exposed_skills(agent, workspace.names))}")
     ledger = ledger or ceilings.Ledger(ceilings.Ceilings.from_env())
     env = {"ROUTING_WORKSPACE_ROOT": str(root)}
     if scenario_ids:

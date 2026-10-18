@@ -27,7 +27,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Iterable, Mapping
 
 import check_repo
 import routing_listing as listing_presets
@@ -93,6 +93,22 @@ def fingerprint_of(descriptions: Mapping[str, str]) -> str:
     for name in sorted(descriptions):
         digest.update(f"{name}\0{descriptions[name]}\n".encode("utf-8"))
     return digest.hexdigest()[:12]
+
+
+def exposed_skills(agent: str, names: Iterable[str]) -> dict[str, Any] | None:
+    """What the model can see: {"count", "fingerprint"} of the skill names Claude's provider allows, None for Codex.
+
+    Claude's provider config passes the workspace's skill directory names as an explicit `skills` list
+    (evals/promptfoo/claude.provider.js), so bundled skills stay out of the listing budget. Codex has no such control.
+    """
+    if agent != "claude":
+        return None
+    ordered = sorted(names)
+    return {"count": len(ordered), "fingerprint": hashlib.sha256("\0".join(ordered).encode("utf-8")).hexdigest()[:12]}
+
+
+def describe_exposure(exposed: Mapping[str, Any] | None) -> str:
+    return f"{exposed['count']}:{exposed['fingerprint']}" if exposed else "-"
 
 
 def skills_root_of(out: Path, agent: str) -> Path:

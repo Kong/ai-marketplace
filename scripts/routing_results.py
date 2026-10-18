@@ -34,6 +34,9 @@ Agent result document (`reduce_agent` / `agent_failure`)
       "agents_run": [...], "partial": bool,   # run scripts add these; partial = fewer than all agents ran
       "listing": str,                # skill-listing preset of the workspace: default|name-only (routing_listing.py)
       "fingerprint": str | None,     # hash of every description in the workspace (run scripts add it)
+      "exposed_skills": {"count", "fingerprint"} | None,
+                                     # skills the model could see: Claude gets the workspace skill names as an explicit
+                                     # `skills` list (count + hash of the names); None for Codex, which has no such control
       "overridden": bool,            # any ROUTING_*_MODEL / _EFFORT override was active
                                      # (settings/overridden are added by the run scripts, not reduce_agent)
       "counts": {"pass": n, "routing_fail": n, "infra_error": n},   # final trials
