@@ -408,21 +408,22 @@ prompt in `evals/routing/`. For each skill, over the positive and sibling scenar
 reports **hit@1** and **hit@3**: the share where that skill ranks first or in the top three. It also
 compares every pair of descriptions.
 
-| Result | Rule | Measured on the 22-skill corpus (330 expected-skill rows) |
+| Result | Rule | Measured on the 22-skill corpus after the symptom-only / name-lure rewrite (397 expected-skill rows) |
 | --- | --- | --- |
 | error: collision | two descriptions with cosine similarity >= 0.70 | highest pair 0.51 (`konnect-api-catalog` / `konnect-api-publish`) |
-| error: collapse | a skill (at least 5 scenarios) with hit@3 < 20%, about chance (3 of 22 is 14%) | lowest 38% (`konnect-platform-router`) |
-| error: collapse | corpus hit@3 < 55% | 78% (hit@1 52%) |
-| warning: weak | a skill with hit@3 < 50%, named in the output | only `konnect-platform-router` (38%, a router is vague by design) |
+| error: collapse | a skill (at least 5 scenarios) with hit@3 < 20%, about chance (3 of 22 is 14%) | lowest 33% (`konnect-observability-triage`) |
+| error: collapse | corpus hit@3 < 55% | 74% (hit@1 47%) |
+| warning: weak | a skill with hit@3 < 50%, named in the output | `konnect-observability-triage` (33%) and `konnect-platform-router` (46%; a router is vague by design) |
 
 Thresholds are constants at the top of the script, set from those numbers with margin and pinned by a
-test that fails if the margin shrinks. The signal is real but weak: scenario prompts deliberately avoid
-the descriptions' wording (no shared 4-grams), so overlap is a coarse proxy, hit@1 per skill ranges from
-19% to 100%, and per-skill hit@3 from 38% to 100% (median 89%). That is why a weak skill only warns and
-only a collapse to chance errors. The test suite proves the separation on the real corpus: replacing
+test that fails if the margin shrinks (0.10 above the collapse floor since the rewrite). The signal is
+real but weak, and it got weaker on purpose: the symptom-only and name-lure scenarios avoid the
+descriptions' wording (no shared 4-grams), so overlap is a coarse proxy. Per-skill hit@1 ranges from 17%
+to 80% and per-skill hit@3 from 33% to 100% (median 73%). That is why a weak skill only warns and only a
+collapse to chance errors. The test suite proves the separation on the real corpus: replacing
 `konnect-gateway-triage`'s description with the canary's brand-voice marketing copy drops its hit@3
-from 77% to 8% and fails the check, while the real description passes. Sibling-owner-outranks-target
-(73%) and near-miss-leak (19%) rates are printed as informational only; they are too noisy to gate
+from 72% to 6% and fails the check, while the real description passes. Sibling-owner-outranks-target
+(73%) and near-miss-leak (13%) rates are printed as informational only; they are too noisy to gate
 because those prompts are lexically close to the target by design.
 
 Read it with `mise run eval:routing:descriptions -- --report` (or `python scripts/check_description_routing.py --report`):

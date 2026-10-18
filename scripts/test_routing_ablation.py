@@ -92,8 +92,9 @@ class OfflineRunTests(unittest.TestCase):
 
     def test_own_scenarios_cover_every_tag(self) -> None:
         tags = {t for s in self.rows for t in s["tags"]}
-        self.assertEqual(tags, {"positive", "near-miss", "sibling"})
-        self.assertTrue(all(s["id"].startswith("gateway-triage-") for s in self.rows))
+        self.assertTrue({"positive", "near-miss", "sibling"} <= tags)
+        self.assertTrue(tags <= {"positive", "near-miss", "sibling", "symptom-only", "name-lure"})
+        self.assertTrue(all(s["id"].startswith(f"{SKILL}-") for s in self.rows))
 
     def test_classification_end_to_end_with_fake_runner_results(self) -> None:
         dependent, failing = self.ids[0], self.ids[1]
