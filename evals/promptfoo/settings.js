@@ -25,10 +25,10 @@ const ENV = {
 };
 
 // Fixed discovery settings (never overridable): tool restrictions, sandbox, permissions, budget.
+// Claude's `skills` is not here: claude.provider.js sets it to the workspace's skill names.
 const FIXED = {
   claude: {
     setting_sources: ['project'],
-    skills: 'all',
     custom_allowed_tools: [],
     disallowed_tools: ['Bash', 'Edit', 'Write', 'Read', 'Grep', 'Glob', 'WebFetch', 'WebSearch', 'Task'],
     permission_mode: 'dontAsk',

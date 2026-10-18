@@ -42,6 +42,20 @@ class RoutingWorkspaceTests(WorkspaceCase):
             prep.prepare_workspace(prep.TMP_ROOT)
 
 
+class ExposedSkillsTests(unittest.TestCase):
+    def test_count_and_order_independent_fingerprint(self) -> None:
+        a = prep.exposed_skills("claude", ["b", "a"])
+        self.assertEqual(a, prep.exposed_skills("claude", ["a", "b"]))
+        self.assertEqual(a["count"], 2)
+        self.assertRegex(a["fingerprint"], r"^[0-9a-f]{12}$")
+        self.assertNotEqual(a["fingerprint"], prep.exposed_skills("claude", ["a", "c"])["fingerprint"])
+        self.assertEqual(prep.describe_exposure(a), f"2:{a['fingerprint']}")
+
+    def test_codex_has_no_explicit_list(self) -> None:
+        self.assertIsNone(prep.exposed_skills("codex", ["a"]))
+        self.assertEqual(prep.describe_exposure(None), "-")
+
+
 class FingerprintTests(WorkspaceCase):
     def test_fingerprint_changes_with_a_description(self) -> None:
         out = self.workspace_root("claude")

@@ -17,6 +17,7 @@ Comparison document (`compare_agent`, modified skill)
       "settings", "overridden",             # effective model/effort for both sides (same for candidate and control)
       "listing": str,                       # skill-listing preset of both workspaces (default|name-only)
       "fingerprints": {"candidate": str|None, "control": str|None},   # description hash of each workspace
+      "exposed_skills": {"candidate": {count, fingerprint}|None, "control": ...|None},   # skills the model could see (Claude)
       "usage_by_side": {"candidate": usage, "control": usage},
       "breaches": [...],                    # ceilings reached on either side; non-empty => infra_error
       "aggregate": {"candidate": side, "control": side, "delta": float|None},
@@ -44,6 +45,7 @@ Lazy comparison document (`lazy_compare`, the merge gate's modified-skill path; 
       "usage", "usage_by_phase": {"initial": usage, "confirmation": usage}, "breaches": [...],
       "settings", "overridden", "listing",
       "fingerprints": {"candidate": str|None, "control": str|None},   # control only when it ran
+      "exposed_skills": {"candidate": {count, fingerprint}|None, "control": ...|None},
       "failed": [ids],                      # failed the first pass
       "scenarios": [{"id", "candidate": side|None}],        # first-pass sides
       "confirmation": None | {"state": pass|routing_fail|infra_error, "complete": bool, "reason": str|None,
@@ -60,7 +62,7 @@ New-skill document (`evaluate_new_skill`, no control exists)
       "failure_kinds": [...], "reason": str|None,   # from the agent result, e.g. scenario_validation
       "usage": usage, "breaches": [...],            # from the agent result
       "settings", "overridden",                     # effective model/effort, as above
-      "listing", "fingerprint",                     # as in the agent result
+      "listing", "fingerprint", "exposed_skills",   # as in the agent result
       "expectations": {
         "positive_recall": check, "near_miss_specificity": check
       },
@@ -121,6 +123,7 @@ def compare_agent(candidate: dict[str, Any], control: dict[str, Any]) -> dict[st
         "mode": "comparison",
         "listing": candidate.get("listing", "default"),
         "fingerprints": {"candidate": candidate.get("fingerprint"), "control": control.get("fingerprint")},
+        "exposed_skills": {"candidate": candidate.get("exposed_skills"), "control": control.get("exposed_skills")},
         "state": results.INFRA_ERROR if breaches else candidate["state"],
         "complete": candidate["complete"] and control["complete"],
         "candidate_state": candidate["state"],
@@ -262,6 +265,10 @@ def lazy_compare(
             "candidate": initial.get("fingerprint"),
             "control": confirm_control.get("fingerprint") if confirm_control else None,
         },
+        "exposed_skills": {
+            "candidate": initial.get("exposed_skills"),
+            "control": confirm_control.get("exposed_skills") if confirm_control else None,
+        },
         "state": results.INFRA_ERROR if not complete else initial["state"],
         "complete": complete,
         "candidate_state": initial["state"],
@@ -312,6 +319,7 @@ def evaluate_new_skill(agent_result: dict[str, Any], tags: dict[str, list[str]])
         "control": "skipped",
         "listing": agent_result.get("listing", "default"),
         "fingerprint": agent_result.get("fingerprint"),
+        "exposed_skills": agent_result.get("exposed_skills"),
         "state": state,
         "complete": agent_result["complete"],
         "failure_kinds": agent_result["failure_kinds"],

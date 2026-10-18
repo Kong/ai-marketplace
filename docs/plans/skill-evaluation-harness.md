@@ -94,15 +94,24 @@ decisions behind them:
   blocks (`blocked_infra`); a re-run or admin override resolves it.
 - **Keys:** a missing key warns while any agent runs; no runnable agent fails the gate in the
   queue and manual runs.
-- **Description sensitivity (live finding, known limitation):** a PR that rewrote
+- **Listing budget finding (supersedes the next two bullets):** the listing probe showed the Claude
+  harness listed our 22 skills by name only while the skills bundled with Claude Code kept their
+  descriptions: the documented listing budget drops descriptions of the least-invoked skills first, and
+  `skills: 'all'` exposed the bundled skills too. Fixed by passing the workspace's skill names as an
+  explicit `skills` list (`claude.provider.js`; fails on an empty workspace); runs record `exposed_skills`
+  and the probe flags non-workspace skills. Every earlier name-versus-description result (canary, name-only
+  and wide-budget presets, ablation) measured names only and is unverified. **Open:** re-run the probe
+  (expect `descriptions_visible`), the canary and the ablation; Codex has its own listing budget (2% of
+  context, descriptions shortened first) and has not been probed. Details: docs/testing.md.
+- **Description sensitivity (live finding, superseded by the listing budget finding):** a PR that rewrote
   `konnect-gateway-triage`'s description into off-domain marketing copy passed the queue gate (29
   trials, all passing), because descriptive names let the agent route without the description; the
   canary with real names confirmed it (`canary_missed` 0/5), and with every description removed (the
   `name-only` listing preset) all 43 scenarios of that skill still passed. Description-only
   regressions on skills with descriptive names are **not** reliably detected by the agentic routing
   eval. Kept: every built workspace is verified against its source revision and fingerprinted, and the
-  canary (`mode: canary`, `mise run eval:routing:canary`), which notes `canary_missed` as this
-  limitation. The same runs exposed a reducer bug: Promptfoo copies an assertion failure into the
+  canary (`mode: canary`, `mise run eval:routing:canary`), whose `canary_missed` must be re-read after
+  the fix. The same runs exposed a reducer bug: Promptfoo copies an assertion failure into the
   row-level `error` (failureReason 1), which was misclassified as a provider `infra_error`; only
   `response.error` or failureReason 2 (or an error with no failureReason) is infrastructure now.
   Details: docs/testing.md.
@@ -113,7 +122,7 @@ decisions behind them:
   detected" reading was that suppression. An opaque name gives the agent nothing to route on, so the
   approach cannot separate description from name, and it was removed with its plumbing. A wider
   skill-listing budget (every description listed in full) was also tried and changed nothing, so the
-  listing budget is not the cause either; that preset was removed too. The `name-only` listing preset
+  listing budget is not the cause either (superseded: descriptions were hidden in that run); that preset was removed too. The `name-only` listing preset
   stays as the ablation (`mise run eval:routing:ablation`, workflow mode `ablation`): a skill's own
   scenarios run under the default and name-only listings and are classified `description_dependent`,
   `name_solvable` or `failing`. A free lexical check over descriptions (`scripts/check_description_routing.py`,

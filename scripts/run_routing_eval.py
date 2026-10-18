@@ -132,6 +132,7 @@ def evaluate_agent(
     def stamp(doc: dict[str, Any]) -> dict[str, Any]:
         doc["listing"] = workspace.listing if workspace else listing_presets.DEFAULT
         doc["fingerprint"] = workspace.fingerprint if workspace else None
+        doc["exposed_skills"] = workspaces.exposed_skills(agent, workspace.names) if workspace else None
         return doc
 
     if validation_errors:
@@ -191,7 +192,7 @@ def summarize(result: dict[str, Any]) -> str:
     usage = f" tokens={use['tokens']} cost=${use['cost_usd']:.4f} latency={use['latency_ms'] / 1000:.1f}s retries={result['retries']}"
     note = f" ({result['reason']})" if result["reason"] else ""
     config = f" {settings_lib.describe(result['settings'])}" if "settings" in result else ""
-    config += f" listing={result.get('listing', listing_presets.DEFAULT)} fingerprint={result.get('fingerprint') or '-'}"
+    config += f" listing={result.get('listing', listing_presets.DEFAULT)} fingerprint={result.get('fingerprint') or '-'} exposed_skills={workspaces.describe_exposure(result.get('exposed_skills'))}"
     return f"{result['agent']}: {result['state']}{'' if result['complete'] else ' [incomplete]'}{config} trials[{detail}] kinds={kinds}{usage}{note}"
 
 
@@ -257,7 +258,7 @@ def main(argv: list[str]) -> int:
         except (workspaces.WorkspaceIntegrityError, OSError, ValueError) as exc:
             print(f"ERROR: workspace_integrity: {exc}", file=sys.stderr)
             return HARNESS_ERROR
-        print(f"{agent}: workspace listing={built[agent].listing} fingerprint={built[agent].fingerprint}")
+        print(f"{agent}: workspace listing={built[agent].listing} fingerprint={built[agent].fingerprint} exposed_skills={workspaces.describe_exposure(workspaces.exposed_skills(agent, built[agent].names))}")
     outcomes = [evaluate_agent(agent, skill, ledger=ledger, workspace=built[agent]) for agent in agents]
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     for outcome in outcomes:

@@ -16,8 +16,9 @@ incomplete, else canary_detected. Exit codes: 0 detected, 1 missed, 2 harness or
 3 incomplete. It never feeds the merge gate; run it after changing models, pins or the harness, and
 after enabling the gate (docs/testing.md#canary-eval-of-the-eval).
 
-The canary always runs with real skill names, so a canary_missed is the known name-driven-routing
-limitation (a note is printed; see docs/testing.md). The result is written to
+Earlier canary_missed results were measured while the harness hid every description from the model (only
+names were listed), so they are an unverified artifact; re-run the canary after the explicit skills list
+fix (a note is printed; see docs/testing.md). The result is written to
 `.tmp/routing/reports/canary-<skill>.canary.json`, records `listing` (ROUTING_SKILL_LISTING preset,
 Claude only), the damaged workspace's fingerprint, usage and measured cost, and the measured cost is printed.
 
@@ -55,10 +56,10 @@ THRESHOLD_PERCENT = 60
 DETECTED, MISSED, INCOMPLETE = "canary_detected", "canary_missed", "canary_incomplete"
 EXIT_CODES = {DETECTED: 0, MISSED: 1, INCOMPLETE: 3}
 VARIANT = "canary"  # workspace and report directory label under .tmp/routing
-NAME_DRIVEN_NOTE = (
-    "note: canary_missed indicates the known name-driven-routing limitation: a descriptive "
-    "skill name carries routing, so the routing eval cannot detect description-only regressions "
-    "(docs/testing.md#known-limitation-routing-is-name-driven)."
+MISSED_NOTE = (
+    "note: canary_missed means the eval did not notice the destroyed description. Check the run's exposed_skills "
+    "and the listing probe verdict (descriptions_visible) first: earlier misses were measured while descriptions "
+    "were hidden from the model (docs/testing.md#known-limitation-descriptions-were-hidden-from-the-model)."
 )
 
 
@@ -86,7 +87,7 @@ def judge_agent(result: dict[str, Any], expected_ids: list[str]) -> dict[str, An
         "verdict": verdict, "positives": total, "failed": failed,
         "failed_percent": round(100 * len(failed) / total, 1) if total else None,
         "reason": result.get("reason") if verdict == INCOMPLETE else None,
-        "fingerprint": result.get("fingerprint"), "usage": result["usage"],
+        "fingerprint": result.get("fingerprint"), "exposed_skills": result.get("exposed_skills"), "usage": result["usage"],
     }
 
 
@@ -169,10 +170,10 @@ def render(doc: dict[str, Any]) -> list[str]:
     for agent, a in doc["agents"].items():
         lines.append(
             f"  {agent}: {a['verdict']} {len(a['failed'])}/{a['positives']} positive scenario(s) failed to route "
-            f"fingerprint={a['fingerprint'] or '-'}" + (f" ({a['reason']})" if a["reason"] else "")
+            f"fingerprint={a['fingerprint'] or '-'} exposed_skills={workspaces.describe_exposure(a.get('exposed_skills'))}" + (f" ({a['reason']})" if a["reason"] else "")
         )
     if doc["verdict"] == MISSED:
-        lines.append(NAME_DRIVEN_NOTE)
+        lines.append(MISSED_NOTE)
     use = doc["usage"]
     lines.append(f"measured cost: ${use['cost_usd']:.4f} ({use['trials']} trials, {use['tokens']} tokens)")
     return lines

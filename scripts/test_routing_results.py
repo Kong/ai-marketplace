@@ -298,6 +298,20 @@ class RetryTests(unittest.TestCase):
         plain = run.evaluate_agent("codex", "alpha", self.runner([row()]), self.dir)
         self.assertIsNone(plain["fingerprint"])
 
+    def test_exposed_skills_are_recorded_for_claude_only(self) -> None:
+        import prepare_routing_workspace as prep
+
+        ws = prep.Workspace(["beta", "alpha"], "abc123def456")
+        claude = run.evaluate_agent("claude", "alpha", self.runner([row()]), self.dir, workspace=ws)
+        self.assertEqual(claude["exposed_skills"], prep.exposed_skills("claude", ["alpha", "beta"]))
+        self.assertEqual(claude["exposed_skills"]["count"], 2)
+        self.assertIn(f"exposed_skills=2:{claude['exposed_skills']['fingerprint']}", run.summarize(claude))
+        failure = run.evaluate_agent("claude", "alpha", self.runner(None, None), self.dir, workspace=ws)
+        self.assertEqual(failure["exposed_skills"], claude["exposed_skills"])
+        for other in (run.evaluate_agent("codex", "alpha", self.runner([row()]), self.dir, workspace=ws), run.evaluate_agent("claude", "alpha", self.runner([row()]), self.dir)):
+            self.assertIsNone(other["exposed_skills"])
+        self.assertIn("exposed_skills=-", run.summarize(other))
+
     def test_retry_pattern_escapes_regex_metacharacters(self) -> None:
         desc = "s1 | codex | trial 1/3 | expect [a] forbid [b.c]"
         self.assertTrue(re.search(run.retry_pattern([desc]), desc))

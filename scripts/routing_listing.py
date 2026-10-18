@@ -3,8 +3,9 @@
 Opt-in and experimental, for diagnosis, never the gate. Claude is shown a listing of every skill's
 name and description (https://code.claude.com/docs/en/skills#skill-descriptions-are-cut-short). These
 presets run the same eval with a different listing, to measure how much routing depends on the
-descriptions (the name-only ablation, docs/testing.md); a raised listing budget was tried and is not the
-cause of name-driven routing:
+descriptions (the name-only ablation, docs/testing.md). The provider lists only the workspace's skills
+(explicit `skills` list), so bundled skills do not use the listing budget that decides whether descriptions
+are shown:
 
     default   no extra settings: current behaviour
     name-only every skill set to "name-only" through `skillOverrides`: names only, no descriptions
