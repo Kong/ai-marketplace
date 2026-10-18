@@ -1,0 +1,40 @@
+const test = require('node:test');
+const assert = require('node:assert');
+
+function load(name, env) {
+  const saved = { ...process.env };
+  Object.assign(process.env, env);
+  for (const module of ['./claude.config.js', './claude.probe.config.js', './claude.provider.js']) delete require.cache[require.resolve(module)];
+  try {
+    return require(name);
+  } finally {
+    for (const key of Object.keys(env)) delete process.env[key];
+    Object.assign(process.env, saved);
+    for (const module of ['./claude.config.js', './claude.probe.config.js', './claude.provider.js']) delete require.cache[require.resolve(module)];
+  }
+}
+
+test('requires the probe prompt', () => {
+  const saved = process.env.ROUTING_PROBE_PROMPT;
+  delete process.env.ROUTING_PROBE_PROMPT;
+  try {
+    assert.throws(() => load('./claude.probe.config.js', {}), /ROUTING_PROBE_PROMPT is required/);
+  } finally {
+    if (saved !== undefined) process.env.ROUTING_PROBE_PROMPT = saved;
+  }
+});
+
+test('runs one prompt without assertions through a provider identical to the routing eval', () => {
+  const probe = load('./claude.probe.config.js', { ROUTING_PROBE_PROMPT: 'List the skills.', ROUTING_WORKSPACE_ROOT: '/tmp/routing-probe-ws' });
+  assert.deepStrictEqual(probe.prompts, ['List the skills.']);
+  assert.strictEqual(probe.tests.length, 1);
+  assert.strictEqual(probe.tests[0].assert, undefined);
+  assert.strictEqual(probe.providers.length, 1);
+  const routing = load('./claude.config.js', { ROUTING_SKILL: 'konnect-gateway-triage', ROUTING_WORKSPACE_ROOT: '/tmp/routing-probe-ws' });
+  const complete = routing.providers.find((p) => p.label === 'claude-complete-turn');
+  assert.deepStrictEqual(probe.providers[0].config, complete.config);
+  assert.strictEqual(probe.providers[0].id, complete.id);
+  assert.strictEqual(probe.providers[0].config.working_dir, '/tmp/routing-probe-ws/claude');
+  assert.deepStrictEqual(probe.providers[0].config.setting_sources, ['project']);
+  assert.strictEqual(probe.providers[0].config.skills, 'all');
+});

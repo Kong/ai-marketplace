@@ -47,7 +47,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_compare.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ceilings.py",
   "npm ci --ignore-scripts --no-audit --no-fund",
-  "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js evals/promptfoo/claude.config.test.js evals/promptfoo/settings.test.js",
+  "node --test evals/promptfoo/scenarios.test.js evals/promptfoo/codex.config.test.js evals/promptfoo/claude.config.test.js evals/promptfoo/settings.test.js evals/promptfoo/claude.probe.config.test.js",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_settings.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_agents.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_coverage.py",
@@ -62,6 +62,7 @@ run = [
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_canary.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_ablation.py",
   "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_listing.py",
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/test_routing_listing_probe.py",
   "gh skill publish --dry-run",
 ]
 
@@ -127,6 +128,19 @@ run = [
   "npm ci --ignore-scripts --no-audit --no-fund",
   # Exit codes: 0 complete, 2 harness error (including a non-Claude agent), 3 incomplete (see docs/testing.md).
   "agent_args=; for agent in $usage_agent; do agent_args=\"$agent_args --agent $agent\"; done; uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_ablation.py {{usage.name}} $agent_args",
+]
+
+[tasks."eval:routing:probe"]
+description = "Listing probe (paid, ~$0.1, Claude only): ask the routing harness's Claude which skills and descriptions it sees: mise run eval:routing:probe -- [--listing default|name-only]"
+usage = '''
+flag "--listing <listing>" help="Skill-listing preset (default or name-only); default: ROUTING_SKILL_LISTING, else default"
+flag "--compare" help="Offline: compare the saved default and name-only probe reports instead of running the probe"
+'''
+env = { PROMPTFOO_CONFIG_DIR = ".tmp/promptfoo", PROMPTFOO_DISABLE_TELEMETRY = "1", PROMPTFOO_DISABLE_UPDATE = "1" }
+run = [
+  "npm ci --ignore-scripts --no-audit --no-fund",
+  # Exit codes: 0 verdict reached, 2 harness error, 3 incomplete (see docs/testing.md).
+  "uv run --python 3.12 --cache-dir .tmp/uv-cache python scripts/routing_listing_probe.py ${usage_listing:+--listing \"$usage_listing\"} $([ \"$usage_compare\" = true ] && echo --compare)",
 ]
 
 [tasks."eval:routing:config"]

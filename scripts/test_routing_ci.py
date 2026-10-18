@@ -205,6 +205,31 @@ class SelectTests(unittest.TestCase):
             self.assertIn("listing=name-only is ignored for mode=ablation", self.summary.read_text())
             self.assertEqual(self.run_select(EVENT_NAME="merge_group", BASE_SHA="b" * 40, HEAD_SHA=HEAD, MODE_INPUT="ablation")[0], 0)  # merge_group never reads it
 
+    def test_dispatch_probe_selects_one_claude_entry_with_a_tiny_cost_preview_and_ignores_skill(self) -> None:
+        for extra in ({}, {"SKILL_INPUT": "konnect-gateway-triage"}, {"SKILL_INPUT": "not a skill name; rm"}, {"AGENTS_INPUT": "claude"}):
+            with self.subTest(extra=extra):
+                code, out = self.run_select(EVENT_NAME="workflow_dispatch", MODE_INPUT="probe", **extra)
+                self.assertEqual(code, 0)
+                self.assertEqual(self.matrix(out), [{"skill": "listing-probe", "mode": "probe", "scenarios": "", "new": False, "count": 1}])
+                self.assertEqual((out["agents"], out["has_skills"]), ("claude", "true"))
+        text = self.summary.read_text()
+        self.assertIn("| listing-probe | probe | 1 | 1 | 1 |", text)
+        self.assertIn("| claude | 1 | 1 | $0.07 | $0.07 |", text)
+        self.assertNotIn("codex", text.split("Evaluation set")[1])
+        self.assertFalse(self.gate_select.called)
+
+    def test_dispatch_probe_input_validation_and_listing(self) -> None:
+        base = {"EVENT_NAME": "workflow_dispatch", "MODE_INPUT": "probe"}
+        for bad in ({"AGENTS_INPUT": "codex"}, {"AGENTS_INPUT": "claude,codex"}, {"LISTING_INPUT": "narrow"}):
+            with self.subTest(bad=bad):
+                self.assertEqual(self.run_select(**{**base, **bad})[0], 2)
+        for listing in ("", "default", "name-only"):  # the probe applies the listing, with agents defaulting to claude
+            self.assertEqual(self.run_select(**base, LISTING_INPUT=listing)[0], 0)
+        self.assertNotIn("is ignored", self.summary.read_text())
+        # never reachable from a pull request or the merge queue
+        self.assertEqual(self.run_select(EVENT_NAME="merge_group", BASE_SHA="b" * 40, HEAD_SHA=HEAD, MODE_INPUT="probe")[0], 0)
+        self.assertTrue(self.gate_select.called)
+
     def test_dispatch_listing_needs_claude_only_and_a_known_preset(self) -> None:
         base = {"EVENT_NAME": "workflow_dispatch", "MODE_INPUT": "changed"}
         self.assertEqual(self.run_select(**base, LISTING_INPUT="name-only")[0], 2)  # agents default to both
@@ -431,6 +456,51 @@ class EvaluateTests(unittest.TestCase):
         code, out = self.evaluate("ablation", **{C: "x"})
         self.assertEqual(code, 2)
         self.assertIn("title=partial", out)
+
+    def probe_doc(self, listing: str, exit_code: int, agents=("claude",)) -> None:
+        doc = {"mode": "probe", "agent": "claude", "listing": listing, "fingerprint": "f", "complete": exit_code == 0, "exit_code": exit_code,
+               "verdict": "names_only", "matching_share": 0.0, "offline": False, "reason": None,
+               "counts": {"skills": 2, "listed": 2, "description_shown": 0, "matching": 0, "unknown": 0, "ignored_lines": 0},
+               "skills": [{"skill": "a", "listed": True, "description_shown": False, "similarity": None, "matches": False, "shown_length": 0, "real_length": 9}],
+               "settings_requested": {"file": None, "content": None}, "note": "n", "usage": {"cost_usd": 0.07, "tokens": 9},
+               "agents_run": list(agents), "partial": len(agents) < 2}
+        self.reports.mkdir(parents=True, exist_ok=True)
+        (self.reports / f"probe-{listing}.json").write_text(json.dumps(doc))
+
+    def evaluate_probe(self, rc: int = 0, listing: str = "", **env) -> tuple[int, str, list]:
+        calls = []
+
+        def run(command, env, cwd, check):
+            calls.append((command, env))
+            self.probe_doc(listing or "default", rc)
+            return SimpleNamespace(returncode=rc)
+
+        env = {"SKILL": "listing-probe", "MODE": "probe", "SCENARIOS": "", "GITHUB_STEP_SUMMARY": str(self.summary), "EVENT_NAME": "workflow_dispatch",
+               "MODE_INPUT": "probe", "LISTING_INPUT": listing, "REQUESTED_AGENTS": "claude", **env}
+        out = io.StringIO()
+        with redirect_stdout(out):
+            code = ci.evaluate_main(env, run=run, repo=self.repo)
+        return code, out.getvalue(), calls
+
+    def test_probe_runs_the_probe_task_with_the_listing_and_never_blocks_on_the_verdict(self) -> None:
+        for listing in ("", "name-only"):
+            code, out, calls = self.evaluate_probe(listing=listing, **{C: "x"})
+            self.assertEqual(code, 0)
+            self.assertEqual(calls[-1][0], ["mise", "run", "eval:routing:probe"])
+            self.assertEqual(calls[-1][1].get("ROUTING_SKILL_LISTING"), listing or None)
+            record = json.loads((self.reports / "listing-probe.run.json").read_text())
+            self.assertEqual((record["exit_code"], record["listing"], record["mode"]), (0, listing or "default", "probe"))
+            self.assertIn("listing probe (claude", self.summary.read_text())
+            self.assertIn("measured cost: $0.0700", self.summary.read_text())
+
+    def test_probe_incomplete_fails_without_a_key_and_a_codex_scope_is_refused(self) -> None:
+        code, out, _ = self.evaluate_probe(rc=3, **{C: "x"})
+        self.assertEqual(code, 3)
+        self.assertIn("::error title=probe_incomplete::", out)
+        code, out, calls = self.evaluate_probe()  # no key: nothing runs and nothing passes
+        self.assertEqual((code, calls), (3, []))
+        code, out, calls = self.evaluate_probe(REQUESTED_AGENTS="codex", **{O: "y"})
+        self.assertEqual((code, calls), (2, []))  # the probe is Claude only
 
     def test_canary_with_no_agent_key_fails_instead_of_passing_unevaluated(self) -> None:
         code, _ = self.evaluate("canary", SCENARIOS="s1")

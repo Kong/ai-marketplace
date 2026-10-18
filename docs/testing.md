@@ -141,6 +141,7 @@ mise run eval:routing:compare -- konnect-gateway-triage --confirm     # full com
 mise run eval:routing:compare -- konnect-gateway-triage --gate        # lazy control, as the merge gate runs it (add --scenarios id,id to narrow)
 mise run eval:routing:canary -- konnect-gateway-triage --agent claude # eval of the eval: damage one description, see if the harness notices
 mise run eval:routing:ablation -- konnect-gateway-triage             # name-only ablation: which scenarios depend on the description? (Claude only, paid)
+mise run eval:routing:probe -- --listing default                     # listing probe: which skills and descriptions does Claude see? (Claude only, about $0.1)
 ROUTING_SKILL_LISTING=name-only mise run eval:routing -- skill konnect-gateway-triage --agent claude  # experimental skill-listing preset (Claude only)
 mise run eval:routing:config -- --json                               # effective settings (including the listing preset), offline
 mise run eval:routing:coverage                                        # which skills have scenarios, offline (--json too)
@@ -252,7 +253,7 @@ lives in `scripts/routing_ci.py` (`select`, `evaluate`) and the verdict in `scri
 | --- | --- | --- | --- |
 | Pull request push | `validate.yml`, plus a no-spend preview in the Select job summary: the selected scenarios, initial and worst-case trials per agent, a rough cost range, and the skills skipped because their routing surface did not change. A new skill below the scenario minimums only warns. | none, no secrets | passes immediately |
 | Merge queue (`merge_group`) | Only skills whose routing surface changed, or whose scenarios were edited, once for the queued commit (diff `base_sha...head_sha`), at scenario level with lazy control (see [Cost and selection](#cost-and-selection)). A queue entry is never cancelled by a later one. | yes, environment `skill-evals` | applies the policy below; fails the queue entry on `fail`, `blocked_infra`, `fail_no_agents` |
-| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)), or `ablation` (needs `skill`, Claude only, environment `skill-evals`; see [Scenario design](#scenario-design-description-dependence)); optional `agents` (`claude`, `codex`); and `listing` (`default`, `name-only`; Claude only, see [Skill listing presets](#skill-listing-presets-experiment)). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational; `canary` and `ablation` are diagnostics (the gate job passes without applying a policy) |
+| Manual (`workflow_dispatch`) | `mode` = `skill` (one skill; needs `skill`; no surface trigger, an explicit request runs), `changed` (vs `origin/main`, same selection as the queue), `all` (full suite), `canary` (needs `skill`; see [Canary](#canary-eval-of-the-eval)), `ablation` (needs `skill`, Claude only, environment `skill-evals`; see [Scenario design](#scenario-design-description-dependence)), or `probe` (no skill, Claude only, environment `skill-evals`; see [Listing probe](#listing-probe-diagnosis)); optional `agents` (`claude`, `codex`); and `listing` (`default`, `name-only`; Claude only, see [Skill listing presets](#skill-listing-presets-experiment)). `skill` and `changed` use the gate's lazy control. `all` runs both agents on every skill with scenarios as snapshots at the scenarios' own trials, prints the same cost estimate and the hard bound from the cost ceiling, and needs approval (environment `skill-evals-full`). | yes | reports the verdict and fails like the queue, but is not part of any merge gate; `all` is informational; `canary`, `ablation` and `probe` are diagnostics (the gate job passes without applying a policy) |
 
 The full suite is manual only and never part of the gate. A manual `skill` run on a ref with
 nothing beyond `main` is a snapshot, not a comparison with itself. Environments restrict where
@@ -554,6 +555,52 @@ Design guidance (not enforced; the ablation reports, it does not gate):
 - After adding or rewording scenarios, re-run the ablation and check that the new scenarios land in
   `description_dependent`. The [description-routing check](#description-routing-check) is the free
   complement for gross description damage.
+
+### Listing probe (diagnosis)
+
+The routing evals never verified what the model is actually shown: whether the skill **descriptions**
+reach it (or only the names), and whether the workspace `.claude/settings.json` of a
+[skill-listing preset](#skill-listing-presets-experiment) is honoured by the SDK run. Several experiments
+(marketing-copy descriptions still routing, name-only and default both passing, descriptions removed with
+most scenarios still passing) point to the hypothesis that the harness shows names only. The probe asks the
+same configured Claude directly:
+
+```bash
+mise run eval:routing:probe -- --listing default       # about $0.1, Claude only
+mise run eval:routing:probe -- --listing name-only
+mise run eval:routing:probe -- --compare               # offline: compare the two saved reports
+gh workflow run skill-evals.yml -f mode=probe -f listing=default -f agents=claude   # environment skill-evals; skill is ignored
+gh workflow run skill-evals.yml -f mode=probe -f listing=name-only -f agents=claude
+```
+
+It prepares the Claude workspace like every eval (same preset, integrity check, fingerprint) and runs one
+Promptfoo test through `evals/promptfoo/claude.probe.config.js`. The provider settings are shared with the
+routing config (`claude.provider.js`: model, workspace, `setting_sources`, `skills`, tool restrictions,
+permission mode, turn and budget limits); only the prompt differs, it asks the model to list every skill
+with its description verbatim or `NAME ONLY`, and nothing is asserted. The reply is parsed and compared with
+the workspace's `SKILL.md` descriptions (a similarity tolerant of truncation).
+
+Read the verdict in the console table, the job summary and `.tmp/routing/reports/probe-<listing>.json`
+(verdict, counts, per-skill listed / description shown / similarity / shown length, fingerprint, the settings
+requested, model and effort, the raw model output and the response metadata):
+
+| Verdict | Meaning |
+| --- | --- |
+| `descriptions_visible` | at least 90% of skills show a description matching the real one |
+| `partial` | between 10% and 90% do |
+| `names_only` | under 10% do: the model sees the names and (almost) no descriptions |
+| `inconclusive` | the reply listed none of the skills (exit 3): repeat it |
+
+The probe cannot by itself prove that the settings were honoured: it only shows what the model reports
+seeing. Run both listings and `--compare` them: if default and name-only show the same descriptions,
+name-only was **not honoured** (`not_honoured`; `--compare` reads `probe-default.json` and `probe-name-only.json` from `.tmp/routing/reports/`, so put the two CI artifacts' files there); a clear drop is `honoured` or `partly_honoured`; if the
+default listing already shows names only, the preset cannot be told apart (`indeterminate`) and the
+finding is that the harness does not show descriptions at all. The model's own account can also be wrong
+(it may paraphrase or invent), so treat a `partial` or surprising result as a reason to repeat the run,
+not as proof. Diagnosis only: in CI the `probe` mode uses the `skill-evals` environment, previews its cost
+(one trial, about $0.07 at the measured Claude price), uploads the reports as artifacts and never affects
+the merge gate (`routing-evals-gate` passes without applying a policy; `merge_group` and `pull_request`
+never run it). Exit codes: 0 verdict reached, 2 harness or usage error, 3 incomplete.
 
 ### Model and effort settings
 
