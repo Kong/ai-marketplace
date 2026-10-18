@@ -1,62 +1,81 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: terraform-konnect
 scenarios:
   - id: terraform-konnect-positive-1
-    prompt: "Our infra repo has a konnect module with provider \"konnect\" blocks. Add a staging control plane next to the prod one and keep the naming the same."
+    prompt: "Our HCL repo has one module per environment for Kong's cloud-hosted control planes. Add a staging one next to prod with the same naming and labels, and show me the plan."
     expect: [terraform-konnect]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: terraform-konnect-positive-2
-    prompt: "Somebody clicked together a dev portal in the Konnect UI months ago. We want it in our Terraform state now, without destroying and recreating it. What's the import path?"
+    prompt: "Someone built a developer portal by clicking around in Kong's SaaS UI months ago. Our .tf code should own it now. How do I bring it into state without a destroy-and-recreate?"
     expect: [terraform-konnect]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
   - id: terraform-konnect-positive-3
-    prompt: "konnect_gateway_plugin_rate_limiting fails terraform validate with 'expected object, got string' on config. I copied the block from an example. What's the real shape?"
+    prompt: "konnect_gateway_plugin_rate_limiting fails validate with 'expected object, got string' on config. I copied the block from a blog post. What's the real nested shape?"
     expect: [terraform-konnect]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, name-lure]
   - id: terraform-konnect-positive-4
-    prompt: "We already provision AWS and Datadog with Terraform Cloud. I'd like Kong's SaaS control planes and their services managed in the same workspace setup instead of clicking in the UI. Sketch the HCL for one control plane with one service."
+    prompt: "We already provision AWS and Datadog from HCL in one set of remote workspaces, while Kong's SaaS control planes and the services inside them are still click-ops. Sketch one control plane with one service written the same way."
     expect: [terraform-konnect]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: terraform-konnect-positive-5
-    prompt: "Is the beta provider actually needed for what we're doing, or does the official one cover API catalog entries now? Our .tf files pin both and I'd like to drop the beta one."
+    prompt: "Our .tf pins both the GA and the beta provider for Kong's cloud. Do we still need the beta one for Catalog APIs, or can we drop it and stay on one?"
     expect: [terraform-konnect]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
+  - id: terraform-konnect-positive-6
+    prompt: "Our Kong Gateway services, routes and plugins live inside a Konnect hybrid control plane, and the repo manages them in HCL. Add a /status route to the notifications service and show the plan."
+    expect: [terraform-konnect]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: terraform-konnect-positive-7
+    prompt: "We split our Terraform for Konnect into a platform root (teams, portals) and a runtime root (control planes, services). Add a key-auth application auth strategy for the partner portal in the platform root and show the plan."
+    expect: [terraform-konnect]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
   - id: terraform-konnect-near-miss-1
-    prompt: "terraform init hangs acquiring the state lock on our S3 backend with DynamoDB. How do I safely force-unlock?"
+    prompt: "Terraform created our control plane cleanly, but none of the data planes we started have ever shown as connected. Before anyone edits the .tf files, what's failing?"
     expect: []
     forbid: [terraform-konnect]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: terraform-konnect-near-miss-2
-    prompt: "Write a Terraform module for an Azure API Management instance with two named products."
+    prompt: "Our S3 backend's state lock is stuck from a cancelled CI run and every plan now waits on DynamoDB. How do I force-unlock safely?"
     expect: []
     forbid: [terraform-konnect]
     trials: 3
     tags: [near-miss]
   - id: terraform-konnect-near-miss-3
-    prompt: "Our Konnect control planes are in HCL, but the real issue is the data planes stopped receiving config after Tuesday. Before touching any .tf, what's failing?"
+    prompt: "We want a free tier in Konnect: 500 calls a month at no cost, then the paid plan kicks in. Which billing entities do I need, and in what order?"
     expect: []
     forbid: [terraform-konnect]
     trials: 3
     tags: [near-miss]
   - id: terraform-konnect-near-miss-4
-    prompt: "We want a free tier in Konnect metering: 500 calls a month at no cost, then the paid plan kicks in. Which entities do I need and in what order?"
+    prompt: "Our self-managed Kong on bare metal is configured via the kong/kong-gateway Terraform provider. Add a certificate and an SNI for api.example.com."
+    expect: []
+    forbid: [terraform-konnect]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: terraform-konnect-near-miss-5
+    prompt: "The API we manage in HCL is on the portal, but developers' app registrations sit in pending forever even though auto-approve is on for that strategy. What's blocking them?"
     expect: []
     forbid: [terraform-konnect]
     trials: 3
     tags: [near-miss]
-  - id: terraform-konnect-near-miss-5
-    prompt: "Our self-managed Kong on bare metal is configured with the kong/kong-gateway provider. Add a certificate and an SNI for api.example.com."
+  - id: terraform-konnect-near-miss-6
+    prompt: "We're standing up the first control plane for the new EU team in Kong's cloud. Should their proxy nodes be Kong-run or live in our own VPC, which region fits, and what naming? We'll codify it once decided."
     expect: []
     forbid: [terraform-konnect]
     trials: 3
@@ -68,55 +87,55 @@ scenarios:
     trials: 1
     tags: [sibling]
   - id: terraform-konnect-sibling-2
-    prompt: "inherited an undocumented konnect org. portals, catalog, analytics, CPs. what's broken? help me get a handle on it"
+    prompt: "inherited a konnect org with zero docs. portals, catalog, analytics, control planes. what's broken and where do i even start"
     expect: [konnect-platform-router]
     forbid: [terraform-konnect]
     trials: 1
     tags: [sibling]
   - id: terraform-konnect-sibling-3
-    prompt: "Our Konnect control plane's services and routes live in kong.yaml files run by deck in CI. Add a request-size-limiting plugin to the uploads route and preview it."
+    prompt: "The org-level Konnect resources are Terraform, but our control plane's services live in kong.yaml files run by deck in CI. Add request-size-limiting to the uploads route and preview it."
     expect: [deck-gateway]
     forbid: [terraform-konnect]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: terraform-konnect-sibling-4
-    prompt: "The control plane itself is created by Terraform, but the routes inside it are synced from deck state files. Add a new route for /healthz to the profile service."
+    prompt: "Generate the services and routes for the new invoices API from its OpenAPI file and add them to the decK files for our Konnect control plane."
     expect: [deck-gateway]
     forbid: [terraform-konnect]
     trials: 1
     tags: [sibling]
   - id: terraform-konnect-sibling-5
-    prompt: "Our Konnect platform config is YAML applied with kongctl. Add an application auth strategy for key auth and wire it to the partner portal."
+    prompt: "Our Konnect platform config is YAML applied with kongctl. Add a key-auth application auth strategy and attach it to the partner portal."
     expect: [kongctl-declarative]
     forbid: [terraform-konnect]
     trials: 1
     tags: [sibling]
   - id: terraform-konnect-sibling-6
-    prompt: "Set up a pull-request check that posts a kongctl plan for our konnect directory, and apply on merge."
+    prompt: "I'd write this in Terraform if it were up to me, but the repo drives Konnect with kongctl plan and apply. Add the new partner portal and its two landing pages there."
     expect: [kongctl-declarative]
     forbid: [terraform-konnect]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: terraform-konnect-sibling-7
     prompt: "Our Terraform Cloud run against Konnect fails with 403 on the control plane resource, but the same token worked last month. Is it the token's role, the team, or the region?"
     expect: [konnect-access-scope]
     forbid: [terraform-konnect]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: terraform-konnect-sibling-8
-    prompt: "A new engineer is in the Okta group for platform admins but still can't edit any control planes in Konnect. Why doesn't the group grant it?"
+    prompt: "A new engineer is in the Okta group mapped to platform admins but still can't edit any control plane in Konnect. Why doesn't the group grant it?"
     expect: [konnect-access-scope]
     forbid: [terraform-konnect]
     trials: 1
     tags: [sibling]
   - id: terraform-konnect-sibling-9
-    prompt: "Terraform applied cleanly and created the API and its version in Konnect, yet external developers still don't see it on the portal. Where in the chain is it stuck?"
+    prompt: "terraform apply was clean and created the API and its version in Konnect, yet external developers still don't see it on the portal. Where in the chain is it stuck?"
     expect: [konnect-api-publish]
     forbid: [terraform-konnect]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: terraform-konnect-sibling-10
-    prompt: "Plan and apply were clean and the tickets API exists, but partners land on a not-found page for it on the portal even though the menu links to it. Is it published to their audience?"
+    prompt: "Plan and apply were clean and the tickets API exists, but partners hit a not-found page when they follow the portal menu link to it. Is it published to their audience?"
     expect: [konnect-api-publish]
     forbid: [terraform-konnect]
     trials: 1

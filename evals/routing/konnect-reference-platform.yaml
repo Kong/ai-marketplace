@@ -1,66 +1,79 @@
 # Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: konnect-reference-platform
 scenarios:
   - id: konnect-reference-platform-positive-1
-    prompt: "We have twelve service teams and one platform team on Konnect. How should we split repos so services own their APIs and specs while the platform team keeps control of production gateway config and RBAC?"
+    prompt: "We run Kong's SaaS with twelve service teams and one central team. Service teams should own their API contracts, versions and portal listings; the central team should own production routing, RBAC and the portals themselves. How do we split repos and CI tokens so that ownership actually holds?"
     expect: [konnect-reference-platform]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-reference-platform-positive-2
-    prompt: "Our Konnect setup uses a git branch per environment and a homegrown registry file that maps service names to UUIDs. Leadership wants a supported model. What should the target architecture look like?"
+    prompt: "Our Kong cloud org uses a git branch per environment plus a homegrown registry file that maps service names to UUIDs. Leadership wants us to modernize onto a supported model. What should the target layout of repos and environments look like?"
     expect: [konnect-reference-platform]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: konnect-reference-platform-positive-3
-    prompt: "design how a service's openapi goes from dev to prod in konnect across a service repo and a platform repo, with review and provenance"
+    prompt: "design how a service's openapi goes from dev to prod in kong across a service repo and a central repo, ending up in the Catalog and on the gateway, with review and provenance (source commit + checksum)"
     expect: [konnect-reference-platform]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
   - id: konnect-reference-platform-positive-4
-    prompt: "Review our proposed Konnect layout: kongctl manifests for portals and catalog in a central repo, decK files generated per service, CI identities per team. Where are the ownership holes before we roll it out org-wide?"
+    prompt: "Review our proposed layout: kongctl manifests for portals and Catalog in a central repo, decK files generated per service, one CI identity per team. Where are the ownership holes before we roll it out org-wide?"
     expect: [konnect-reference-platform]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, name-lure]
   - id: konnect-reference-platform-positive-5
-    prompt: "We want a working example other business units can copy: one public and one protected API, flowing from spec to Catalog to portal to gateway with app auth, split between a platform repo and service repos. How should it be structured and validated?"
+    prompt: "We want a working example other business units can copy in Kong: one public and one protected API, flowing from spec to Catalog to portal to gateway with app registration, split between a central repo and service repos, with promotion from dev to prod. How should it be structured, and how do we prove it works?"
+    expect: [konnect-reference-platform]
+    forbid: []
+    trials: 3
+    tags: [positive, symptom-only, name-lure]
+  - id: konnect-reference-platform-positive-6
+    prompt: "How should production promotion work in our federated Konnect setup? Service teams generate decK from OpenAPI, and prod gateway config must be the exact reviewed artifact, copied into the platform repo with provenance."
     expect: [konnect-reference-platform]
     forbid: []
     trials: 3
     tags: [positive]
   - id: konnect-reference-platform-near-miss-1
-    prompt: "Should we move our backend services into a Nx monorepo or keep polyrepos? We have about 30 Node services."
-    expect: []
-    forbid: [konnect-reference-platform]
-    trials: 3
-    tags: [near-miss]
-  - id: konnect-reference-platform-near-miss-2
     prompt: "Draw a reference architecture for a multi-region EKS platform with Istio and Argo CD."
     expect: []
     forbid: [konnect-reference-platform]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
+  - id: konnect-reference-platform-near-miss-2
+    prompt: "The platform team needs one new control plane in Konnect for the analytics group in Frankfurt. Should its nodes run on Kong's infrastructure or ours, and what do we call it?"
+    expect: []
+    forbid: [konnect-reference-platform]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: konnect-reference-platform-near-miss-3
-    prompt: "Create one new control plane in Konnect for the analytics team in eu. Hosted or self-hosted data planes?"
+    prompt: "Which least-privilege Konnect role should the CI token get that applies only the Bookings API resources, so it can touch those and nothing else in the org?"
     expect: []
     forbid: [konnect-reference-platform]
     trials: 3
     tags: [near-miss]
   - id: konnect-reference-platform-near-miss-4
-    prompt: "Add one route for /v3/bookings to the bookings service in our existing decK file."
+    prompt: "The platform team's partner portal shows the Ledger API's v1 docs but not v2, even though v2 is the current version. Did v2 never get published there?"
     expect: []
     forbid: [konnect-reference-platform]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: konnect-reference-platform-near-miss-5
-    prompt: "Write a GitFlow branching guide for our team with release and hotfix branches."
+    prompt: "The platform team pushed a config change to the production control plane an hour ago; the control plane shows it, but no data plane has picked it up. What's failing?"
     expect: []
     forbid: [konnect-reference-platform]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
+  - id: konnect-reference-platform-near-miss-6
+    prompt: "Our platform team wants the developer portal home page to match the corporate website: same colors, fonts and hero imagery."
+    expect: []
+    forbid: [konnect-reference-platform]
+    trials: 3
+    tags: [near-miss, name-lure]
   - id: konnect-reference-platform-sibling-1
     prompt: "Our Konnect org has grown messy: some APIs don't show for partners, a gateway or two looks unhealthy, and a few people can't edit things. Before any redesign, which area should we look at first?"
     expect: [konnect-platform-router]
@@ -68,19 +81,19 @@ scenarios:
     trials: 1
     tags: [sibling]
   - id: konnect-reference-platform-sibling-2
-    prompt: "konnect estate off since migration. access? gateways? portal? no idea. triage it for me"
+    prompt: "konnect estate feels off since the migration. access? gateways? portal? unclear who owns any of it. sort out where to look first"
     expect: [konnect-platform-router]
     forbid: [konnect-reference-platform]
     trials: 1
     tags: [sibling]
   - id: konnect-reference-platform-sibling-3
-    prompt: "The architecture is decided. Now in the platform repo's kongctl manifests, add the dev and prod Ledger API entries and their portal publications, and give me the plan."
+    prompt: "The architecture is decided. In the platform repo's kongctl manifests, add the dev and prod Ledger API entries and their portal publications, and give me the plan."
     expect: [kongctl-declarative]
     forbid: [konnect-reference-platform]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]
   - id: konnect-reference-platform-sibling-4
-    prompt: "Write a GitHub Actions job that runs kongctl plan on PRs to our platform repo and kongctl apply on merge, without sync deletes."
+    prompt: "Add a CI step to our central repo that validates every kongctl manifest and fails the pull request when the plan contains any delete."
     expect: [kongctl-declarative]
     forbid: [konnect-reference-platform]
     trials: 1
@@ -92,32 +105,32 @@ scenarios:
     trials: 1
     tags: [sibling]
   - id: konnect-reference-platform-sibling-6
-    prompt: "In the bookings service repo, run a scoped deck diff against the dev control plane for just our tagged entities before I sync."
+    prompt: "Add a /v3/bookings route to the bookings service in our decK file and run a scoped diff against the dev control plane for just our tagged entities."
     expect: [deck-gateway]
     forbid: [konnect-reference-platform]
     trials: 1
     tags: [sibling]
   - id: konnect-reference-platform-sibling-7
-    prompt: "In our new setup the protected Ledger API is published with an OIDC strategy, but developers' registrations never get approved. Where is it stuck?"
+    prompt: "The protected Ledger API is published with an OIDC strategy, but developers' registrations never get approved. Where is it stuck?"
     expect: [konnect-app-auth]
     forbid: [konnect-reference-platform]
     trials: 1
     tags: [sibling]
   - id: konnect-reference-platform-sibling-8
-    prompt: "Partner developers' registrations for the Ledger API were approved, but the gateway still rejects their tokens. The publication picks the OIDC strategy. What's the next check?"
+    prompt: "Partner registrations for the Ledger API were approved, but their calls still get 401 with the issued client credentials. The publication picks the OIDC strategy. What's the next check?"
     expect: [konnect-app-auth]
     forbid: [konnect-reference-platform]
     trials: 1
     tags: [sibling]
   - id: konnect-reference-platform-sibling-9
-    prompt: "The Bookings API in Konnect has a spec for 3.1 but the current version is still 3.0, and the docs page is empty. What's incomplete on the API itself?"
+    prompt: "The Bookings API has a 3.1 spec uploaded, but its current version still says 3.0 and the docs page is empty. What's incomplete on the API itself?"
     expect: [konnect-api-catalog]
     forbid: [konnect-reference-platform]
     trials: 1
     tags: [sibling]
   - id: konnect-reference-platform-sibling-10
-    prompt: "Is the dev Bookings API in Konnect linked to the dev gateway service or the prod one? I want the implementation link checked before anyone publishes."
+    prompt: "In our new reference setup, is the dev Bookings API linked to the dev gateway service or the prod one? Check the implementation link before anyone publishes."
     expect: [konnect-api-catalog]
     forbid: [konnect-reference-platform]
     trials: 1
-    tags: [sibling]
+    tags: [sibling, name-lure]

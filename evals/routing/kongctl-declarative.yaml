@@ -1,123 +1,141 @@
-# Pilot scenarios plus a baseline top-up suggested by an agent; the top-up is pending skill-owner review.
-# Top-up: kongctl-declarative-positive-5, near-miss-5, sibling-4..10.
+# Baseline scenarios suggested by an agent; pending skill-owner review.
+# Revision 2: symptom-only and name-lure prompts added to test beyond name matching.
 skill: kongctl-declarative
 scenarios:
   - id: kongctl-declarative-positive-1
-    prompt: "We keep our Konnect config as kongctl YAML in git. Add a new control plane and a service for the orders backend and show me how to preview the change before applying."
+    prompt: "Our Konnect config lives in a repo of YAML files, each opening with a defaults block that assigns the file to the orders team. Add a staging control plane and a Catalog API entry for the orders backend, and show me how to preview it before anything is applied."
     expect: [kongctl-declarative]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: kongctl-declarative-positive-2
-    prompt: "I have an OpenAPI file for our billing API. Turn it into a Konnect API entry using kongctl, with the spec attached, in our existing config folder."
+    prompt: "Someone clicked together the rewards developer portal by hand months ago. Every other portal is owned by our YAML repo through plan/apply with per-team namespaces. Bring this one under the repo without recreating it, and keep its URL."
     expect: [kongctl-declarative]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only, name-lure]
   - id: kongctl-declarative-positive-3
-    prompt: "Set up a GitHub Actions pipeline that shows a kongctl plan on pull requests and applies it when merged to main."
+    prompt: "Our Konnect YAML manifests pull spec content in from repo files and link resources by name instead of IDs. I want a GitHub Actions setup that posts the plan on every pull request and applies on merge to main, with no sync deletes on main for now."
     expect: [kongctl-declarative]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: kongctl-declarative-positive-4
-    prompt: "There's a portal that someone created by hand in Konnect. Bring it under kongctl management without recreating it."
+    prompt: "The sync preview wants to delete three APIs that belong to the payments team, but I only edited the search team's file. The two files set different namespaces in their defaults block. Why is it picking up their APIs, and how do I scope the run?"
     expect: [kongctl-declarative]
     forbid: []
     trials: 3
-    tags: [positive]
+    tags: [positive, symptom-only]
   - id: kongctl-declarative-positive-5
-    prompt: "Our konnect/ folder has _defaults.kongctl plus a pile of portal and api yaml. Remove the deprecated legacy-invoices API from it and walk me through making sure the sync doesn't take anything else with it."
+    prompt: "A quick query showed the loyalty API exists live but isn't in our kongctl config. Pull it into the declarative files under the right namespace instead of recreating it."
+    expect: [kongctl-declarative]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: kongctl-declarative-positive-6
+    prompt: "Turn our three billing OpenAPI files (v1, v2, v3) into Catalog API versions in our kongctl YAML. Leave the specs where they are and pull title and description from each spec instead of copying text."
+    expect: [kongctl-declarative]
+    forbid: []
+    trials: 3
+    tags: [positive, name-lure]
+  - id: kongctl-declarative-positive-7
+    prompt: "kongctl plan errors with '!file ../../specs/payments.yaml is outside the base directory'. the specs sit at the repo root. fix?"
     expect: [kongctl-declarative]
     forbid: []
     trials: 3
     tags: [positive]
   - id: kongctl-declarative-near-miss-1
-    prompt: "Write a GitHub Actions workflow that runs eslint and jest on every pull request for my Node project."
+    prompt: "The partner API we manage in kongctl YAML applied fine and shows up in Catalog, but partners still can't find it on the portal. What's missing between Catalog and the portal?"
     expect: []
     forbid: [kongctl-declarative]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: kongctl-declarative-near-miss-2
-    prompt: "Convert this Kubernetes Deployment YAML into a Helm chart with configurable replicas and image tag."
+    prompt: "Our kongctl apply job started failing with 403 on control planes after the CI token was moved to a different team. Which Konnect role or team assignment is that system account now missing?"
     expect: []
     forbid: [kongctl-declarative]
     trials: 3
-    tags: [near-miss]
+    tags: [near-miss, name-lure]
   - id: kongctl-declarative-near-miss-3
-    prompt: "Validate this OpenAPI 3.1 document for style problems and suggest better operation IDs."
+    prompt: "After yesterday's apply the new control plane exists, but none of the three proxy nodes we started have connected and no config is arriving. Which layer is failing?"
     expect: []
     forbid: [kongctl-declarative]
     trials: 3
     tags: [near-miss]
   - id: kongctl-declarative-near-miss-4
-    prompt: "Show me how to structure a Terraform module for AWS VPCs with public and private subnets."
+    prompt: "Catalog flags the Orders API from our kongctl manifests as not ready: the v3 version has no spec and two doc pages hang off nothing. What's incomplete on the API object?"
+    expect: []
+    forbid: [kongctl-declarative]
+    trials: 3
+    tags: [near-miss, name-lure]
+  - id: kongctl-declarative-near-miss-5
+    prompt: "Price our partner API in Konnect: 10k calls a month free, then $0.002 per call, invoiced monthly. Which meters, features and plans do I need, and does the overage math work?"
     expect: []
     forbid: [kongctl-declarative]
     trials: 3
     tags: [near-miss]
-  - id: kongctl-declarative-near-miss-5
-    prompt: "kubectl apply keeps failing with 'field is immutable' on my Deployment selector. How do I change the labels without downtime?"
+  - id: kongctl-declarative-near-miss-6
+    prompt: "Lint this OpenAPI 3.1 document with Spectral and suggest clearer operationIds and tag names."
     expect: []
     forbid: [kongctl-declarative]
     trials: 3
     tags: [near-miss]
   - id: kongctl-declarative-sibling-1
-    prompt: "Just run kongctl and list which APIs exist in my Konnect org as JSON. I only want to look, not change anything."
-    expect: [kongctl-query]
+    prompt: "Half our Konnect estate is in git and half was clicked in the UI. APIs, portals and gateways disagree with the repos, and I can't tell whether it's config, publication or permissions. Where do we even start?"
+    expect: [konnect-platform-router]
     forbid: [kongctl-declarative]
     trials: 1
     tags: [sibling]
   - id: kongctl-declarative-sibling-2
-    prompt: "Our infrastructure repo is all HCL with the Konnect provider. Add a new control plane there and show the plan output."
-    expect: [terraform-konnect]
+    prompt: "partners get 403 on the ledger API we exposed through konnect last week. gateway? their portal registration? something an admin changed? and since then analytics for it is empty and two admins lost edit rights. no idea who owns this one"
+    expect: [konnect-platform-router]
     forbid: [kongctl-declarative]
     trials: 1
     tags: [sibling]
   - id: kongctl-declarative-sibling-3
-    prompt: "In our decK-managed repo, add a rate-limiting plugin to the checkout service and diff it against the gateway."
-    expect: [deck-gateway]
-    forbid: [kongctl-declarative]
-    trials: 1
-    tags: [sibling]
-  - id: kongctl-declarative-sibling-4
-    prompt: "Our Konnect config is spread across a few repos and the UI. APIs, portals, and gateways disagree with what's in git, and I can't tell if it's a config problem, a publication problem, or permissions. Where do we even start?"
-    expect: [konnect-platform-router]
-    forbid: [kongctl-declarative]
-    trials: 1
-    tags: [sibling]
-  - id: kongctl-declarative-sibling-5
-    prompt: "Partners get 403 calling the Ledger API we exposed through Konnect last week. Could be the gateway, could be their portal registration, could be something an admin changed. Not sure who should pick this up."
-    expect: [konnect-platform-router]
-    forbid: [kongctl-declarative]
-    trials: 1
-    tags: [sibling]
-  - id: kongctl-declarative-sibling-6
-    prompt: "With kongctl, how do I see the versions under the shipments API without changing anything? I can't work out the path for nested resources."
+    prompt: "A nightly GitHub Actions job runs `kongctl get apis -o json` for an inventory report. How do I shape it with --jq so it prints only each API's name and how many versions it has?"
     expect: [kongctl-query]
     forbid: [kongctl-declarative]
     trials: 1
     tags: [sibling]
-  - id: kongctl-declarative-sibling-7
-    prompt: "Our kong.yaml (_format_version 3.0) needs a /v2/refunds route on the payments service. Show the validate and diff steps before anything goes live."
+  - id: kongctl-declarative-sibling-4
+    prompt: "Before we write any manifests: from the CLI, which Konnect org and region does my current profile point to, and is the payments control plane visible to it? Read-only kongctl, JSON."
+    expect: [kongctl-query]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling]
+  - id: kongctl-declarative-sibling-5
+    prompt: "Our kong.yaml (_format_version 3.0) needs a /v2/refunds route on the payments service. Show the validate and diff steps before it goes live."
     expect: [deck-gateway]
     forbid: [kongctl-declarative]
     trials: 1
     tags: [sibling]
-  - id: kongctl-declarative-sibling-8
-    prompt: "We run Konnect through Terraform Cloud workspaces. Someone created a portal in the UI last month; bring it into state instead of recreating it."
+  - id: kongctl-declarative-sibling-6
+    prompt: "The Konnect control plane itself is declared in our kongctl YAML, but its services and routes are kept in decK files. Add the bot-detection plugin to the login route."
+    expect: [deck-gateway]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling, name-lure]
+  - id: kongctl-declarative-sibling-7
+    prompt: "Our infra repo is all HCL with the konnect provider. Add a new portal with a key-auth application auth strategy and show the plan output."
     expect: [terraform-konnect]
     forbid: [kongctl-declarative]
     trials: 1
     tags: [sibling]
+  - id: kongctl-declarative-sibling-8
+    prompt: "We tried kongctl in a spike, but the real Konnect config lives in Terraform Cloud workspaces. A portal someone created in the UI last month needs to come into state without being recreated."
+    expect: [terraform-konnect]
+    forbid: [kongctl-declarative]
+    trials: 1
+    tags: [sibling, name-lure]
   - id: kongctl-declarative-sibling-9
-    prompt: "Our on-prem Kong Enterprise is configured through HCL against the Admin API. Add key-auth to the inventory service and show the plan."
+    prompt: "Our on-prem Kong Enterprise is configured through HCL against the admin API. Add key-auth to the inventory service and show the plan."
     expect: [terraform-kong-gateway]
     forbid: [kongctl-declarative]
     trials: 1
     tags: [sibling]
   - id: kongctl-declarative-sibling-10
-    prompt: "Repo has Terraform for our self-hosted gateways. Someone hand-created a route with curl against port 8001; get it into Terraform state without recreating it."
+    prompt: "The repo has HCL for our self-hosted proxy cluster. Add the new wildcard certificate and its SNIs to it and show the plan."
     expect: [terraform-kong-gateway]
     forbid: [kongctl-declarative]
     trials: 1
