@@ -1,6 +1,6 @@
 ---
 name: technical-writing
-description: Write task-oriented developer documentation and Dev Portal page copy in plain, active-voice prose with clear, scannable structure. Use when authoring or editing technical docs, API guides, and page content.
+description: Write task-oriented developer documentation and Dev Portal page copy in plain, active-voice prose with clear, scannable structure. Use when authoring or editing technical docs, API guides, or page content.
 license: MIT
 metadata:
   product: konnect
