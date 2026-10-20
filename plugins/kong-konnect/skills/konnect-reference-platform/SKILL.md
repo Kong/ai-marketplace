@@ -115,25 +115,29 @@ the exact compatibility dependency; do not replace it with a custom registry.
 
 ### 5. Model consumer authorization end to end
 
-Keep publication visibility, Gateway authentication, and Portal application
-access control separate.
+Keep Portal visibility, application access, and passenger identity separate.
 
-- The platform team owns shared Consumers and asymmetric JWT verification
-  credentials. Private signing keys remain in a secret manager.
-- Service teams configure JWT only on protected Gateway Services and declare
-  bearer authentication in their OpenAPI contracts.
-- Protected publications omit `auth_strategy_ids` when JWT is the only client
-  credential. Selecting a Portal application strategy would add a second,
-  independent credential requirement.
-- Public services omit authentication plugins and remain callable without
-  Portal registration, API keys, or JWTs.
-- If ACE is global, validate its behavior separately from JWT. A required
-  operation match must not be mistaken for application authentication.
-- Verify the authentication plugin replaces client-supplied identity headers
-  with the authenticated Consumer identity before proxying upstream.
+- For the KongAirlines baseline, use platform-owned Key Auth application
+  strategies. Service publications select the stage's strategy; developers
+  register applications and generate API keys through Dev Portal.
+- Use global ACE with an anonymous Consumer for public operations. Protected
+  Services or Routes must explicitly reject anonymous fallback after ACE.
+  `match_policy: if_present` does not exempt mapped public operations.
+- Forward ACE's authenticated application ID through an overwritten internal
+  account header. Gateway 3.16 exposes it in
+  `kong.ctx.shared.ace.application_id`; verify that integration on upgrades.
+  Reject anonymous fallback even when an application ID was partially resolved.
+- Use the application ID for isolated synthetic customer and bookings accounts.
+  Key rotation must preserve the account. Application credentials do not
+  authenticate an individual passenger.
+- Verify public access without credentials, rejection of invalid and
+  unregistered keys, approved registration, forged-header replacement, and
+  isolation between two applications. Report simulated authentication tests
+  separately from tests with real Portal-issued keys.
 
-Hand off a deliberately chosen Portal registration flow to `konnect-app-auth`,
-and Gateway plugin configuration to `deck-gateway`.
+Use `konnect-app-auth` for strategy and registration details, and
+`deck-gateway` for runtime policy. Treat external OIDC and passenger login as
+deliberate extensions rather than prerequisites for the built-in Key Auth flow.
 
 ### 6. Validate the architecture as a working example
 

@@ -9,7 +9,7 @@ repository boundaries, CI identities, or production promotion.
 |---|---|---|
 | Organization teams, RBAC, and automation identities | Platform | Platform |
 | Control planes and Portals | Platform | Platform |
-| Shared Gateway Consumers and JWT verification credentials | Platform | Platform |
+| Application auth strategies and the anonymous Gateway Consumer | Platform | Platform |
 | Catalog APIs, versions, specs, and publications | Service | Service |
 | Catalog implementation links | Service | Service |
 | Gateway configuration | Service, within its owned development slice | Platform-governed copy of the service artifact |
@@ -89,7 +89,7 @@ source of truth, but it must retain traceability to the service-authored source.
 - release automation refuses overwrites and opens a service pull request
 - every entity has environment, team, owner, and repository-scope tags
 - service-owned production files do not declare global plugins
-- protected service artifacts contain their intended authentication plugin;
+- protected service artifacts enforce approved application access after ACE;
   public service artifacts contain none
 - private signing keys and bearer tokens never enter declarative state, logs,
   pull-request comments, or documentation
